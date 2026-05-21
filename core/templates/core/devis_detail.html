@@ -1,0 +1,1114 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ devis.reference }}{% endblock %}
+{% block nav_devis %}active{% endblock %}
+
+{% block topbar_title %}
+  <span style="color:rgba(255,255,255,.4);font-size:11px">Devis /</span>
+  <span style="color:#fff;font-weight:500">{{ devis.reference }}</span>
+  <span style="color:rgba(255,255,255,.45)">— {{ devis.client }}</span>
+  <span class="badge b-{{ devis.status }}" style="font-size:11px"><span class="dot dot-{{ devis.status }}"></span>{{ devis.get_status_display }}</span>
+{% endblock %}
+
+{% block topbar_actions %}
+  <form method="post" action="{% url 'core:devis-status' devis.pk %}" style="display:flex;gap:6px;align-items:center">
+    {% csrf_token %}
+    <select name="status" class="btn btn-ghost btn-sm" onchange="this.form.submit()">
+      {% for val,label in devis.STATUS_CHOICES %}
+      <option value="{{ val }}" {% if devis.status == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <a href="{% url 'core:devis-duplicate' devis.pk %}" class="btn btn-ghost btn-sm"><i class="ti ti-copy"></i> Dupliquer</a>
+  <button onclick="document.getElementById('modal-facture').classList.remove('hidden')" class="btn btn-ghost btn-sm"><i class="ti ti-receipt"></i> Nouvelle facture</button>
+  <a href="{% url 'core:devis-pdf' devis.pk %}" target="_blank" class="btn btn-ghost btn-sm"><i class="ti ti-eye"></i> Vue client</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.tabs{background:#fff;border-bottom:1px solid var(--gray-bd);display:flex;padding:0 1.25rem;flex-shrink:0}
+.tab{padding:10px 14px;font-size:13px;color:var(--gray-md);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
+.tab.on{color:var(--prune);border-bottom-color:var(--prune);font-weight:500}
+.tab:hover:not(.on){color:var(--gray)}
+.tab-pane{display:none;flex:1;overflow:hidden;flex-direction:column}.tab-pane.on{display:flex}
+
+/* EDITOR */
+.editor-shell{display:flex;flex:1;overflow:hidden}
+.lib-panel{width:195px;background:#fff;border-right:1px solid var(--gray-bd);display:flex;flex-direction:column;flex-shrink:0}
+.lib-hd{padding:8px 10px;border-bottom:1px solid var(--gray-bd);font-size:10px;font-weight:600;color:var(--gray-md);text-transform:uppercase;letter-spacing:.07em}
+.lib-search{padding:5px 8px;border-bottom:1px solid var(--gray-bd)}
+.lib-search input{width:100%;padding:4px 8px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;background:var(--gray-lt)}
+.lib-search input:focus{border-color:var(--teal)}
+.lib-list{overflow-y:auto;flex:1}
+.lib-item{padding:6px 10px;border-bottom:1px solid var(--gray-bd);cursor:pointer;display:flex;align-items:flex-start;gap:6px;user-select:none}
+.lib-item:hover{background:var(--teal-lt)}
+.lib-item:hover .lib-name{color:var(--teal-dk)}
+.lib-tag{font-size:10px;padding:2px 5px;border-radius:3px;font-weight:500;flex-shrink:0;margin-top:1px}
+.lt-F{background:#E1F5EE;color:#085041}
+.lt-S{background:var(--teal-lt);color:var(--teal-dk)}
+.lt-C{background:var(--prune-lt);color:var(--prune-dk)}
+.lib-name{font-size:12px;line-height:1.3}
+.lib-det{font-size:11px;color:var(--gray-md);margin-top:1px}
+
+.editor-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.editor-meta{background:#fff;border-bottom:1px solid var(--gray-bd);padding:7px 1rem;display:flex;gap:1rem;align-items:center;flex-shrink:0;flex-wrap:wrap}
+.meta-f{display:flex;flex-direction:column;gap:1px}
+.meta-lbl{font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em}
+.meta-val{font-size:12px;font-weight:500}
+.meta-sep{width:1px;background:var(--gray-bd);height:22px;flex-shrink:0}
+
+.editor-body{flex:1;overflow-y:auto;padding:1rem;background:var(--bg)}
+.editor-foot{background:#fff;border-top:1px solid var(--gray-bd);padding:9px 1rem;display:flex;justify-content:flex-end;align-items:baseline;gap:1.5rem;flex-shrink:0}
+.ft-lbl{font-size:11px;color:var(--gray-md)}
+.ft-val{font-size:12px;font-weight:500;font-variant-numeric:tabular-nums}
+.ft-grand{font-size:20px;font-weight:600;color:var(--prune);font-variant-numeric:tabular-nums}
+.ft-net{font-size:14px;font-weight:600;color:var(--teal-dk);font-variant-numeric:tabular-nums}
+
+/* TREE NODES */
+.tree-node{margin-bottom:3px}
+.node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:34px}
+.node-row:hover{border-color:#BBBAB8}
+.node-row.drag-over{border:1.5px dashed var(--teal);background:var(--teal-lt)}
+.node-row.is-neg{background:#FFF8F7;border-color:#F5C6C2}
+.toggler{width:16px;height:16px;border-radius:3px;border:1px solid var(--gray-bd);background:var(--gray-lt);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:10px;color:var(--gray-md);user-select:none}
+.toggler.leaf{visibility:hidden}
+.nbadge{font-size:10px;padding:2px 5px;border-radius:3px;font-weight:500;flex-shrink:0}
+.nb-F{background:#E1F5EE;color:#085041}
+.nb-S{background:var(--teal-lt);color:var(--teal-dk)}
+.nb-C{background:var(--prune-lt);color:var(--prune-dk)}
+.nb-MO{background:var(--amber-lt);color:#8B5E0A}
+.nb-MAT{background:#EAF3DE;color:#27500A}
+.nb-OUV{background:var(--teal-lt);color:var(--teal-dk)}
+.nb-FIN{background:var(--red-lt);color:var(--red)}
+
+.node-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--prune);
+  flex-shrink: 0;
+  min-width: 30px;
+  font-variant-numeric: tabular-nums;
+}
+.nb-TITRE {
+  background: var(--prune-lt);
+  color: var(--prune-dk);
+}
+.nd-total.titre-total {
+  color: var(--prune);
+  font-weight: 600;
+}
+
+/* DRAG DROP */
+.drop-above {
+  border-top: 2px solid var(--teal) !important;
+}
+.tree-node[draggable="true"] {
+  cursor: grab;
+}
+
+.empty-drop-zone {
+  height: 32px;
+  border: 1.5px dashed var(--gray-bd);
+  border-radius: var(--r);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--gray-md);
+  margin-bottom: 4px;
+  transition: all .15s;
+}
+.empty-drop-zone.empty-drop-active {
+  border-color: var(--teal);
+  background: var(--teal-lt);
+  color: var(--teal-dk);
+}
+
+/* COLONNES */
+.nd-desc{flex:1;min-width:0}
+.nd-desc input{width:100%;background:transparent;border:none;outline:none;font-size:12px;color:var(--gray);font-family:var(--f);padding:0}
+.nd-desc input:focus{outline:1px solid var(--teal);border-radius:3px;padding:0 3px}
+.nd-desc input.neg-inp{color:var(--red)}
+.nd-qty{width:46px;flex-shrink:0}
+.nd-qty input{width:100%;text-align:right;background:transparent;border:none;outline:none;font-size:12px;color:var(--gray);font-family:var(--f)}
+.nd-qty input:focus{outline:1px solid var(--teal);border-radius:3px}
+.nd-unit{width:28px;flex-shrink:0;margin-left:2px}
+.nd-unit input{width:100%;background:transparent;border:none;outline:none;font-size:11px;color:var(--gray-md);font-family:var(--f)}
+/* Nouvelle colonne coût unitaire (forfait) */
+.nd-cost{width:52px;flex-shrink:0}
+.nd-cost input{width:100%;text-align:right;background:transparent;border:none;outline:none;font-size:11px;color:var(--gray-md);font-family:var(--f)}
+.nd-cost input:disabled{color:#BBBAB8}
+.nd-cost input.neg-inp{color:var(--red)}
+/* 3 nouvelles colonnes */
+.nd-mo{width:60px;text-align:right;font-size:11px;color:var(--amber);font-variant-numeric:tabular-nums;flex-shrink:0}
+.nd-mat{width:60px;text-align:right;font-size:11px;color:var(--teal-dk);font-variant-numeric:tabular-nums;flex-shrink:0}
+.nd-total{width:68px;text-align:right;font-size:12px;font-weight:500;flex-shrink:0;font-variant-numeric:tabular-nums}
+.nd-total.calc{color:var(--prune)}
+.nd-total.neg{color:var(--red)}
+.nd-acts{display:flex;gap:1px;flex-shrink:0}
+
+.kids-wrap{margin-left:22px;border-left:2px solid var(--gray-bd);padding-left:4px;margin-top:3px;display:flex;flex-direction:column;gap:3px}
+.kids-wrap.d1{border-color:var(--teal-bd)}
+.kids-wrap.d2{border-color:var(--prune-bd)}
+.add-kid-row{padding:3px 6px;display:flex;gap:4px;flex-wrap:wrap}
+.add-kid-btn{font-size:11px;color:var(--gray-md);background:none;border:1px dashed var(--gray-bd);cursor:pointer;display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:var(--r)}
+.add-kid-btn:hover{background:#fff;color:var(--teal-dk);border-color:var(--teal-bd)}
+.dz{height:28px;border:1.5px dashed var(--teal-bd);border-radius:var(--r);background:var(--teal-lt);display:none;align-items:center;justify-content:center;font-size:11px;color:var(--teal-dk);margin-bottom:4px}
+.dz.on{display:flex}
+.fin-sep{height:1px;background:var(--red-lt);margin:12px 0 6px;position:relative}
+.fin-sep::before{content:'Financements & subventions';position:absolute;left:0;top:-9px;font-size:10px;color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:.05em;background:var(--bg);padding-right:8px}
+
+/* FACTURES */
+.fact-row{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--gray-bd);border-radius:var(--r);margin-bottom:5px;background:#fff}
+.fact-ref{font-family:var(--fm);font-size:11px;color:var(--gray-md);width:130px;flex-shrink:0}
+.fact-dest{flex:1;font-size:12px;font-weight:500}
+.fact-amt{width:90px;text-align:right;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--prune)}
+.fact-status{width:110px;flex-shrink:0}
+.fact-acts{display:flex;gap:2px}
+
+/* AUDIT */
+.audit-row{font-size:11px;padding:7px 0;border-bottom:1px solid var(--gray-bd);display:flex;gap:8px}
+.audit-row:last-child{border-bottom:none}
+.audit-time{width:130px;flex-shrink:0;color:var(--gray-md)}
+.audit-user{width:100px;flex-shrink:0;font-weight:500}
+.audit-txt{flex:1;line-height:1.4}
+
+/* MODAL BYPASS */
+.modal-hint{font-size:11px;padding:8px 10px;background:var(--teal-lt);border-left:3px solid var(--teal);border-radius:var(--r);color:var(--teal-dk);line-height:1.6;margin-bottom:1rem}
+.modal-code{width:100%;padding:10px;font-size:22px;letter-spacing:.5em;text-align:center;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;font-family:var(--fm);color:var(--prune)}
+.modal-code:focus{border-color:var(--teal)}
+.modal-msg{font-size:11px;padding:6px 8px;border-radius:var(--r);margin-top:6px;display:none}
+.modal-err{background:var(--red-lt);color:var(--red)}
+.modal-ok{background:var(--teal-lt);color:var(--teal-dk)}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- TABS -->
+<div class="tabs">
+  <a href="#" class="tab on" onclick="switchTab(event,'edit')">Édition</a>
+  <a href="#" class="tab" onclick="switchTab(event,'factures')">Factures <span id="fcount" style="background:var(--prune-lt);color:var(--prune);border-radius:99px;padding:1px 7px;font-size:11px;margin-left:3px">{{ factures|length }}</span></a>
+  <a href="#" class="tab" onclick="switchTab(event,'audit')">Journal</a>
+</div>
+
+<!-- TAB EDIT -->
+<div class="tab-pane on" id="pane-edit">
+  <div class="editor-shell">
+    <!-- BIBLIOTHÈQUE -->
+    <div class="lib-panel">
+      <div class="lib-hd">Bibliothèque</div>
+      <div class="lib-search"><input placeholder="Rechercher…" oninput="filterLib(this.value)" id="lib-q"/></div>
+      <div class="lib-list" id="lib-list">
+        {% for art in articles_biblio %}
+        <div class="lib-item" draggable="true"
+             data-id="{{ art.pk }}"
+             data-type="{{ art.type }}"
+             data-nom="{{ art.nom }}"
+             data-cost="{{ art.cout_unitaire|default:'' }}"
+             data-unit="{{ art.unite }}"
+             ondragstart="onLibDragStart(event,this)"
+             ondragend="onLibDragEnd()"
+             onclick="addFromLib(this)">
+          <span class="lib-tag lt-{{ art.type }}">{{ art.get_type_display }}</span>
+          <div><div class="lib-name">{{ art.nom }}</div><div class="lib-det">{{ art.description }}</div></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="padding:8px;border-top:1px solid var(--gray-bd)">
+        <a href="{% url 'core:article-create' %}" class="btn btn-sm" style="width:100%;justify-content:center"><i class="ti ti-plus"></i> Nouvel article</a>
+      </div>
+    </div>
+
+    <!-- ÉDITEUR -->
+    <div class="editor-main">
+      <div class="editor-meta">
+        <div class="meta-f"><span class="meta-lbl">Client</span><span class="meta-val">{{ devis.client }}</span></div>
+        <div class="meta-sep"></div>
+        <div class="meta-f"><span class="meta-lbl">Chantier</span><span class="meta-val">{{ devis.chantier }}</span></div>
+        <div class="meta-sep"></div>
+        <div class="meta-f"><span class="meta-lbl">Date</span><span class="meta-val">{{ devis.date_creation|date:"d/m/Y" }}</span></div>
+        <div class="meta-sep"></div>
+        <div class="meta-f"><span class="meta-lbl">Taux MO</span><span class="meta-val">{{ devis.taux_mo }} €/h</span></div>
+      </div>
+
+      <div class="editor-body" id="editor-body">
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Titre</button>
+          <div style="width:1px;background:var(--gray-bd);height:20px"></div>
+          <button class="btn btn-sm" onclick="addRootNode('F')"><i class="ti ti-plus"></i> Forfait</button>
+          <button class="btn btn-sm" onclick="addRootNode('S')"><i class="ti ti-plus"></i> Ouvrage simple</button>
+          <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-sm" onclick="addFinancement()" style="border-color:var(--red);color:var(--red);background:var(--red-lt)">
+            <i class="ti ti-minus"></i> Financement / subvention
+          </button>
+        </div>
+        <!-- EN-TÊTES COLONNES -->
+        <div style="display:flex;align-items:center;padding:0 8px 4px 4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;gap:4px;margin-bottom:3px">
+          <div style="flex:1">Description</div>
+          <div style="width:52px;text-align:right">Coût u.</div>
+          <div style="width:60px;text-align:right;color:var(--amber)">Coût MO</div>
+          <div style="width:60px;text-align:right;color:var(--teal-dk)">Coût Mtx</div>
+          <div style="width:68px;text-align:right;color:var(--prune)">Total</div>
+          <div style="width:44px"></div>
+        </div>
+        <div class="dz" id="root-dz">↓ Déposer ici pour ajouter au devis</div>
+        <div id="tree"></div>
+      </div>
+
+      <div class="editor-foot">
+        <span class="ft-lbl">MO</span><span class="ft-val" style="color:var(--amber)" id="ft-mo">—</span>
+        <span class="ft-lbl">Matériaux</span><span class="ft-val" style="color:var(--teal-dk)" id="ft-mat">—</span>
+        <div style="width:1px;background:var(--gray-bd);height:16px"></div>
+        <span class="ft-lbl">Total brut HT</span><span class="ft-grand" id="ft-grand">—</span>
+        <span class="ft-lbl">Net client</span><span class="ft-net" id="ft-net">—</span>
+        <button class="btn btn-sm btn-prune" onclick="saveTree()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB FACTURES -->
+<div class="tab-pane" id="pane-factures" style="overflow-y:auto">
+  <div style="padding:1rem;display:flex;flex-direction:column;gap:1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:13px;font-weight:500">Factures — <span class="mono">{{ devis.reference }}</span></div>
+        <div style="font-size:12px;color:var(--gray-md);margin-top:3px">
+          Total brut : <strong>{{ devis.total_brut|floatformat:2 }} €</strong> ·
+          Facturé : <strong style="color:var(--teal-dk)" id="total-facture">{{ devis.total_facture|floatformat:2 }} €</strong> ·
+          Reste : <strong style="color:var(--amber)" id="reste-facturer">{{ devis.reste_a_facturer|floatformat:2 }} €</strong>
+        </div>
+      </div>
+      <button onclick="document.getElementById('modal-facture').classList.remove('hidden')" class="btn btn-teal btn-sm"><i class="ti ti-plus"></i> Nouvelle facture</button>
+    </div>
+
+    <div id="factures-list">
+      {% for f in factures %}
+      <div class="fact-row">
+        <span class="fact-ref">{{ f.reference }}</span>
+        <span class="fact-dest">{{ f.destinataire }}</span>
+        <span class="fact-amt">{{ f.montant|floatformat:2 }} €</span>
+        <span class="fact-status">
+          <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
+        </span>
+        <div class="fact-acts">
+          {% if f.status == 'draft' %}
+          <form method="post" action="{% url 'core:facture-valider' f.pk %}" style="display:inline">{% csrf_token %}<button type="submit" class="ico-btn" title="Valider (comptable)"><i class="ti ti-user-check"></i></button></form>
+          <button class="ico-btn" style="color:var(--amber)" title="Bypass" onclick="openBypass({{ f.pk }})"><i class="ti ti-bolt"></i></button>
+          {% elif f.status == 'validated' %}
+          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">{% csrf_token %}<input type="hidden" name="status" value="sent"/><button type="submit" class="ico-btn" style="color:var(--teal-dk)" title="Envoyer"><i class="ti ti-send"></i></button></form>
+          {% elif f.status == 'sent' %}
+          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">{% csrf_token %}<input type="hidden" name="status" value="paid"/><button type="submit" class="ico-btn" style="color:#3B6D11" title="Payée"><i class="ti ti-cash"></i></button></form>
+          {% endif %}
+          <button class="ico-btn" title="PDF"><i class="ti ti-download"></i></button>
+        </div>
+      </div>
+      {% empty %}
+      <div style="text-align:center;padding:1.5rem;color:var(--gray-md);font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);background:#fff">
+        <i class="ti ti-receipt" style="font-size:24px;display:block;margin-bottom:6px;color:var(--gray-bd)"></i>
+        Aucune facture. Cliquez sur "Nouvelle facture" pour en créer une.
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- CIRCUIT -->
+    <div class="card">
+      <div class="card-hd"><span class="card-title"><i class="ti ti-route" style="color:var(--teal)"></i>Circuit de validation</span></div>
+      <div class="card-body">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          {% for ico,bg,bd,lbl in circuit_steps %}
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+            <div style="width:32px;height:32px;border-radius:50%;background:{{ bg }};border:1px solid {{ bd }};display:flex;align-items:center;justify-content:center">
+              <i class="ti {{ ico }}" style="font-size:14px"></i>
+            </div>
+            <span style="font-size:10px;color:var(--gray-md);text-align:center;max-width:64px">{{ lbl }}</span>
+          </div>
+          {% if not forloop.last %}<div style="flex:1;height:1.5px;background:var(--gray-bd);min-width:10px"></div>{% endif %}
+          {% endfor %}
+        </div>
+        <div class="ib ib-amber" style="margin-top:10px;font-size:11px">
+          <i class="ti ti-bolt" style="font-size:13px;flex-shrink:0"></i>
+          <span><strong>Bypass comptable :</strong> validation directe par code e-mail, tracée dans le journal d'audit.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB AUDIT -->
+<div class="tab-pane" id="pane-audit" style="overflow-y:auto">
+  <div style="padding:1rem">
+    <div class="card">
+      <div class="card-hd">
+        <span class="card-title"><i class="ti ti-shield-check" style="color:var(--teal)"></i>Journal d'audit — {{ devis.reference }}</span>
+      </div>
+      <div style="padding:0 1rem">
+        {% for log in audit_logs %}
+        <div class="audit-row" style="{% if forloop.first %}padding-top:10px{% endif %}{% if forloop.last %}padding-bottom:10px;border-bottom:none{% endif %}">
+          <span class="audit-time">{{ log.created_at|date:"d/m/Y H:i" }}</span>
+          <span class="audit-user">{{ log.user }}</span>
+          <span class="audit-txt">{{ log.action }}{% if log.bypass %} <span class="badge b-fbypass" style="font-size:10px"><i class="ti ti-bolt"></i> Bypass</span>{% endif %}</span>
+        </div>
+        {% empty %}
+        <div style="text-align:center;padding:1.5rem;color:var(--gray-md);font-size:12px">Aucune action enregistrée.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- MODAL NOUVELLE FACTURE -->
+<div id="modal-facture" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title">Nouvelle facture</div>
+    <form method="post" action="{% url 'core:facture-create' devis.pk %}">
+      {% csrf_token %}
+      <div class="field"><label>Destinataire *</label><input class="input" name="destinataire" value="{{ devis.client }}" required/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Montant (€) *</label><input class="input" type="number" name="montant" value="{{ devis.reste_a_facturer|floatformat:2 }}" min="0" step="0.01" required/></div>
+        <div class="field"><label>Échéance (jours)</label><input class="input" type="number" name="echeance_jours" value="30" min="1"/></div>
+      </div>
+      <div class="field"><label>Notes</label><textarea class="input" name="notes" rows="2"></textarea></div>
+      <div class="ib ib-teal" style="font-size:11px">
+        <i class="ti ti-info-circle" style="font-size:13px;flex-shrink:0"></i>
+        La facture sera créée en brouillon et devra être validée avant envoi.
+      </div>
+      <div class="modal-acts">
+        <button type="button" class="btn" onclick="document.getElementById('modal-facture').classList.add('hidden')">Annuler</button>
+        <button type="submit" class="btn btn-teal">Créer en brouillon</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODAL BYPASS -->
+<div id="modal-bypass" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title"><i class="ti ti-bolt" style="vertical-align:-1px;margin-right:4px;color:var(--amber)"></i>Bypass validation comptable</div>
+    <p style="font-size:12px;color:var(--gray-md);margin-bottom:1rem;line-height:1.5">Cette action valide la facture sans passer par le comptable. Elle sera tracée dans le journal d'audit.</p>
+    <div class="modal-hint">
+      <i class="ti ti-mail" style="vertical-align:-2px;margin-right:4px"></i>
+      Code envoyé à <strong id="bypass-email-display">{{ request.user.email }}</strong><br>
+      Valable 10 minutes.
+    </div>
+    <input class="modal-code" id="bypass-code-input" placeholder="——————" maxlength="6" oninput="checkBypassCode(this)"/>
+    <div class="modal-msg modal-err" id="bypass-err"><i class="ti ti-alert-circle"></i> Code incorrect.</div>
+    <div class="modal-msg modal-ok" id="bypass-ok"><i class="ti ti-circle-check"></i> Code valide.</div>
+    <div class="modal-acts">
+      <button class="btn" onclick="document.getElementById('modal-bypass').classList.add('hidden')">Annuler</button>
+      <button class="btn btn-prune" id="bypass-confirm-btn" onclick="confirmBypass()" disabled>Confirmer</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const DEVIS_ID = {{ devis.pk }};
+const TAUX_MO = {{ taux_mo_js }};
+const CSRF = '{{ csrf_token }}';
+let tree = [];
+let draggingLib = null;
+let draggingNodeNid = null;
+let bypassFactId = null;
+let savedCode = null;
+let _nidCounter = 0;
+
+// ── TABS ──
+function switchTab(e, name) {
+  e.preventDefault();
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('on'));
+  e.currentTarget.classList.add('on');
+  document.getElementById('pane-' + name).classList.add('on');
+}
+
+// ── CALCULS ──
+function calcTotal(n) {
+  if (n.type_ligne === 'TITRE') {
+    // La quantité du titre multiplie tous ses enfants
+    const sousTot = (n.enfants || []).reduce((s, c) => s + calcTotal(c), 0);
+    return (n.quantite || 1) * sousTot;
+  }
+  if (!n.enfants || !n.enfants.length) return (n.quantite || 0) * (n.cout_unitaire || 0);
+  return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcTotal(c), 0);
+}
+
+function calcMO(n) {
+  if (n.type_ligne === 'TITRE') {
+    return (n.quantite || 1) * (n.enfants || []).reduce((s, c) => s + calcMO(c), 0);
+  }
+  if (!n.enfants || !n.enfants.length) return n.type_ligne === 'MO' ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
+  return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcMO(c), 0);
+}
+
+function calcMat(n) {
+  if (n.type_ligne === 'TITRE') {
+    return (n.quantite || 1) * (n.enfants || []).reduce((s, c) => s + calcMat(c), 0);
+  }
+  if (!n.enfants || !n.enfants.length) return n.type_ligne === 'MAT' ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
+  return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcMat(c), 0);
+}
+
+function fmtV(v) {
+  if (v === null || v === undefined) return '—';
+  return Number(v).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+// ── NUMÉROTATION ──
+function assignNumbers(nodes, prefix) {
+  let idx = 1;
+  nodes.forEach(n => {
+    if (n.type_ligne === 'FIN' || n._isFINGroup) return; // pas de numéro pour les financements
+    n._num = prefix ? `${prefix}.${idx}` : `${idx}`;
+    idx++;
+    if (n.enfants && n.enfants.length) {
+      assignNumbers(n.enfants, n._num);
+    }
+  });
+}
+
+// ── RENDU ARBRE ──
+const NBADGE = {
+  F:     '<span class="nbadge nb-F">forfait</span>',
+  S:     '<span class="nbadge nb-S">simple</span>',
+  C:     '<span class="nbadge nb-C">composite</span>',
+  MO:    '<span class="nbadge nb-MO">MO</span>',
+  MAT:   '<span class="nbadge nb-MAT">mat.</span>',
+  OUV:   '<span class="nbadge nb-OUV">ouvrage</span>',
+  FIN:   '<span class="nbadge nb-FIN">financement</span>',
+  TITRE: '<span class="nbadge nb-TITRE">titre</span>',
+};
+
+// ── CTRL+D — Dupliquer la ligne sélectionnée ──
+document.addEventListener('keydown', function(e) {
+  if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
+    // Trouver le nœud actif (celui qui contient l'input en focus)
+    const activeInput = document.activeElement;
+    if (!activeInput) return;
+    const nodeEl = activeInput.closest('.tree-node');
+    if (!nodeEl) return;
+    e.preventDefault();
+    const nid = nodeEl.getAttribute('data-nid');
+    if (nid) copyNode(nid);
+  }
+});
+
+function renderNode(n, depth) {
+  const isNeg   = n.type_ligne === 'FIN';
+  const isTitre = n.type_ligne === 'TITRE';
+  const hasK    = n.enfants && n.enfants.length > 0;
+  const isLeaf  = !hasK && !['C','S','OUV','TITRE'].includes(n.type_ligne);
+  const total   = calcTotal(n);
+  const mo      = calcMO(n);
+  const mat     = calcMat(n);
+  const tog     = (hasK || isTitre) ? (n.ouvert !== false ? '▾' : '▸') : '';
+
+  const showMoMat = !isNeg && !isTitre && n.type_ligne !== 'F';
+  const moDisplay  = showMoMat ? (mo  > 0 ? fmtV(mo)  : '—') : '';
+  const matDisplay = showMoMat ? (mat > 0 ? fmtV(mat) : '—') : '';
+
+  const costVal      = isLeaf && !isNeg ? (n.cout_unitaire != null ? n.cout_unitaire : '') : '';
+  const costDisabled = (!isLeaf || isNeg || isTitre) ? 'disabled' : '';
+
+  const isZero = parseFloat(n.quantite || 0) === 0 && !isTitre && !isNeg;
+  const totCls = 'nd-total'
+    + ((hasK || ['C','S','OUV'].includes(n.type_ligne)) ? ' calc' : '')
+    + (isNeg   ? ' neg'   : '')
+    + (isTitre ? ' titre-total' : '');
+
+  const numDisplay = n._num ? `<span class="node-num">${n._num}</span>` : '';
+
+  // Style spécial pour les titres
+const rowExtra = isTitre
+    ? ' style="background:var(--prune-lt);border-color:var(--prune-bd);font-weight:500"'
+    : isNeg ? ' style="background:#FFF8F7;border-color:#F5C6C2"'
+    : isZero ? ' style="opacity:0.45;background:var(--gray-lt)"' : '';
+
+  let h = `<div class="tree-node" data-nid="${n._nid}">
+    <div class="node-row"${rowExtra}
+         draggable="true"
+         ondragstart="onNodeRowDragStart(event,'${n._nid}')"
+         ondragend="onNodeRowDragEnd(event)"
+         ondragover="onNodeRowDragOver2(event,'${n._nid}')"
+         ondrop="onNodeRowDrop2(event,'${n._nid}')"
+         ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
+      <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
+      <div class="toggler ${(hasK || isTitre) ? '' : 'leaf'}" onclick="togNode('${n._nid}')">${tog}</div>
+      ${NBADGE[n.type_ligne] || ''}
+      ${isZero ? '<i class="ti ti-eye-off" style="font-size:12px;color:var(--gray-md);flex-shrink:0" title="Quantité à 0"></i>' : ''}
+      ${numDisplay}
+      <div class="nd-desc">
+        <input value="${(n.description||'').replace(/"/g,'&quot;')}"
+               placeholder="${isTitre ? 'Titre…' : 'Description…'}"
+               ${isNeg ? 'class="neg-inp"' : ''}
+               oninput="updNode('${n._nid}','description',this.value)"/>
+      </div>
+      ${isTitre ? `
+        <div class="nd-qty" style="visibility:hidden"><input type="number" disabled/></div>
+        <div class="nd-unit" ></div>
+        <div class="nd-cost"><input disabled/></div>
+        <div class="nd-mo"></div>
+        <div class="nd-mat"></div>
+      ` : `
+        <div class="nd-qty"><input type="number" value="${n.quantite||''}" min="0" step="any" style="text-align:right" oninput="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"/></div>
+        <div class="nd-unit"><input value="${n.unite||''}" placeholder="u." oninput="updNode('${n._nid}','unite',this.value)"/></div>
+        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf&&!isNeg?'0':'—'}" ${costDisabled} ${isNeg?'class="neg-inp"':''} style="text-align:right" oninput="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"/></div>
+        <div class="nd-mo">${moDisplay}</div>
+        <div class="nd-mat">${matDisplay}</div>
+      `}
+      <div class="${totCls}" data-total="${n._nid}">${isNeg ? '−'+fmtV(Math.abs(total)) : fmtV(total)}</div>
+      <div class="nd-acts">
+        ${isTitre ? `<button class="ico-btn" onclick="addTitreEnfant('${n._nid}')" title="Ajouter sous-titre"><i class="ti ti-folder-plus"></i></button>
+                     <button class="ico-btn" onclick="addOuvrageEnfant('${n._nid}','F')" title="Ajouter forfait"><i class="ti ti-plus"></i></button>` : ''}
+        <button class="ico-btn" onclick="copyNode('${n._nid}')" title="Copier"><i class="ti ti-copy"></i></button>
+        <button class="ico-btn danger" onclick="delNode('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+
+  if (n.ouvert !== false) {
+    const canHaveKids = isTitre || hasK || ['S','C','OUV'].includes(n.type_ligne);
+    if (canHaveKids && !isNeg) {
+      h += `<div class="kids-wrap d${Math.min(depth,2)}">`;
+      if (hasK) {
+        n.enfants.forEach(c => { h += renderNode(c, depth + 1); });
+      } else {
+        h += `<div class="empty-drop-zone"
+          ondragover="onEmptyZoneDragOver(event,'${n._nid}')"
+          ondrop="onEmptyZoneDrop(event,'${n._nid}')"
+          ondragleave="this.classList.remove('empty-drop-active')">
+          Glisser un élément ici
+        </div>`;
+      }
+      if (!isNeg && !isTitre && n.type_ligne !== 'F') h += kidBtns(n._nid, n.type_ligne);
+      if (isTitre) h += titreBtns(n._nid);
+      h += `</div>`;
+    }
+  }
+  return h + `</div>`;
+}
+
+function kidBtns(nid, type) {
+  const mo  = `<button class="add-kid-btn" onclick="addChild('${nid}','MO')"><i class="ti ti-plus"></i>Main d'œuvre</button>`;
+  const mat = `<button class="add-kid-btn" onclick="addChild('${nid}','MAT')"><i class="ti ti-plus"></i>Matériau</button>`;
+  const ouv = ['C','OUV'].includes(type)
+    ? `<button class="add-kid-btn" onclick="addChild('${nid}','OUV')"><i class="ti ti-plus"></i>Sous-ouvrage</button>`
+    : '';
+  return `<div class="add-kid-row">${mo}${mat}${ouv}</div>`;
+}
+
+function titreBtns(nid) {
+  return `<div class="add-kid-row">
+    <button class="add-kid-btn" onclick="addTitreEnfant('${nid}')"><i class="ti ti-folder-plus"></i>Sous-titre</button>
+    <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','F')"><i class="ti ti-plus"></i>Forfait</button>
+    <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','S')"><i class="ti ti-plus"></i>Ouvrage simple</button>
+    <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','C')"><i class="ti ti-plus"></i>Ouvrage composite</button>
+  </div>`;
+}
+
+function assignNids(nodes) {
+  nodes.forEach(n => {
+    n._nid = '_' + (_nidCounter++);
+    if (n.enfants) assignNids(n.enfants);
+  });
+}
+
+function renderTree() {
+  const posLines = tree.filter(n => n.type_ligne !== 'FIN');
+  const finLines = tree.filter(n => n.type_ligne === 'FIN');
+
+  // Assigner les numéros
+  assignNumbers(posLines, '');
+
+  const t = document.getElementById('tree');
+  t.innerHTML = posLines.map(n => renderNode(n, 0)).join('');
+
+  // Groupe financements
+  if (finLines.length) {
+    // Trouver ou créer le titre financements
+    let finTitle = tree.find(n => n._isFINGroup);
+    if (!finTitle) {
+      finTitle = {
+        _nid: '_fin_group',
+        _isFINGroup: true,
+        type_ligne: 'TITRE',
+        description: 'Financements',
+        enfants: finLines,
+        ouvert: true,
+      };
+    }
+    t.innerHTML += `<div style="margin-top:8px">${renderFinGroup(finLines)}</div>`;
+  }
+
+  refreshFooter();
+}
+
+function renderFinGroup(finLines) {
+  const total = finLines.reduce((s, n) => s + calcTotal(n), 0);
+  let h = `<div class="tree-node">
+    <div class="node-row" style="background:var(--red-lt);border-color:#F5C6C2;font-weight:500">
+      <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;flex-shrink:0"></i>
+      <div class="toggler" onclick="this.closest('.tree-node').querySelector('.kids-wrap').classList.toggle('hidden')">▾</div>
+      <span class="nbadge nb-FIN">financements</span>
+      <div class="nd-desc">
+        <input id="fin-group-title" value="${window._finGroupTitle||'Financements'}"
+               style="font-weight:500;color:var(--red)"
+               oninput="window._finGroupTitle=this.value"/>
+      </div>
+      <div class="nd-qty" style="visibility:hidden"><input disabled/></div>
+      <div class="nd-unit"></div>
+      <div class="nd-cost"><input disabled/></div>
+      <div class="nd-mo"></div>
+      <div class="nd-mat"></div>
+      <div class="nd-total neg">−${fmtV(total)}</div>
+      <div class="nd-acts"></div>
+    </div>
+    <div class="kids-wrap d0">
+      ${finLines.map((n,i) => {
+        const t = calcTotal(n);
+        return `<div class="tree-node" data-nid="${n._nid}">
+          <div class="node-row is-neg"
+               draggable="true"
+               ondragstart="onNodeRowDragStart(event,'${n._nid}')"
+               ondragend="onNodeRowDragEnd(event)"
+               ondragover="onNodeRowDragOver2(event,'${n._nid}')"
+               ondrop="onNodeRowDrop2(event,'${n._nid}')"
+               ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
+            <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
+            <div class="toggler leaf" style="visibility:hidden"></div>
+            <span class="nbadge nb-FIN">F.${i+1}</span>
+            <div class="nd-desc"><input value="${(n.description||'').replace(/"/g,'&quot;')}" class="neg-inp" placeholder="Subvention…" oninput="updNode('${n._nid}','description',this.value)"/></div>
+            <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right" oninput="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"/></div>
+            <div class="nd-unit"><input value="${n.unite||'forfait'}" oninput="updNode('${n._nid}','unite',this.value)"/></div>
+            <div class="nd-cost"><input type="number" value="${n.cout_unitaire||0}" class="neg-inp" style="text-align:right" oninput="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"/></div>
+            <div class="nd-mo"></div>
+            <div class="nd-mat"></div>
+            <div class="nd-total neg">−${fmtV(t)}</div>
+            <div class="nd-acts">
+              <button class="ico-btn danger" onclick="delNode('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+  return h;
+}
+
+function refreshFooter() {
+  const posLines = tree.filter(n => n.type_ligne !== 'FIN');
+  const finLines = tree.filter(n => n.type_ligne === 'FIN');
+  const grand    = posLines.reduce((s, n) => s + calcTotal(n), 0);
+  const totalMO  = posLines.reduce((s, n) => s + calcMO(n), 0);
+  const totalMat = posLines.reduce((s, n) => s + calcMat(n), 0);
+  const totalFin = finLines.reduce((s, n) => s + calcTotal(n), 0);
+  const net = grand - totalFin;
+  const eg  = document.getElementById('ft-grand');
+  const em  = document.getElementById('ft-mo');
+  const ema = document.getElementById('ft-mat');
+  const en  = document.getElementById('ft-net');
+  if (eg)  eg.textContent  = fmtV(grand)    + ' €';
+  if (em)  em.textContent  = fmtV(totalMO)  + ' €';
+  if (ema) ema.textContent = fmtV(totalMat) + ' €';
+  if (en)  en.textContent  = fmtV(net)      + ' €';
+}
+
+function updateTotalsDisplay() {
+  function updateNode(n) {
+    const el = document.querySelector(`[data-nid="${n._nid}"]`);
+    if (!el) return;
+    const totalEl = el.querySelector(':scope > .node-row .nd-total');
+    if (totalEl) {
+      const total  = calcTotal(n);
+      const isNeg  = n.type_ligne === 'FIN';
+      totalEl.textContent = isNeg ? '−' + fmtV(Math.abs(total)) : fmtV(total);
+    }
+    const moEl = el.querySelector(':scope > .node-row .nd-mo');
+    if (moEl && n.type_ligne !== 'F' && n.type_ligne !== 'FIN' && n.type_ligne !== 'TITRE') {
+      moEl.textContent = calcMO(n) > 0 ? fmtV(calcMO(n)) : '—';
+    }
+    const matEl = el.querySelector(':scope > .node-row .nd-mat');
+    if (matEl && n.type_ligne !== 'F' && n.type_ligne !== 'FIN' && n.type_ligne !== 'TITRE') {
+      matEl.textContent = calcMat(n) > 0 ? fmtV(calcMat(n)) : '—';
+    }
+    if (n.enfants) n.enfants.forEach(updateNode);
+  }
+  tree.forEach(updateNode);
+  refreshFooter();
+}
+
+// ── MANIPULATION ARBRE ──
+function findNode(nodes, nid) {
+  for (const n of nodes) {
+    if (n._nid === nid) return n;
+    if (n.enfants) { const f = findNode(n.enfants, nid); if (f) return f; }
+  }
+  return null;
+}
+
+function delFromTree(nodes, nid) {
+  const i = nodes.findIndex(n => n._nid === nid);
+  if (i >= 0) { nodes.splice(i, 1); return true; }
+  for (const n of nodes) { if (n.enfants && delFromTree(n.enfants, nid)) return true; }
+  return false;
+}
+
+function updNode(nid, field, val) {
+  const n = findNode(tree, nid);
+  if (!n) return;
+  const wasZero = parseFloat(n.quantite || 0) === 0;
+  n[field] = val;
+  const isNowZero = parseFloat(n.quantite || 0) === 0;
+  // Si la quantité bascule à 0 ou depuis 0, redessiner pour l'indicateur visuel
+  if (field === 'quantite' && wasZero !== isNowZero) {
+    renderTree();
+  } else {
+    updateTotalsDisplay();
+  }
+}
+function togNode(nid) {
+  const n = findNode(tree, nid); if (!n) return;
+  n.ouvert = n.ouvert === false;
+  renderTree();
+}
+
+function delNode(nid) {
+  delFromTree(tree, nid);
+  renderTree();
+}
+
+function addRootNode(type) {
+  const def = {
+    F: {description:'Nouveau forfait',        quantite:1, unite:'forfait', cout_unitaire:0},
+    S: {description:'Nouvel ouvrage',          quantite:1, unite:'u',       cout_unitaire:null},
+    C: {description:'Nouvel ouvrage composite',quantite:1, unite:'u',       cout_unitaire:null},
+  };
+  const n = {type_ligne:type, enfants:[], ouvert:true, ...def[type]};
+  n._nid = '_' + (_nidCounter++);
+  tree.push(n);
+  renderTree();
+}
+
+function addTitre() {
+  const n = {type_ligne:'TITRE', description:'Nouveau titre', enfants:[], ouvert:true};
+  n._nid = '_' + (_nidCounter++);
+  tree.push(n);
+  renderTree();
+}
+
+function addTitreEnfant(parentNid) {
+  const p = findNode(tree, parentNid); if (!p) return;
+  if (!p.enfants) p.enfants = [];
+  const n = {type_ligne:'TITRE', description:'Nouveau titre', enfants:[], ouvert:true};
+  n._nid = '_' + (_nidCounter++);
+  p.enfants.push(n);
+  p.ouvert = true;
+  renderTree();
+}
+
+function addOuvrageEnfant(parentNid, type) {
+  const p = findNode(tree, parentNid); if (!p) return;
+  if (!p.enfants) p.enfants = [];
+  const def = {
+    F: {description:'Nouveau forfait',        quantite:1, unite:'forfait', cout_unitaire:0},
+    S: {description:'Nouvel ouvrage',          quantite:1, unite:'u',       cout_unitaire:null},
+    C: {description:'Nouvel ouvrage composite',quantite:1, unite:'u',       cout_unitaire:null},
+  };
+  const n = {type_ligne:type, enfants:[], ouvert:true, ...def[type]};
+  n._nid = '_' + (_nidCounter++);
+  p.enfants.push(n);
+  p.ouvert = true;
+  renderTree();
+}
+
+function addFinancement() {
+  const n = {type_ligne:'FIN', description:'Subvention / financement', quantite:1, unite:'forfait', cout_unitaire:0, enfants:[], ouvert:true};
+  n._nid = '_' + (_nidCounter++);
+  tree.push(n);
+  renderTree();
+}
+
+function addChild(pnid, type) {
+  const p = findNode(tree, pnid); if (!p) return;
+  if (!p.enfants) p.enfants = [];
+  const def = {
+    MO:  {description:"Main d'œuvre", quantite:1, unite:'h', cout_unitaire:TAUX_MO},
+    MAT: {description:'Matériau',     quantite:1, unite:'u', cout_unitaire:0},
+    OUV: {description:'Sous-ouvrage', quantite:1, unite:'u', cout_unitaire:null},
+  };
+  const n = {type_ligne:type, enfants:[], ouvert:true, ...def[type]};
+  n._nid = '_' + (_nidCounter++);
+  p.enfants.push(n);
+  p.ouvert = true;
+  renderTree();
+}
+
+// ── COPY ──
+function deepCloneNode(n) {
+  const clone = {...n};
+  clone._nid = '_' + (_nidCounter++);
+  clone.description = n.description + ' (copie)';
+  clone.enfants = (n.enfants || []).map(e => deepCloneNodeSilent(e));
+  return clone;
+}
+function deepCloneNodeSilent(n) {
+  const clone = {...n};
+  clone._nid = '_' + (_nidCounter++);
+  clone.enfants = (n.enfants || []).map(e => deepCloneNodeSilent(e));
+  return clone;
+}
+function copyNode(nid) {
+  function insertAfter(nodes, nid, newNode) {
+    const i = nodes.findIndex(n => n._nid === nid);
+    if (i >= 0) { nodes.splice(i + 1, 0, newNode); return true; }
+    for (const n of nodes) { if (n.enfants && insertAfter(n.enfants, nid, newNode)) return true; }
+    return false;
+  }
+  const src = findNode(tree, nid); if (!src) return;
+  const clone = deepCloneNode(src);
+  insertAfter(tree, nid, clone);
+  renderTree();
+}
+
+// ── DRAG & DROP ──
+function onNodeRowDragStart(e, nid) {
+  if (draggingLib) return;
+  e.stopPropagation();
+  draggingNodeNid = nid;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.style.opacity = '0.4';
+}
+function onNodeRowDragEnd(e) {
+  draggingNodeNid = null;
+  document.querySelectorAll('.node-row').forEach(el => el.style.opacity = '');
+  document.querySelectorAll('.drop-above').forEach(el => el.classList.remove('drop-above'));
+}
+function onNodeRowDragOver2(e, nid) {
+  if (draggingLib) return;
+  if (!draggingNodeNid || draggingNodeNid === nid) return;
+  e.preventDefault();
+  e.stopPropagation();
+  document.querySelectorAll('.drop-above').forEach(el => el.classList.remove('drop-above'));
+  e.currentTarget.classList.add('drop-above');
+}
+function onNodeRowDrop2(e, targetNid) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (draggingLib) return;
+  if (!draggingNodeNid || draggingNodeNid === targetNid) return;
+  document.querySelectorAll('.drop-above').forEach(el => el.classList.remove('drop-above'));
+
+  function extractNode(nodes, nid) {
+    const i = nodes.findIndex(n => n._nid === nid);
+    if (i >= 0) return nodes.splice(i, 1)[0];
+    for (const n of nodes) { if (n.enfants) { const f = extractNode(n.enfants, nid); if (f) return f; } }
+    return null;
+  }
+  function findParentList(nodes, nid) {
+    const i = nodes.findIndex(n => n._nid === nid);
+    if (i >= 0) return nodes;
+    for (const n of nodes) { if (n.enfants) { const f = findParentList(n.enfants, nid); if (f) return f; } }
+    return null;
+  }
+  function isDescendant(node, nid) {
+    if (!node.enfants) return false;
+    for (const e of node.enfants) { if (e._nid === nid || isDescendant(e, nid)) return true; }
+    return false;
+  }
+
+  const srcNode = findNode(tree, draggingNodeNid); if (!srcNode) return;
+  if (isDescendant(srcNode, targetNid)) return;
+
+  const extracted = extractNode(tree, draggingNodeNid); if (!extracted) return;
+  const targetList = findParentList(tree, targetNid);
+  if (targetList) {
+    const i = targetList.findIndex(n => n._nid === targetNid);
+    if (i >= 0) targetList.splice(i, 0, extracted);
+    else tree.push(extracted);
+  } else {
+    tree.push(extracted);
+  }
+  draggingNodeNid = null;
+  renderTree();
+}
+
+function onEmptyZoneDragOver(e, parentNid) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.add('empty-drop-active');
+}
+function onEmptyZoneDrop(e, parentNid) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('empty-drop-active');
+  const parent = findNode(tree, parentNid); if (!parent) return;
+  if (!parent.enfants) parent.enfants = [];
+
+  if (draggingLib) {
+    const n = {
+      type_ligne: draggingLib.dataset.type,
+      description: draggingLib.dataset.nom,
+      quantite: 1, unite: draggingLib.dataset.unit,
+      cout_unitaire: draggingLib.dataset.cost ? parseFloat(draggingLib.dataset.cost) : null,
+      enfants:[], ouvert:true,
+    };
+    n._nid = '_' + (_nidCounter++);
+    parent.enfants.push(n); parent.ouvert = true;
+    draggingLib = null;
+    document.getElementById('root-dz').classList.remove('on');
+    renderTree();
+  } else if (draggingNodeNid && draggingNodeNid !== parentNid) {
+    function isDescendant(node, nid) {
+      if (!node.enfants) return false;
+      for (const e of node.enfants) { if (e._nid === nid || isDescendant(e, nid)) return true; }
+      return false;
+    }
+    const src = findNode(tree, draggingNodeNid);
+    if (src && isDescendant(src, parentNid)) return;
+    function extractNode(nodes, nid) {
+      const i = nodes.findIndex(n => n._nid === nid);
+      if (i >= 0) return nodes.splice(i, 1)[0];
+      for (const n of nodes) { if (n.enfants) { const f = extractNode(n.enfants, nid); if (f) return f; } }
+      return null;
+    }
+    const extracted = extractNode(tree, draggingNodeNid);
+    if (extracted) { parent.enfants.push(extracted); parent.ouvert = true; }
+    draggingNodeNid = null;
+    renderTree();
+  }
+}
+
+// ── BIBLIOTHÈQUE ──
+function filterLib(q) {
+  document.querySelectorAll('.lib-item').forEach(el => {
+    const nom = el.querySelector('.lib-name').textContent.toLowerCase();
+    el.style.display = nom.includes(q.toLowerCase()) ? '' : 'none';
+  });
+}
+function addFromLib(el) {
+  const n = {
+    type_ligne: el.dataset.type, description: el.dataset.nom,
+    quantite:1, unite: el.dataset.unit,
+    cout_unitaire: el.dataset.cost ? parseFloat(el.dataset.cost) : null,
+    enfants:[], ouvert:true,
+  };
+  n._nid = '_' + (_nidCounter++);
+  tree.push(n);
+  renderTree();
+}
+function onLibDragStart(e, el) {
+  draggingLib = el; e.dataTransfer.effectAllowed = 'copy';
+  document.getElementById('root-dz').classList.add('on');
+}
+function onLibDragEnd() {
+  draggingLib = null;
+  document.getElementById('root-dz').classList.remove('on');
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+function onNodeDragOver(e, nid) { if (!draggingLib) return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function onNodeDrop(e, nid) {
+  if (!draggingLib) return;
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove('drag-over');
+  const b = draggingLib;
+  const n = {
+    type_ligne: b.dataset.type, description: b.dataset.nom,
+    quantite:1, unite: b.dataset.unit,
+    cout_unitaire: b.dataset.cost ? parseFloat(b.dataset.cost) : null,
+    enfants:[], ouvert:true,
+  };
+  n._nid = '_' + (_nidCounter++);
+  const tgt = findNode(tree, nid);
+  if (tgt && ['C','OUV','S','TITRE'].includes(tgt.type_ligne)) {
+    if (!tgt.enfants) tgt.enfants = [];
+    tgt.enfants.push(n); tgt.ouvert = true;
+  } else { tree.push(n); }
+  draggingLib = null;
+  document.getElementById('root-dz').classList.remove('on');
+  renderTree();
+}
+document.addEventListener('dragover', e => { if (draggingLib) e.preventDefault(); });
+document.addEventListener('drop', e => {
+  if (e.target === document.getElementById('root-dz') && draggingLib) {
+    e.preventDefault(); addFromLib(draggingLib);
+    draggingLib = null;
+    document.getElementById('root-dz').classList.remove('on');
+  }
+});
+
+// ── SAUVEGARDE ──
+function stripNids(nodes) {
+  return nodes.map(n => {
+    const c = {...n};
+    delete c._nid; delete c._num; delete c._isFINGroup;
+    c.enfants = stripNids(c.enfants || []);
+    return c;
+  });
+}
+async function saveTree() {
+  const btn = document.querySelector('button[onclick="saveTree()"]');
+  btn.textContent = 'Sauvegarde…'; btn.disabled = true;
+  // Sauvegarder aussi le titre du groupe financements
+  const finTitleInput = document.getElementById('fin-group-title');
+  if (finTitleInput) window._finGroupTitle = finTitleInput.value;
+  try {
+    const resp = await fetch(`/devis/${DEVIS_ID}/lignes/sauvegarder/`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body: JSON.stringify({
+        lignes: stripNids(tree),
+        fin_group_title: window._finGroupTitle || 'Financements'
+      }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      btn.textContent = '✓ Sauvegardé';
+      setTimeout(() => { btn.innerHTML = '<i class="ti ti-device-floppy"></i> Sauvegarder'; btn.disabled = false; }, 1500);
+    }
+  } catch(err) {
+    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Sauvegarder';
+    btn.disabled = false;
+    alert('Erreur de sauvegarde.');
+  }
+}
+
+// ── BYPASS ──
+function openBypass(factId) {
+  bypassFactId = factId;
+  document.getElementById('bypass-code-input').value = '';
+  document.getElementById('bypass-err').style.display = 'none';
+  document.getElementById('bypass-ok').style.display = 'none';
+  document.getElementById('bypass-confirm-btn').disabled = true;
+  fetch(`/factures/${factId}/bypass/send/`, {headers:{'X-CSRFToken':CSRF}})
+    .then(r => r.json()).then(data => { if(data.code) savedCode = data.code; });
+  document.getElementById('modal-bypass').classList.remove('hidden');
+}
+function checkBypassCode(inp) {
+  const ok = savedCode && inp.value === savedCode;
+  document.getElementById('bypass-confirm-btn').disabled = !ok;
+  document.getElementById('bypass-err').style.display = (inp.value.length === 6 && !ok) ? 'block' : 'none';
+  document.getElementById('bypass-ok').style.display = ok ? 'block' : 'none';
+}
+async function confirmBypass() {
+  const code = document.getElementById('bypass-code-input').value;
+  const resp = await fetch(`/factures/${bypassFactId}/bypass/`, {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRFToken':CSRF},
+    body:`code=${code}`,
+  });
+  const data = await resp.json();
+  if (data.ok) window.location.reload();
+  else document.getElementById('bypass-err').style.display = 'block';
+}
+
+// ── CHARGEMENT INITIAL ──
+fetch(`/devis/${DEVIS_ID}/lignes/`)
+  .then(r => r.json())
+  .then(data => {
+    tree = data.lignes || [];
+    window._finGroupTitle = data.fin_group_title || 'Financements';
+    assignNids(tree);
+    renderTree();
+  });
+</script>
+{% endblock %}

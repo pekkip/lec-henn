@@ -1,0 +1,53 @@
+{% extends 'core/base.html' %}
+{% block title %}Nouveau devis{% endblock %}
+{% block nav_devis %}active{% endblock %}
+{% block topbar_title %}Nouveau devis{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><div class="page-title">Nouveau devis</div></div>
+  <a href="{% url 'core:devis-list' %}" class="btn"><i class="ti ti-arrow-left"></i> Retour</a>
+</div>
+<div class="page-body">
+  <div class="card" style="max-width:580px">
+    <div class="card-hd"><span class="card-title"><i class="ti ti-file-plus" style="color:var(--teal)"></i>Informations du devis</span></div>
+    <div class="card-body">
+      <form method="post" action="{% url 'core:devis-create' %}">
+        {% csrf_token %}
+        <div class="field">
+          <label>Client *</label>
+          <select class="input" name="client" required>
+            <option value="">— Sélectionner un client —</option>
+            {% for c in clients %}<option value="{{ c.pk }}">{{ c.nom }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Chantier / Objet *</label><input class="input" name="chantier" placeholder="Description du chantier" required/></div>
+        <div class="field">
+          <label>Équipe</label>
+          <select class="input" name="equipe">
+            <option value="">— Sélectionner une équipe —</option>
+            {% for e in equipes %}
+            <option value="{{ e.pk }}" {% if profil.equipes.all|length == 1 and profil.equipes.first == e %}selected{% endif %}>
+              {{ e.service.territoire }} — {{ e.service.nom }} — {{ e.nom }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label>Validité (jours)</label><input class="input" type="number" name="validite_jours" value="30" min="1"/></div>
+          <div class="field"><label>Taux horaire MO (€/h)</label><input class="input" type="number" name="taux_mo" value="{{ profil.taux_mo_defaut }}" min="0" step="0.5"/></div>
+        </div>
+        <div class="field"><label>Notes internes</label><textarea class="input" name="notes" rows="3" placeholder="Contexte, observations…"></textarea></div>
+        <div style="display:flex;gap:8px;margin-top:.5rem">
+          <button type="submit" class="btn btn-prune"><i class="ti ti-check"></i> Créer le devis</button>
+          <a href="{% url 'core:devis-list' %}" class="btn">Annuler</a>
+        </div>
+      </form>
+      <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--gray-bd)">
+        <div style="font-size:11px;color:var(--gray-md);margin-bottom:8px">Client non listé ?</div>
+        <a href="{% url 'core:clients' %}" class="btn btn-sm"><i class="ti ti-user-plus"></i> Gérer les clients</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends 'core/base.html' %}
+{% block title %}Devis{% endblock %}
+{% block nav_devis %}active{% endblock %}
+{% block topbar_title %}Devis{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><div class="page-title">Devis</div><div class="page-sub">{{ devis|length }} devis</div></div>
+  <a href="{% url 'core:devis-create' %}" class="btn btn-prune"><i class="ti ti-plus"></i> Nouveau devis</a>
+</div>
+
+<form method="get" id="filter-form">
+<div class="toolbar">
+  <div class="search-wrap"><i class="ti ti-search"></i><input class="search-inp" name="q" value="{{ q }}" placeholder="Référence, client, chantier…"/></div>
+  <select class="sel" name="territoire" onchange="this.form.submit()">
+    <option value="">Tous les territoires</option>
+    {% for t in territoires %}<option value="{{ t.pk }}" {% if territoire_filter == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.nom }}</option>{% endfor %}
+  </select>
+  <select class="sel" name="service" onchange="this.form.submit()">
+    <option value="">Tous les services</option>
+    {% for s in services %}<option value="{{ s.pk }}" {% if service_filter == s.pk|stringformat:'s' %}selected{% endif %}>{{ s.territoire }} — {{ s.nom }}</option>{% endfor %}
+  </select>
+  <select class="sel" name="equipe" onchange="this.form.submit()">
+    <option value="">Toutes les équipes</option>
+    {% for e in equipes %}<option value="{{ e.pk }}" {% if equipe_filter == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.nom }}</option>{% endfor %}
+  </select>
+  <select class="sel" name="status" onchange="this.form.submit()" style="min-width:110px">
+    <option value="">Tous les statuts</option>
+    <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Brouillon</option>
+    <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Envoyé</option>
+    <option value="accepted" {% if status_filter == 'accepted' %}selected{% endif %}>Accepté</option>
+    <option value="refused" {% if status_filter == 'refused' %}selected{% endif %}>Refusé</option>
+    <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Expiré</option>
+  </select>
+  <button type="submit" class="btn"><i class="ti ti-search"></i> Filtrer</button>
+  <a href="{% url 'core:devis-list' %}" class="btn">Réinitialiser</a>
+</div>
+</form>
+
+<div style="flex:1;overflow-y:auto">
+<table>
+  <thead><tr>
+    <th style="width:11%">Référence</th>
+    <th style="width:15%">Client</th>
+    <th style="width:14%">Chantier</th>
+    <th style="width:10%">Équipe</th>
+    <th style="width:9%">Date</th>
+    <th class="num" style="width:10%">Brut HT</th>
+    <th style="width:10%">Statut</th>
+    <th class="num" style="width:11%">Reste à fact.</th>
+    <th style="width:5%"></th>
+  </tr></thead>
+  <tbody>
+    {% for d in devis %}
+    <tr style="cursor:pointer" onclick="location='{% url 'core:devis-detail' d.pk %}'">
+      <td><span class="mono">{{ d.reference }}</span></td>
+      <td>{{ d.client }}</td>
+      <td>{{ d.chantier }}</td>
+      <td>
+        {% if d.equipe %}
+        <span style="font-size:11px;background:var(--prune-lt);color:var(--prune-dk);padding:1px 6px;border-radius:3px">{{ d.equipe.nom }}</span>
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ d.date_creation|date:"d/m/Y" }}</td>
+      <td class="num">{{ d.total_brut|floatformat:2 }} €</td>
+      <td><span class="badge b-{{ d.status }}"><span class="dot dot-{{ d.status }}"></span>{{ d.get_status_display }}</span></td>
+      <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% elif d.rtf < 0 %}var(--red){% else %}var(--teal-dk){% endif %}">
+        {% if d.rtf < 0 %}−{% endif %}{{ d.rtf|floatformat:2 }} €
+      </td>
+      <td style="text-align:right" onclick="event.stopPropagation()">
+        <a href="{% url 'core:devis-duplicate' d.pk %}" class="ico-btn" title="Dupliquer"><i class="ti ti-copy"></i></a>
+        <form method="post" action="{% url 'core:devis-delete' d.pk %}" style="display:inline" onsubmit="return confirm('Supprimer ce devis ?')">
+          {% csrf_token %}
+          <button type="submit" class="ico-btn danger"><i class="ti ti-trash"></i></button>
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--gray-md)">
+      Aucun devis. <a href="{% url 'core:devis-create' %}" class="btn btn-sm btn-prune" style="margin-left:8px">Créer le premier</a>
+    </td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

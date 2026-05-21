@@ -1,0 +1,69 @@
+{% extends 'core/base.html' %}
+{% block title %}Factures{% endblock %}
+{% block nav_factures %}active{% endblock %}
+{% block topbar_title %}Factures{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><div class="page-title">Factures</div><div class="page-sub">{{ factures|length }} factures</div></div>
+</div>
+<div style="flex:1;overflow-y:auto">
+  <table>
+    <thead><tr>
+      <th>Référence</th>
+      <th>Devis</th>
+      <th>Destinataire</th>
+      <th>Date</th>
+      <th>Échéance</th>
+      <th class="num">Montant</th>
+      <th>Statut</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      {% for f in factures %}
+      <tr>
+        <td><span class="mono">{{ f.reference }}</span></td>
+        <td>
+          <a href="{% url 'core:devis-detail' f.devis.pk %}" style="color:var(--prune);font-family:var(--fm);font-size:11px">
+            {{ f.devis.reference }}
+          </a>
+        </td>
+        <td>{{ f.destinataire }}</td>
+        <td>{{ f.date_creation|date:"d/m/Y" }}</td>
+        <td>{{ f.date_echeance|date:"d/m/Y" }}</td>
+        <td class="num">{{ f.montant|floatformat:2 }} €</td>
+        <td>
+          <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
+          {% if f.bypass_validation %}<span class="badge" style="background:var(--amber-lt);color:#8B5E0A;margin-left:4px"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span>{% endif %}
+        </td>
+        <td style="text-align:right">
+          {% if f.status == 'draft' %}
+          <form method="post" action="{% url 'core:facture-valider' f.pk %}" style="display:inline">
+            {% csrf_token %}
+            <button type="submit" class="ico-btn" title="Valider"><i class="ti ti-user-check"></i></button>
+          </form>
+          {% elif f.status == 'validated' %}
+          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="sent"/>
+            <button type="submit" class="ico-btn" style="color:var(--teal-dk)" title="Marquer envoyée"><i class="ti ti-send"></i></button>
+          </form>
+          {% elif f.status == 'sent' %}
+          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="paid"/>
+            <button type="submit" class="ico-btn" style="color:#3B6D11" title="Marquer payée"><i class="ti ti-cash"></i></button>
+          </form>
+          {% endif %}
+          <a href="{% url 'core:devis-detail' f.devis.pk %}" class="ico-btn" title="Voir le devis"><i class="ti ti-external-link"></i></a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-md)">
+        Aucune facture.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends 'core/base.html' %}
+{% block title %}Clients{% endblock %}
+{% block nav_clients %}active{% endblock %}
+{% block topbar_title %}Clients{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><div class="page-title">Clients</div><div class="page-sub">{{ clients|length }} clients</div></div>
+  <button onclick="document.getElementById('modal-client').classList.remove('hidden')" class="btn btn-prune"><i class="ti ti-plus"></i> Nouveau client</button>
+</div>
+<div style="flex:1;overflow-y:auto">
+  <table>
+    <thead><tr>
+      <th>Nom</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Adresse</th><th class="num">Devis</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for c in clients %}
+      <tr>
+        <td style="font-weight:500">{{ c.nom }}</td>
+        <td>{{ c.contact|default:"—" }}</td>
+        <td>{{ c.email|default:"—" }}</td>
+        <td>{{ c.telephone|default:"—" }}</td>
+        <td style="color:var(--gray-md);font-size:11px">{{ c.adresse|default:"—" }}</td>
+        <td class="num">{{ c.devis.count }}</td>
+        <td style="text-align:right">
+          <form method="post" action="{% url 'core:client-delete' c.pk %}" style="display:inline" onsubmit="return confirm('Supprimer {{ c.nom }} ?')">
+            {% csrf_token %}
+            <button type="submit" class="ico-btn danger"><i class="ti ti-trash"></i></button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray-md)">
+        Aucun client.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div id="modal-client" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title">Nouveau client</div>
+    <form method="post" action="{% url 'core:client-create' %}">
+      {% csrf_token %}
+      <div class="field"><label>Nom / Organisation *</label><input class="input" name="nom" required/></div>
+      <div class="field"><label>Contact</label><input class="input" name="contact" placeholder="Nom du responsable"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Email</label><input class="input" type="email" name="email"/></div>
+        <div class="field"><label>Téléphone</label><input class="input" name="telephone"/></div>
+      </div>
+      <div class="field"><label>Adresse</label><textarea class="input" name="adresse" rows="2"></textarea></div>
+      <div class="modal-acts">
+        <button type="button" class="btn" onclick="document.getElementById('modal-client').classList.add('hidden')">Annuler</button>
+        <button type="submit" class="btn btn-prune">Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'core/base.html' %}
+{% block title %}Tableau de bord{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+{% block topbar_title %}Tableau de bord{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><div class="page-title">Tableau de bord</div><div class="page-sub">Compagnons Bâtisseurs Bretagne</div></div>
+</div>
+<div class="page-body">
+  <div class="stats-grid">
+    <div class="stat"><div class="stat-lbl">CA accepté</div><div class="stat-val" style="color:var(--prune)">{{ stats.ca|floatformat:0 }} €</div><div class="stat-sub">devis acceptés</div></div>
+    <div class="stat"><div class="stat-lbl">Factures en attente</div><div class="stat-val" style="color:var(--amber)">{{ stats.en_attente|floatformat:0 }} €</div></div>
+    <div class="stat"><div class="stat-lbl">Devis en cours</div><div class="stat-val">{{ stats.en_cours }}</div><div class="stat-sub">brouillon ou envoyé</div></div>
+    <div class="stat"><div class="stat-lbl">Taux d'acceptation</div><div class="stat-val" style="color:var(--teal-dk)">{{ stats.taux }} %</div><div class="stat-sub">{{ stats.total_devis }} devis total</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title"><i class="ti ti-file-text" style="color:var(--teal)"></i>Derniers devis</span>
+      <a href="{% url 'core:devis-list' %}" class="btn btn-sm">Voir tout →</a>
+    </div>
+    <table>
+      <thead><tr><th>Référence</th><th>Client</th><th>Chantier</th><th>Date</th><th class="num">Brut HT</th><th>Statut</th><th class="num">Reste à fact.</th></tr></thead>
+      <tbody>
+        {% for d in devis_recents %}
+        <tr style="cursor:pointer" onclick="location='{% url 'core:devis-detail' d.pk %}'">
+          <td><span class="mono">{{ d.reference }}</span></td>
+          <td>{{ d.client }}</td>
+          <td>{{ d.chantier }}</td>
+          <td>{{ d.date_creation|date:"d M Y" }}</td>
+          <td class="num">{{ d.total_brut|floatformat:2 }} €</td>
+          <td>
+            <span class="badge b-{{ d.status }}"><span class="dot dot-{{ d.status }}"></span>{{ d.get_status_display }}</span>
+          </td>
+          <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% else %}var(--teal-dk){% endif %}">
+            {{ d.rtf|floatformat:2 }} €
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--gray-md)">
+          Aucun devis — <a href="{% url 'core:devis-create' %}" class="btn btn-sm btn-prune">Créer le premier</a>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if factures_recentes %}
+  <div class="card">
+    <div class="card-hd">
+      <span class="card-title"><i class="ti ti-receipt" style="color:var(--teal)"></i>Dernières factures</span>
+      <a href="{% url 'core:factures-list' %}" class="btn btn-sm">Voir tout →</a>
+    </div>
+    <table>
+      <thead><tr><th>Référence</th><th>Destinataire</th><th>Devis</th><th class="num">Montant</th><th>Statut</th></tr></thead>
+      <tbody>
+        {% for f in factures_recentes %}
+        <tr>
+          <td><span class="mono">{{ f.reference }}</span></td>
+          <td>{{ f.destinataire }}</td>
+          <td><span class="mono">{{ f.devis.reference }}</span></td>
+          <td class="num">{{ f.montant|floatformat:2 }} €</td>
+          <td><span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

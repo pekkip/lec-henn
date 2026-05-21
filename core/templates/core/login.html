@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Connexion — CB Bretagne</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#F7F5F4;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-card{background:#fff;border-radius:10px;padding:2rem;width:360px;box-shadow:0 4px 24px rgba(0,0,0,.1)}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:1.5rem;justify-content:center}
+.logo-txt strong{font-size:14px;font-weight:600;color:#6B1F3A;display:block}
+.logo-txt span{font-size:11px;color:#2BBFA4;font-weight:500;text-transform:uppercase;letter-spacing:.06em}
+h2{font-size:16px;font-weight:600;color:#3A3A3A;margin-bottom:1.25rem;text-align:center}
+.field{margin-bottom:.75rem}
+.field label{font-size:11px;color:#6B6B6B;font-weight:500;display:block;margin-bottom:4px}
+.field input{width:100%;padding:8px 10px;font-size:13px;border:1px solid #DDDCDA;border-radius:6px;outline:none}
+.field input:focus{border-color:#2BBFA4;box-shadow:0 0 0 2px rgba(43,191,164,.12)}
+.btn-login{width:100%;padding:9px;background:#6B1F3A;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;margin-top:.5rem}
+.btn-login:hover{background:#4E1529}
+.error{background:#FDECEB;color:#C0392B;border-left:3px solid #C0392B;padding:8px 10px;border-radius:6px;font-size:12px;margin-bottom:1rem}
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="logo">
+    <svg width="40" height="40" viewBox="0 0 80 80" fill="none">
+      <circle cx="22" cy="17" r="8" fill="#2BBFA4"/>
+      <path d="M8 52Q8 34 22 34Q36 34 36 52Z" fill="#2BBFA4"/>
+      <circle cx="58" cy="17" r="8" fill="#E8A020"/>
+      <path d="M44 52Q44 34 58 34Q72 34 72 52Z" fill="#E8A020"/>
+      <circle cx="40" cy="13" r="8" fill="#6B1F3A"/>
+      <path d="M26 48Q26 30 40 30Q54 30 54 48Z" fill="#6B1F3A"/>
+      <rect x="36" y="36" width="8" height="9" rx="1" fill="none" stroke="#fff" stroke-width="1.5"/>
+      <line x1="40" y1="36" x2="40" y2="45" stroke="#fff" stroke-width="1.5"/>
+    </svg>
+    <div class="logo-txt"><strong>compagnons bâtisseurs</strong><span>bretagne</span></div>
+  </div>
+  <h2>Connexion</h2>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <div class="field"><label>Identifiant</label><input type="text" name="username" autofocus/></div>
+    <div class="field"><label>Mot de passe</label><input type="password" name="password"/></div>
+    <button type="submit" class="btn-login">Se connecter</button>
+  </form>
+</div>
+</body>
+</html>
