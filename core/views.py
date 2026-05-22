@@ -473,6 +473,8 @@ def devis_detail(request, pk):
         'circuit_steps': circuit_steps,
         'profil': profil,
         'taux_mo_js': taux_mo_js,
+        'clients': Client.objects.all(),
+        'equipes': Equipe.objects.select_related('service__territoire').all(),
     })
 
 
@@ -541,22 +543,128 @@ def devis_delete(request, pk):
     return redirect('core:devis-list')
 
 
+def assign_numbers_python(lignes, prefix=''):
+    flat = []
+    local_counter = [0]
+
+    for ligne in lignes:
+        if ligne.type_ligne in ('TITRE', 'S'):
+            local_counter[0] += 1
+            num = f"{prefix}{local_counter[0]}" if prefix else str(local_counter[0])
+        else:
+            num = ''
+
+        ligne.num = num
+        flat.append(ligne)
+
+        # On descend uniquement dans les TITRE
+        if ligne.type_ligne == 'TITRE':
+            enfants = list(ligne.enfants.all())
+            if enfants:
+                flat.extend(assign_numbers_python(enfants, prefix=f"{num}."))
+
+    return flat
+
+
 @login_required
 def devis_pdf(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
     factures = devis.factures.exclude(status='cancelled')
-    lignes_pos = devis.lignes.filter(parent=None).exclude(type_ligne='FIN')
-    lignes_fin = devis.lignes.filter(parent=None, type_ligne='FIN')
     params = ParametresAssociation.get()
+
+    # Lignes racines (parent=None), séparées FIN / reste
+    racines_pos = list(
+        devis.lignes.filter(parent=None).exclude(type_ligne='FIN').prefetch_related('enfants')
+    )
+    racines_fin = list(
+        devis.lignes.filter(parent=None, type_ligne='FIN').prefetch_related('enfants')
+    )
+
+    # Arbre aplati avec numérotation
+    lignes_pos = assign_numbers_python(racines_pos)
+    lignes_fin = assign_numbers_python(racines_fin)
+
+    # Date d'expiry (utilisée dans le template)
+    expiry = devis.date_validite
+
     return render(request, 'core/devis_pdf.html', {
         'devis': devis,
         'factures': factures,
         'lignes_pos': lignes_pos,
         'lignes_fin': lignes_fin,
         'params': params,
+        'expiry': expiry,
     })
 
+@login_required
+@require_POST
+def devis_entete_save(request, pk):
+    devis = get_object_or_404(Devis, pk=pk)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
 
+    # Client
+    client_id = data.get('client_id')
+    if client_id:
+        client = get_object_or_404(Client, pk=client_id)
+        devis.client = client
+
+    # Équipe (peut être vide)
+    equipe_id = data.get('equipe_id')
+    if equipe_id:
+        devis.equipe = get_object_or_404(Equipe, pk=equipe_id)
+    else:
+        devis.equipe = None
+
+    # Chantier (obligatoire)
+    chantier = data.get('chantier', '').strip()
+    if chantier:
+        devis.chantier = chantier
+
+    # Adresse chantier
+    devis.chantier_adresse1 = data.get('chantier_adresse1', '').strip()
+    devis.chantier_adresse2 = data.get('chantier_adresse2', '').strip()
+    devis.chantier_cp       = data.get('chantier_cp', '').strip()
+    devis.chantier_ville    = data.get('chantier_ville', '').strip()
+
+    # Notes et conditions
+    devis.notes            = data.get('notes', '').strip()
+    devis.conditions_devis = data.get('conditions_devis', '').strip()
+
+    # Date de validité
+    date_validite_str = data.get('date_validite', '')
+    if date_validite_str:
+        try:
+            from datetime import datetime as dt
+            devis.date_validite = dt.strptime(date_validite_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    # Taux MO
+    taux_mo = data.get('taux_mo')
+    if taux_mo is not None:
+        try:
+            devis.taux_mo = Decimal(str(taux_mo))
+        except Exception:
+            pass
+
+    devis.save()
+    add_audit(
+        request.user,
+        f"Modification en-tête devis {devis.reference}",
+        devis=devis
+    )
+    return JsonResponse({
+        'ok': True,
+        'client_nom': devis.client.nom,
+        'chantier': devis.chantier,
+        'equipe': str(devis.equipe) if devis.equipe else '',
+        'taux_mo': float(devis.taux_mo),
+    })
+
+    
 # ══════════════════════════════════════════
 #  LIGNES DEVIS (API JSON)
 # ══════════════════════════════════════════

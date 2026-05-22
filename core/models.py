@@ -367,6 +367,13 @@ class LigneDevis(models.Model):
     def __str__(self):
         return f"{self.description} ({self.devis.reference})"
 
+    def prix_unitaire(self):
+        if self.cout_unitaire is not None:
+            return self.cout_unitaire
+        if self.quantite and self.quantite != 0:
+            return self.total() / self.quantite
+        return Decimal('0')
+
     def total(self):
         enfants = self.enfants.all()
         if self.type_ligne == 'TITRE':

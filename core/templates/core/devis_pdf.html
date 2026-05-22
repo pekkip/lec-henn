@@ -7,11 +7,9 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;color:#3A3A3A;background:#F7F5F4;padding:2rem}
 .doc{background:#fff;border-radius:8px;max-width:740px;margin:0 auto;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)}
-.band{background:#6B1F3A;padding:1.2rem 1.75rem;display:flex;justify-content:space-between;align-items:center}
-.logo-txt strong{font-size:13px;font-weight:600;color:#fff;display:block}
-.logo-txt span{font-size:10px;color:#2BBFA4;font-weight:500;text-transform:uppercase;letter-spacing:.06em}
-.ref-info strong{font-size:17px;font-weight:500;color:#fff;display:block;text-align:right}
-.ref-info span{font-size:11px;color:rgba(255,255,255,.6)}
+.band{background:#fff;padding:1.2rem 1.75rem;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #6B1F3A}
+.ref-info strong{font-size:17px;font-weight:500;color:#6B1F3A;display:block;text-align:right}
+.ref-info span{font-size:11px;color:#6B6B6B}
 .body{padding:1.5rem 1.75rem}
 .addrs{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem}
 .addr-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#2BBFA4;font-weight:600;margin-bottom:4px}
@@ -25,6 +23,16 @@ tr:last-child td{border-bottom:none}
 .num{text-align:right;font-variant-numeric:tabular-nums}
 .neg-row td{color:#C0392B;background:#FFF8F7}
 .sep-row td{padding:4px 8px;background:#F0EEEC;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#6B6B6B;border-top:1px solid #DDDCDA}
+
+/* Lignes titre/section */
+.row-titre td{background:#F0EEEC;font-weight:600;font-size:12px;color:#3A3A3A;padding:7px 8px}
+.row-titre .desig{padding-left:0}
+/* Indentation enfants */
+.row-child .desig{padding-left:1.2rem}
+.row-grandchild .desig{padding-left:2.2rem}
+/* Numéro */
+.ligne-num{font-weight:600;color:#6B1F3A;margin-right:4px;white-space:nowrap}
+
 .totals{margin-top:1.25rem;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .total-row{display:flex;gap:2rem;font-size:12px}
 .total-row.grand{font-size:15px;font-weight:600;padding-top:8px;margin-top:4px;border-top:2px solid #6B1F3A}
@@ -46,12 +54,16 @@ tr:last-child td{border-bottom:none}
 </head>
 <body>
 <div class="print-btn">
-  <button onclick="window.print()"><i>🖨</i> Imprimer / Enregistrer PDF</button>
+  <button onclick="window.print()">🖨 Imprimer / Enregistrer PDF</button>
 </div>
 <div class="doc">
   <div class="band">
     <div>
-      <div class="logo-txt"><strong>compagnons bâtisseurs</strong><span>bretagne</span></div>
+      {% if params.logo %}
+        <img src="{{ params.logo.url }}" alt="{{ params.nom }}" style="max-height:50px">
+      {% else %}
+        <div class="logo-txt"><strong>compagnons bâtisseurs</strong><span>bretagne</span></div>
+      {% endif %}
     </div>
     <div class="ref-info">
       <strong>Devis {{ devis.reference }}</strong>
@@ -60,15 +72,9 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="body">
+
+    {# ── Blocs adresses : Émetteur / Client / Chantier ── #}
     <div class="addrs">
-      <div>
-        <div class="addr-lbl">Émetteur</div>
-        <div class="addr-blk">
-          <strong>Compagnons Bâtisseurs Bretagne</strong>
-          Association loi 1901<br>
-          contact@cb-bretagne.fr
-        </div>
-      </div>
       <div>
         <div class="addr-lbl">Client</div>
         <div class="addr-blk">
@@ -76,6 +82,18 @@ tr:last-child td{border-bottom:none}
           {% if devis.client.adresse %}{{ devis.client.adresse }}{% endif %}
         </div>
       </div>
+      {% if devis.chantier_adresse1 or devis.chantier_ville %}
+      <div>
+        <div class="addr-lbl">Adresse chantier</div>
+        <div class="addr-blk">
+          {% if devis.chantier_adresse1 %}<strong>{{ devis.chantier_adresse1 }}</strong>{% endif %}
+          {% if devis.chantier_adresse2 %}{{ devis.chantier_adresse2 }}<br>{% endif %}
+          {% if devis.chantier_cp or devis.chantier_ville %}
+            {{ devis.chantier_cp }} {{ devis.chantier_ville }}
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
     </div>
 
     <div class="objet">Objet : {{ devis.chantier }}</div>
@@ -87,29 +105,43 @@ tr:last-child td{border-bottom:none}
           <th class="num" style="width:9%">Qté</th>
           <th style="width:9%">Unité</th>
           <th class="num" style="width:13%">Prix unit.</th>
-          <th class="num" style="width:13%">Total</th>
+          <th class="num" style="width:13%">Total HT</th>
         </tr>
       </thead>
       <tbody>
         {% for l in lignes_pos %}
-        {% with total=l.total pu=l.total %}
-        <tr>
-          <td>{{ l.description }}</td>
-          <td class="num">{{ l.quantite|floatformat:2 }}</td>
-          <td>{{ l.unite }}</td>
-          <td class="num">
-            {% if l.quantite %}{{ l.total|floatformat:2 }} €{% endif %}
-          </td>
-          <td class="num" style="font-weight:500">{{ l.total|floatformat:2 }} €</td>
-        </tr>
-        {% endwith %}
+          {% if l.type_ligne == 'TITRE' %}
+          <tr class="row-titre">
+            <td colspan="3" class="desig">
+              {% if l.num %}<span class="ligne-num">{{ l.num }}.</span>{% endif %}
+              {{ l.description|safe }}
+            </td>
+            <td></td>
+            <td class="num" style="font-weight:600">{{ l.total|floatformat:2 }} €</td>
+          </tr>
+
+          {% else %}
+          {# ── Ligne normale : S, C, F, etc. ── #}
+          <tr class="{% if l.parent_id %}row-child{% endif %}">
+            <td class="desig">
+              {% if l.num %}<span class="ligne-num">{{ l.num }}.</span>{% endif %}
+              {{ l.description|safe }}
+            </td>
+            <td class="num">{{ l.quantite|floatformat:2 }}</td>
+            <td>{{ l.unite }}</td>
+            <td class="num">{{ l.prix_unitaire|floatformat:2 }} €</td>
+            <td class="num" style="font-weight:500">
+              {{ l.total|floatformat:2 }} €
+            </td>
+          </tr>
+          {% endif %}
         {% endfor %}
 
         {% if lignes_fin %}
         <tr class="sep-row"><td colspan="5">Financements &amp; subventions</td></tr>
         {% for l in lignes_fin %}
         <tr class="neg-row">
-          <td>{{ l.description }}</td>
+          <td>{{ l.description|safe }}</td>
           <td class="num">—</td>
           <td></td>
           <td></td>
@@ -143,7 +175,7 @@ tr:last-child td{border-bottom:none}
       <div class="sits-title">Factures émises</div>
       {% for f in factures %}
       <div class="sit-row">
-        <span>{{ f.destinataire }} — {{ f.reference }}</span>
+        <span>{{ f.destinataire }} — {{ f.get_reference }}</span>
         <span>{{ f.montant|floatformat:2 }} €</span>
       </div>
       {% endfor %}
@@ -157,8 +189,10 @@ tr:last-child td{border-bottom:none}
   </div>
 
   <div class="footer-band">
-    <strong style="color:#6B1F3A">Compagnons Bâtisseurs Bretagne</strong> · compagnonsbatisseurs.eu · La solidarité, un chantier à partager<br>
-    Devis valable jusqu'au {{ expiry|date:"d/m/Y" }}
+      <strong style="color:#6B1F3A">{{ params.nom }}</strong>
+      {% if params.adresse %} · {{ params.adresse }}{% endif %}
+      {% if params.site_web %} · {{ params.site_web }}{% endif %}
+      {% if params.slogan %} · {{ params.slogan }}{% endif %}<br>
   </div>
 </div>
 </body>

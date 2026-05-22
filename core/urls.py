@@ -45,4 +45,7 @@ urlpatterns = [
     # Lignes facture (API JSON)
     path('factures/<int:pk>/lignes/', views.lignes_facture_get, name='lignes-facture-get'),
     path('factures/<int:pk>/lignes/sauvegarder/', views.lignes_facture_save, name='lignes-facture-save'),
+
+    # En tête
+    path('devis/<int:pk>/entete/sauvegarder/', views.devis_entete_save, name='devis-entete-save'),
 ]
