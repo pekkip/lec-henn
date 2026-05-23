@@ -17,9 +17,8 @@ urlpatterns = [
     path('clients/<int:pk>/supprimer/', views.client_delete, name='client-delete'),
 
     # Bibliothèque
-    path('bibliotheque/', views.biblio_list, name='biblio'),
-    path('bibliotheque/nouveau/', views.article_create, name='article-create'),
-    path('bibliotheque/<int:pk>/supprimer/', views.article_delete, name='article-delete'),
+    path('bibliotheque/',         views.biblio_get,  name='biblio-get'),
+    path('bibliotheque/sauvegarder/', views.biblio_save, name='biblio-save'),
 
     # Devis
     path('devis/', views.devis_list, name='devis-list'),

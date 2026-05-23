@@ -118,6 +118,22 @@ class ProfilUtilisateur(models.Model):
         return self.role == 'comptable'
 
 
+class Bibliotheque(models.Model):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name='bibliotheque'
+    )
+    lignes = models.JSONField(
+        default=list, blank=True,
+        help_text="Arbre JSON identique aux lignes de devis"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Bibliothèque'
+
+    def __str__(self):
+        return f"Bibliothèque de {self.user}"
+
 # ══════════════════════════════════════════
 #  PARAMÈTRES ASSOCIATION
 # ══════════════════════════════════════════
@@ -332,7 +348,9 @@ class Devis(models.Model):
 
 class LigneDevis(models.Model):
     TYPE_CHOICES = [
-        ('F',     'Forfait'),
+        ('F',     'Forfait'), # supprimer?
+        ('FMO',   'Forfait main d\'œuvre'),
+        ('FMAT',  'Forfait matériaux'),
         ('S',     'Ouvrage simple'),
         ('C',     'Ouvrage composite'),
         ('MO',    'Main d\'œuvre'),

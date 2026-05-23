@@ -15,9 +15,9 @@ from django.contrib import messages
 from django.utils import timezone
 
 from .models import (
-    Client, Article, Categorie, Devis, LigneDevis,
+    Client, Devis, LigneDevis,
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
-    Territoire, Service, Equipe, ParametresAssociation
+    Territoire, Service, Equipe, ParametresAssociation, Bibliotheque
 )
 
 # ══════════════════════════════════════════
@@ -211,41 +211,30 @@ def client_delete(request, pk):
 
 
 # ══════════════════════════════════════════
-#  BIBLIOTHÈQUE
+#  BIBLIOTHÈQUE PERSONNELLE (API JSON)
 # ══════════════════════════════════════════
 
 @login_required
-def biblio_list(request):
-    articles = Article.objects.all()
-    return render(request, 'core/biblio.html', {'articles': articles})
+def biblio_get(request):
+    biblio, _ = Bibliotheque.objects.get_or_create(user=request.user)
+    profil = get_profil(request.user)
+    return JsonResponse({
+        'lignes': biblio.lignes,
+        'taux_mo': float(profil.taux_mo_defaut),
+    })
 
 
 @login_required
 @require_POST
-def article_create(request):
-    nom = request.POST.get('nom', '').strip()
-    if not nom:
-        messages.error(request, 'Le nom est obligatoire.')
-        return redirect('core:biblio')
-    Article.objects.create(
-        nom=nom,
-        type=request.POST.get('type', 'F'),
-        description=request.POST.get('description', ''),
-        cout_unitaire=request.POST.get('cout_unitaire') or None,
-        unite=request.POST.get('unite', ''),
-    )
-    messages.success(request, f'Article "{nom}" créé.')
-    return redirect('core:biblio')
-
-
-@login_required
-@require_POST
-def article_delete(request, pk):
-    article = get_object_or_404(Article, pk=pk)
-    article.delete()
-    messages.success(request, 'Article supprimé.')
-    return redirect('core:biblio')
-
+def biblio_save(request):
+    biblio, _ = Bibliotheque.objects.get_or_create(user=request.user)
+    try:
+        data = json.loads(request.body)
+        biblio.lignes = data.get('lignes', [])
+        biblio.save()
+        return JsonResponse({'ok': True})
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
 
 # ══════════════════════════════════════════
 #  CLIENTS
@@ -283,53 +272,6 @@ def client_delete(request, pk):
     client.delete()
     messages.success(request, f'Client "{nom}" supprimé.')
     return redirect('core:clients')
-
-
-# ══════════════════════════════════════════
-#  BIBLIOTHÈQUE
-# ══════════════════════════════════════════
-
-@login_required
-def biblio_list(request):
-    articles_partages = Article.objects.filter(proprietaire=None)
-    articles_perso = Article.objects.filter(proprietaire=request.user)
-    categories = Categorie.objects.all()
-    return render(request, 'core/biblio.html', {
-        'articles_partages': articles_partages,
-        'articles_perso': articles_perso,
-        'categories': categories,
-    })
-
-
-@login_required
-@require_POST
-def article_create(request):
-    nom = request.POST.get('nom', '').strip()
-    if not nom:
-        messages.error(request, 'Le nom est obligatoire.')
-        return redirect('core:biblio')
-    perso = request.POST.get('perso') == '1'
-    cat_id = request.POST.get('categorie')
-    Article.objects.create(
-        nom=nom,
-        type=request.POST.get('type', 'F'),
-        description=request.POST.get('description', ''),
-        cout_unitaire=request.POST.get('cout_unitaire') or None,
-        unite=request.POST.get('unite', ''),
-        proprietaire=request.user if perso else None,
-        categorie_id=cat_id if cat_id else None,
-    )
-    messages.success(request, f'Article "{nom}" créé.')
-    return redirect('core:biblio')
-
-
-@login_required
-@require_POST
-def article_delete(request, pk):
-    article = get_object_or_404(Article, pk=pk)
-    article.delete()
-    messages.success(request, 'Article supprimé.')
-    return redirect('core:biblio')
 
 
 # ══════════════════════════════════════════
