@@ -1111,6 +1111,7 @@ function renderTree() {
   const posLines = tree.filter(n => n.type_ligne !== 'FIN');
   const finLines = tree.filter(n => n.type_ligne === 'FIN');
   assignNumbers(posLines, '', null);
+  const t = document.getElementById('tree');
   t.innerHTML = posLines.map(n => renderNode(n, 0)).join('');
   if (finLines.length) {
     t.innerHTML += `<div style="margin-top:8px">${renderFinGroup(finLines)}</div>`;
