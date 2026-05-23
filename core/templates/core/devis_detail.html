@@ -959,6 +959,14 @@ document.addEventListener('keydown', function(e) {
     if (nid) copyNode(nid);
   }
 });
+const DEFAULT_DESCS = new Set([
+  'Nouveau forfait', 'Nouvel ouvrage', 'Nouvel ouvrage composite',
+  'Nouveau titre', "Main d'œuvre", 'Matériau', 'Sous-ouvrage',
+  'Subvention / financement'
+]);
+function isDefaultDesc(n) {
+  return !n.description || DEFAULT_DESCS.has(n.description);
+}
 
 function renderNode(n, depth) {
   const isNeg   = n.type_ligne === 'FIN';
@@ -1008,11 +1016,12 @@ function renderNode(n, depth) {
       ${numDisplay}
       <div class="nd-desc-ce">
         <div contenteditable="true"
-             data-placeholder="${isTitre ? 'Titre…' : 'Description…'}"
-             data-nid-desc="${n._nid}"
-             class="${isNeg ? 'neg-inp' : ''}"
-             oninput="syncDescInline(this,'${n._nid}')"
-        >${n.description || ''}</div>
+            data-placeholder="${isTitre ? 'Titre…' : 'Description…'}"
+            data-nid-desc="${n._nid}"
+            class="${isNeg ? 'neg-inp' : ''}"
+            onfocus="if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}"
+            oninput="syncDescInline(this,'${n._nid}')"
+        >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
       </div>
       ${isTitre ? `
         <div class="nd-qty" style="visibility:hidden"><input type="number" disabled/></div>
