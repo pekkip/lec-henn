@@ -549,7 +549,8 @@
         <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Titre</button>
           <div style="width:1px;background:var(--gray-bd);height:20px"></div>
-          <button class="btn btn-sm" onclick="addRootNode('F')"><i class="ti ti-plus"></i> Forfait</button>
+          <button class="btn btn-sm" onclick="addRootNode('FMO')"><i class="ti ti-plus"></i> Forfait MO</button>
+          <button class="btn btn-sm" onclick="addRootNode('FMAT')"><i class="ti ti-plus"></i> Forfait Mat.</button>
           <button class="btn btn-sm" onclick="addRootNode('S')"><i class="ti ti-plus"></i> Ouvrage simple</button>
           <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
           <div style="flex:1"></div>
@@ -905,7 +906,8 @@ function calcMO(n) {
   if (n.type_ligne === 'TITRE') {
     return (n.quantite || 1) * (n.enfants || []).reduce((s, c) => s + calcMO(c), 0);
   }
-  if (!n.enfants || !n.enfants.length) return n.type_ligne === 'MO' ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
+  if (!n.enfants || !n.enfants.length)
+    return ['MO', 'FMO'].includes(n.type_ligne) ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
   return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcMO(c), 0);
 }
 
@@ -913,7 +915,8 @@ function calcMat(n) {
   if (n.type_ligne === 'TITRE') {
     return (n.quantite || 1) * (n.enfants || []).reduce((s, c) => s + calcMat(c), 0);
   }
-  if (!n.enfants || !n.enfants.length) return n.type_ligne === 'MAT' ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
+  if (!n.enfants || !n.enfants.length)
+    return ['MAT', 'FMAT'].includes(n.type_ligne) ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
   return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcMat(c), 0);
 }
 
@@ -941,8 +944,8 @@ function assignNumbers(nodes, prefix, parentType) {
 
 // ── RENDU ARBRE ──
 const NBADGE = {
-  F:     '<span class="nbadge nb-F">forfait</span>',
-  S:     '<span class="nbadge nb-S">simple</span>',
+  FMO:   '<span class="nbadge nb-MO">forfait MO</span>',
+  FMAT:  '<span class="nbadge nb-MAT">forfait MTX</span>',
   C:     '<span class="nbadge nb-C">composite</span>',
   MO:    '<span class="nbadge nb-MO">MO</span>',
   MAT:   '<span class="nbadge nb-MAT">mat.</span>',
@@ -964,7 +967,7 @@ document.addEventListener('keydown', function(e) {
   }
 });
 const DEFAULT_DESCS = new Set([
-  'Nouveau forfait', 'Nouvel ouvrage', 'Nouvel ouvrage composite',
+  'Forfait main d\'œuvre', 'Forfait matériaux', 'Nouvel ouvrage', 'Nouvel ouvrage composite',
   'Nouveau titre', "Main d'œuvre", 'Matériau', 'Sous-ouvrage',
   'Subvention / financement'
 ]);
@@ -1258,7 +1261,8 @@ function delNode(nid) {
 
 function addRootNode(type) {
   const def = {
-    F: {description:'Nouveau forfait',         quantite:1, unite:'forfait', cout_unitaire:0},
+    FMO:  {description:'Forfait main d\'œuvre', quantite:1, unite:'forfait', cout_unitaire:0},
+    FMAT: {description:'Forfait matériaux',      quantite:1, unite:'forfait', cout_unitaire:0},
     S: {description:'Nouvel ouvrage',           quantite:1, unite:'u',       cout_unitaire:null},
     C: {description:'Nouvel ouvrage composite', quantite:1, unite:'u',       cout_unitaire:null},
   };
