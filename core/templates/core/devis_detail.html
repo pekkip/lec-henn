@@ -1031,7 +1031,10 @@ function renderNode(n, depth) {
         >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
       </div>
       ${isTitre ? `
-        <div class="nd-qty" style="visibility:hidden"><input type="number" disabled/></div>
+        <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right"
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','quantite',parseFloat(this.value)||1)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
         <div class="nd-unit"></div>
         <div class="nd-cost"><input disabled/></div>
         <div class="nd-mo">${mo > 0 ? fmtV(mo) : '—'}</div>
@@ -1056,8 +1059,6 @@ function renderNode(n, depth) {
       `}
       <div class="${totCls}" data-total="${n._nid}">${isNeg ? '−'+fmtV(Math.abs(total)) : fmtV(total)}</div>
       <div class="nd-acts">
-        ${isTitre ? `<button class="ico-btn" onclick="addTitreEnfant('${n._nid}')" title="Ajouter sous-titre"><i class="ti ti-folder-plus"></i></button>
-                     <button class="ico-btn" onclick="addOuvrageEnfant('${n._nid}','F')" title="Ajouter forfait"><i class="ti ti-plus"></i></button>` : ''}
         <button class="ico-btn" onclick="copyNode('${n._nid}')" title="Copier (Ctrl+Shift+K)"><i class="ti ti-copy"></i></button>
         <button class="ico-btn danger" onclick="delNode('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
       </div>
