@@ -1034,8 +1034,8 @@ function renderNode(n, depth) {
         <div class="nd-qty" style="visibility:hidden"><input type="number" disabled/></div>
         <div class="nd-unit"></div>
         <div class="nd-cost"><input disabled/></div>
-        <div class="nd-mo"></div>
-        <div class="nd-mat"></div>
+        <div class="nd-mo">${mo > 0 ? fmtV(mo) : '—'}</div>
+        <div class="nd-mat">${mat > 0 ? fmtV(mat) : '—'}</div>
       ` : `
         <div class="nd-qty"><input type="number" value="${n.quantite||''}" min="0" step="any" style="text-align:right"
           onfocus="this.select()"
