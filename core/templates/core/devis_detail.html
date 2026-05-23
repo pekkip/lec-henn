@@ -1030,9 +1030,20 @@ function renderNode(n, depth) {
         <div class="nd-mo"></div>
         <div class="nd-mat"></div>
       ` : `
-        <div class="nd-qty"><input type="number" value="${n.quantite||''}" min="0" step="any" style="text-align:right" oninput="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"/></div>
-        <div class="nd-unit"><input value="${n.unite||''}" placeholder="u." oninput="updNode('${n._nid}','unite',this.value)"/></div>
-        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf&&!isNeg?'0':'—'}" ${costDisabled} ${isNeg?'class="neg-inp"':''} style="text-align:right" oninput="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"/></div>
+        <div class="nd-qty"><input type="number" value="${n.quantite||''}" min="0" step="any" style="text-align:right"
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
+
+        <div class="nd-unit"><input value="${n.unite||''}" placeholder="u."
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','unite',this.value)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
+
+        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf&&!isNeg?'0':'—'}" ${costDisabled} ${isNeg?'class="neg-inp"':''} style="text-align:right"
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
         <div class="nd-mo">${moDisplay}</div>
         <div class="nd-mat">${matDisplay}</div>
       `}
