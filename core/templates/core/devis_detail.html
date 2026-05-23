@@ -923,14 +923,19 @@ function fmtV(v) {
 }
 
 // ── NUMÉROTATION ──
-function assignNumbers(nodes, prefix) {
+function assignNumbers(nodes, prefix, depth) {
   let idx = 1;
   nodes.forEach(n => {
     if (n.type_ligne === 'FIN' || n._isFINGroup) return;
+    // Pas de numéro pour MO, MAT, et sous-ouvrages (enfants d'un composite)
+    if (['MO', 'MAT', 'OUV'].includes(n.type_ligne)) {
+      n._num = null;
+      return;
+    }
     n._num = prefix ? `${prefix}.${idx}` : `${idx}`;
     idx++;
     if (n.enfants && n.enfants.length) {
-      assignNumbers(n.enfants, n._num);
+      assignNumbers(n.enfants, n._num, depth + 1);
     }
   });
 }
@@ -1106,8 +1111,7 @@ function assignNids(nodes) {
 function renderTree() {
   const posLines = tree.filter(n => n.type_ligne !== 'FIN');
   const finLines = tree.filter(n => n.type_ligne === 'FIN');
-  assignNumbers(posLines, '');
-  const t = document.getElementById('tree');
+  assignNumbers(posLines, '', 0);  const t = document.getElementById('tree');
   t.innerHTML = posLines.map(n => renderNode(n, 0)).join('');
   if (finLines.length) {
     t.innerHTML += `<div style="margin-top:8px">${renderFinGroup(finLines)}</div>`;
