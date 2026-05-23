@@ -1036,7 +1036,7 @@ function renderNode(n, depth) {
           onchange="updNode('${n._nid}','quantite',parseFloat(this.value)||1)"
           onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
         <div class="nd-unit"></div>
-        <div class="nd-cost"><input disabled/></div>
+        <  <div class="nd-cost"><input type="number" value="${puCalc || ''}" disabled style="text-align:right"/></div>
         <div class="nd-mo">${mo > 0 ? fmtV(mo) : '—'}</div>
         <div class="nd-mat">${mat > 0 ? fmtV(mat) : '—'}</div>
       ` : `
