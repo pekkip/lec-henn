@@ -449,28 +449,21 @@
 ════════════════════════════════════════════ -->
 <div class="tab-pane" id="pane-edit">
   <div class="editor-shell">
+  
     <!-- BIBLIOTHÈQUE -->
     <div class="lib-panel">
-      <div class="lib-hd">Bibliothèque</div>
+      <div class="lib-hd">Ma bibliothèque</div>
       <div class="lib-search"><input placeholder="Rechercher…" oninput="filterLib(this.value)" id="lib-q"/></div>
       <div class="lib-list" id="lib-list">
-        {% for art in articles_biblio %}
-        <div class="lib-item" draggable="true"
-             data-id="{{ art.pk }}"
-             data-type="{{ art.type }}"
-             data-nom="{{ art.nom }}"
-             data-cost="{{ art.cout_unitaire|default:'' }}"
-             data-unit="{{ art.unite }}"
-             ondragstart="onLibDragStart(event,this)"
-             ondragend="onLibDragEnd()"
-             onclick="addFromLib(this)">
-          <span class="lib-tag lt-{{ art.type }}">{{ art.get_type_display }}</span>
-          <div><div class="lib-name">{{ art.nom }}</div><div class="lib-det">{{ art.description }}</div></div>
-        </div>
-        {% endfor %}
+        <div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center" id="lib-loading">Chargement…</div>
       </div>
-      <div style="padding:8px;border-top:1px solid var(--gray-bd)">
-        <a href="{% url 'core:article-create' %}" class="btn btn-sm" style="width:100%;justify-content:center"><i class="ti ti-plus"></i> Nouvel article</a>
+      <div style="padding:8px;border-top:1px solid var(--gray-bd);display:flex;flex-direction:column;gap:4px">
+        <button class="btn btn-sm" style="width:100%;justify-content:center" onclick="addBiblioTitre()">
+          <i class="ti ti-folder-plus"></i> Nouvelle catégorie
+        </button>
+        <button class="btn btn-sm" style="width:100%;justify-content:center" onclick="saveBiblio()">
+          <i class="ti ti-device-floppy"></i> Sauvegarder
+        </button>
       </div>
     </div>
 

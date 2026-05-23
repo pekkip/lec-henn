@@ -389,13 +389,7 @@ def devis_detail(request, pk):
     factures = devis.factures.all()
     audit_logs = devis.audit_logs.all()
 
-    # Articles bibliothèque : partagés + personnels de l'utilisateur
-    articles_biblio = Article.objects.filter(
-        proprietaire=None
-    ) | Article.objects.filter(proprietaire=request.user)
-    articles_biblio = articles_biblio.select_related('categorie').order_by(
-        'categorie__ordre', 'categorie__nom', 'nom'
-    )
+
 
     circuit_steps = [
         ('ti-file-plus', 'var(--gray-lt)', 'var(--gray-bd)', 'Brouillon auto'),
