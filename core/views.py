@@ -400,7 +400,7 @@ def devis_detail(request, pk):
     ]
 
     taux_mo_js = str(devis.taux_mo).replace(',', '.')
-
+    articles_biblio = []
     return render(request, 'core/devis_detail.html', {
         'devis': devis,
         'factures': factures,
