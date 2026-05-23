@@ -1,8 +1,9 @@
 from django.contrib import admin
 from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
-    ParametresAssociation, Client, Categorie, Article,
-    Devis, LigneDevis, Facture, LigneFacture, AuditLog
+    ParametresAssociation, Client,
+    Devis, LigneDevis, Facture, LigneFacture, AuditLog,
+    Bibliotheque
 )
 
 
@@ -73,22 +74,6 @@ class ClientAdmin(admin.ModelAdmin):
     list_display = ['nom', 'contact', 'email', 'telephone']
     search_fields = ['nom', 'contact', 'email']
 
-
-# ══════════════════════════════════════════
-#  BIBLIOTHÈQUE
-# ══════════════════════════════════════════
-
-@admin.register(Categorie)
-class CategorieAdmin(admin.ModelAdmin):
-    list_display = ['nom', 'ordre']
-    ordering = ['ordre', 'nom']
-
-
-@admin.register(Article)
-class ArticleAdmin(admin.ModelAdmin):
-    list_display = ['nom', 'type', 'categorie', 'proprietaire', 'cout_unitaire', 'unite']
-    list_filter = ['type', 'categorie', 'proprietaire']
-    search_fields = ['nom']
 
 
 # ══════════════════════════════════════════
