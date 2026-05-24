@@ -1,0 +1,583 @@
+{% extends 'core/base.html' %}
+{% block title %}Ma bibliothèque{% endblock %}
+{% block nav_biblio %}active{% endblock %}
+
+{% block topbar_title %}
+  <span style="color:#fff;font-weight:500">Ma bibliothèque</span>
+{% endblock %}
+
+{% block topbar_actions %}
+  <button class="btn btn-ghost btn-sm" onclick="saveBiblio()">
+    <i class="ti ti-device-floppy"></i> Sauvegarder
+  </button>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* EDITOR */
+.editor-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.editor-meta{background:#fff;border-bottom:1px solid var(--gray-bd);padding:7px 1rem;display:flex;gap:1rem;align-items:center;flex-shrink:0;flex-wrap:wrap}
+.editor-body{flex:1;overflow-y:auto;padding:1rem;background:var(--bg)}
+.editor-foot{background:#fff;border-top:1px solid var(--gray-bd);padding:9px 1rem;display:flex;justify-content:flex-end;align-items:baseline;gap:1.5rem;flex-shrink:0}
+.ft-lbl{font-size:11px;color:var(--gray-md)}
+.ft-val{font-size:12px;font-weight:500;font-variant-numeric:tabular-nums}
+.ft-grand{font-size:20px;font-weight:600;color:var(--prune);font-variant-numeric:tabular-nums}
+.ft-net{font-size:14px;font-weight:600;color:var(--teal-dk);font-variant-numeric:tabular-nums}
+
+/* TREE NODES */
+.tree-node{margin-bottom:3px}
+.node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:34px}
+.node-row:hover{border-color:#BBBAB8}
+.node-row.is-neg{background:#FFF8F7;border-color:#F5C6C2}
+.toggler{width:16px;height:16px;border-radius:3px;border:1px solid var(--gray-bd);background:var(--gray-lt);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:10px;color:var(--gray-md);user-select:none}
+.toggler.leaf{visibility:hidden}
+.nbadge{font-size:10px;padding:2px 5px;border-radius:3px;font-weight:500;flex-shrink:0}
+.nb-F{background:#E1F5EE;color:#085041}
+.nb-S{background:var(--teal-lt);color:var(--teal-dk)}
+.nb-C{background:var(--prune-lt);color:var(--prune-dk)}
+.nb-MO{background:var(--amber-lt);color:#8B5E0A}
+.nb-MAT{background:#EAF3DE;color:#27500A}
+.nb-OUV{background:var(--teal-lt);color:var(--teal-dk)}
+.nb-FMO{background:var(--amber-lt);color:#8B5E0A}
+.nb-FMAT{background:#EAF3DE;color:#27500A}
+.nb-TITRE{background:var(--prune-lt);color:var(--prune-dk)}
+
+.drop-above{border-top:2px solid var(--teal) !important}
+.tree-node[draggable="true"]{cursor:grab}
+.empty-drop-zone{height:32px;border:1.5px dashed var(--gray-bd);border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--gray-md);margin-bottom:4px;transition:all .15s}
+.empty-drop-zone.empty-drop-active{border-color:var(--teal);background:var(--teal-lt);color:var(--teal-dk)}
+
+/* COLONNES */
+.nd-desc-ce{flex:1;min-width:0}
+.nd-desc-ce [contenteditable]{width:100%;min-height:18px;font-size:12px;color:inherit;font-family:var(--f);outline:none;border-radius:3px;padding:0;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.nd-desc-ce [contenteditable]:focus{outline:1px solid var(--teal);padding:0 3px}
+.nd-desc-ce [contenteditable]:empty::before{content:attr(data-placeholder);color:#BBBAB8;pointer-events:none}
+.nd-qty{width:46px;flex-shrink:0}
+.nd-qty input{width:100%;text-align:right;background:transparent;border:none;outline:none;font-size:12px;color:var(--gray);font-family:var(--f)}
+.nd-qty input:focus{outline:1px solid var(--teal);border-radius:3px}
+.nd-unit{width:28px;flex-shrink:0;margin-left:2px}
+.nd-unit input{width:100%;background:transparent;border:none;outline:none;font-size:11px;color:var(--gray-md);font-family:var(--f)}
+.nd-cost{width:52px;flex-shrink:0}
+.nd-cost input{width:100%;text-align:right;background:transparent;border:none;outline:none;font-size:11px;color:var(--gray-md);font-family:var(--f)}
+.nd-cost input:disabled{color:#BBBAB8}
+.nd-mo{width:60px;text-align:right;font-size:11px;color:var(--amber);font-variant-numeric:tabular-nums;flex-shrink:0}
+.nd-mat{width:60px;text-align:right;font-size:11px;color:var(--teal-dk);font-variant-numeric:tabular-nums;flex-shrink:0}
+.nd-total{width:68px;text-align:right;font-size:12px;font-weight:500;flex-shrink:0;font-variant-numeric:tabular-nums}
+.nd-total.calc{color:var(--prune)}
+.nd-total.titre-total{color:var(--prune);font-weight:600}
+.nd-acts{display:flex;gap:1px;flex-shrink:0}
+
+.kids-wrap{margin-left:22px;border-left:2px solid var(--gray-bd);padding-left:4px;margin-top:3px;display:flex;flex-direction:column;gap:3px}
+.kids-wrap.d1{border-color:var(--teal-bd)}
+.kids-wrap.d2{border-color:var(--prune-bd)}
+.add-kid-row{padding:3px 6px;display:flex;gap:4px;flex-wrap:wrap}
+.add-kid-btn{font-size:11px;color:var(--gray-md);background:none;border:1px dashed var(--gray-bd);cursor:pointer;display:flex;align-items:center;gap:3px;padding:2px 6px;border-radius:var(--r)}
+.add-kid-btn:hover{background:#fff;color:var(--teal-dk);border-color:var(--teal-bd)}
+
+/* Barre de formatage */
+.fmt-bar{display:flex;align-items:center;gap:3px;padding:5px 8px;background:#fff;border-bottom:1px solid var(--gray-bd);flex-shrink:0;flex-wrap:wrap}
+.fmt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid transparent;border-radius:4px;background:none;cursor:pointer;color:var(--gray);font-size:13px;font-family:var(--f);transition:background .1s,border-color .1s;flex-shrink:0}
+.fmt-btn:hover{background:var(--gray-lt);border-color:var(--gray-bd)}
+.fmt-btn.active{background:var(--teal-lt);border-color:var(--teal-bd);color:var(--teal-dk)}
+.fmt-sep{width:1px;height:16px;background:var(--gray-bd);margin:0 3px;flex-shrink:0}
+
+/* Modal % MAT */
+.modal-pct input{font-size:24px;text-align:center;padding:10px;width:100%;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none}
+.modal-pct input:focus{border-color:var(--teal)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;flex:1;overflow:hidden;flex-direction:column">
+
+  <!-- BARRE TAUX MO -->
+  <div class="editor-meta">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em">Taux MO</span>
+      <input type="number" id="bib-taux-mo" value="{{ taux_mo_js }}" min="0" step="0.5"
+             style="width:70px;padding:4px 8px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);text-align:right"
+             onfocus="this.select()"/>
+      <span style="font-size:12px;color:var(--gray-md)">€/h</span>
+      <button class="btn btn-sm" onclick="applyTauxMO()"><i class="ti ti-refresh"></i> Appliquer</button>
+    </div>
+    <div style="margin-left:auto;font-size:11px;color:var(--gray-md)" id="bib-status"></div>
+  </div>
+
+  <!-- BARRE FORMATAGE -->
+  <div class="fmt-bar">
+    <button class="fmt-btn" id="fmt-bold"   onmousedown="fmtCmd(event,'bold')"><b>G</b></button>
+    <button class="fmt-btn" id="fmt-italic" onmousedown="fmtCmd(event,'italic')"><i>I</i></button>
+    <button class="fmt-btn" id="fmt-under"  onmousedown="fmtCmd(event,'underline')"><u>S</u></button>
+    <div class="fmt-sep"></div>
+    <button class="fmt-btn" title="Effacer la mise en forme" onmousedown="fmtCmd(event,'removeFormat')"><i class="ti ti-clear-formatting"></i></button>
+    <span id="fmt-hint" style="margin-left:auto;font-size:10px;color:var(--gray-md)">Cliquez dans une description</span>
+  </div>
+
+  <!-- ÉDITEUR -->
+  <div class="editor-body" id="editor-body">
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Catégorie</button>
+      <div style="width:1px;background:var(--gray-bd);height:20px"></div>
+      <button class="btn btn-sm" onclick="addRootNode('FMO')"><i class="ti ti-plus"></i> Forfait MO</button>
+      <button class="btn btn-sm" onclick="addRootNode('FMAT')"><i class="ti ti-plus"></i> Forfait Mat.</button>
+      <button class="btn btn-sm" onclick="addRootNode('S')"><i class="ti ti-plus"></i> Ouvrage simple</button>
+      <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
+    </div>
+    <!-- EN-TÊTES COLONNES -->
+    <div style="display:flex;align-items:center;padding:0 8px 4px 4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;gap:4px;margin-bottom:3px">
+      <div style="flex:1">Description</div>
+      <div style="width:52px;text-align:right">Coût u.</div>
+      <div style="width:60px;text-align:right;color:var(--amber)">Coût MO</div>
+      <div style="width:60px;text-align:right;color:var(--teal-dk)">Coût Mtx</div>
+      <div style="width:68px;text-align:right;color:var(--prune)">Total</div>
+      <div style="width:44px"></div>
+    </div>
+    <div id="tree"></div>
+  </div>
+
+  <!-- PIED -->
+  <div class="editor-foot">
+    <span class="ft-lbl">MO</span><span class="ft-val" style="color:var(--amber)" id="ft-mo">—</span>
+    <span class="ft-lbl">Matériaux</span><span class="ft-val" style="color:var(--teal-dk)" id="ft-mat">—</span>
+    <div style="width:1px;background:var(--gray-bd);height:16px"></div>
+    <span class="ft-lbl">Total</span><span class="ft-grand" id="ft-grand">—</span>
+    <button class="btn btn-sm btn-prune" onclick="saveBiblio()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>
+  </div>
+</div>
+
+<!-- MODAL % MAT -->
+<div id="modal-pct" class="modal-bg hidden">
+  <div class="modal modal-pct">
+    <div class="modal-title"><i class="ti ti-percentage" style="color:var(--teal)"></i> Augmenter les matériaux</div>
+    <p style="font-size:12px;color:var(--gray-md);margin-bottom:1rem">Appliquer une augmentation en % sur tous les matériaux de la catégorie <strong id="pct-titre-nom"></strong>.</p>
+    <input type="number" id="pct-input" placeholder="ex: 10" step="0.1" min="-100"/>
+    <div style="font-size:11px;color:var(--gray-md);margin-top:6px">Une valeur négative diminue les prix.</div>
+    <div class="modal-acts">
+      <button class="btn" onclick="document.getElementById('modal-pct').classList.add('hidden')">Annuler</button>
+      <button class="btn btn-teal" onclick="applyPctMAT()">Appliquer</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TAUX_MO = {{ taux_mo_js }};
+const CSRF = '{{ csrf_token }}';
+let tree = [];
+let _nidCounter = 0;
+let _pctTargetNid = null;
+let _fmtTarget = null;
+let draggingNodeNid = null;
+
+// ── CALCULS ──
+function calcTotal(n) {
+  if (n.type_ligne === 'TITRE') return (n.quantite||1) * (n.enfants||[]).reduce((s,c)=>s+calcTotal(c),0);
+  if (!n.enfants||!n.enfants.length) return (n.quantite||0)*(n.cout_unitaire||0);
+  return (n.quantite||1)*n.enfants.reduce((s,c)=>s+calcTotal(c),0);
+}
+function calcMO(n) {
+  if (n.type_ligne==='TITRE') return (n.quantite||1)*(n.enfants||[]).reduce((s,c)=>s+calcMO(c),0);
+  if (!n.enfants||!n.enfants.length) return ['MO','FMO'].includes(n.type_ligne)?(n.quantite||0)*(n.cout_unitaire||0):0;
+  return (n.quantite||1)*n.enfants.reduce((s,c)=>s+calcMO(c),0);
+}
+function calcMat(n) {
+  if (n.type_ligne==='TITRE') return (n.quantite||1)*(n.enfants||[]).reduce((s,c)=>s+calcMat(c),0);
+  if (!n.enfants||!n.enfants.length) return ['MAT','FMAT'].includes(n.type_ligne)?(n.quantite||0)*(n.cout_unitaire||0):0;
+  return (n.quantite||1)*n.enfants.reduce((s,c)=>s+calcMat(c),0);
+}
+function fmtV(v) {
+  if (v===null||v===undefined) return '—';
+  return Number(v).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+// ── NIDS ──
+function assignNids(nodes) {
+  nodes.forEach(n => { n._nid='_'+(_nidCounter++); if(n.enfants) assignNids(n.enfants); });
+}
+function findNode(nodes,nid) {
+  for(const n of nodes){if(n._nid===nid)return n;if(n.enfants){const f=findNode(n.enfants,nid);if(f)return f;}}return null;
+}
+function delFromTree(nodes,nid) {
+  const i=nodes.findIndex(n=>n._nid===nid);if(i>=0){nodes.splice(i,1);return true;}
+  for(const n of nodes){if(n.enfants&&delFromTree(n.enfants,nid))return true;}return false;
+}
+
+// ── BADGES ──
+const NBADGE = {
+  FMO:   '<span class="nbadge nb-FMO">forfait MO</span>',
+  FMAT:  '<span class="nbadge nb-FMAT">forfait mat.</span>',
+  S:     '<span class="nbadge nb-S">simple</span>',
+  C:     '<span class="nbadge nb-C">composite</span>',
+  MO:    '<span class="nbadge nb-MO">MO</span>',
+  MAT:   '<span class="nbadge nb-MAT">mat.</span>',
+  OUV:   '<span class="nbadge nb-OUV">ouvrage</span>',
+  TITRE: '<span class="nbadge nb-TITRE">catégorie</span>',
+};
+
+const DEFAULT_DESCS = new Set([
+  'Forfait main d\'œuvre','Forfait matériaux','Nouvel ouvrage',
+  'Nouvel ouvrage composite','Nouveau titre','Main d\'œuvre',
+  'Matériau','Sous-ouvrage','Nouvelle catégorie',
+]);
+function isDefaultDesc(n) { return !n.description||DEFAULT_DESCS.has(n.description); }
+
+// ── RENDU ──
+function renderNode(n, depth) {
+  const isTitre = n.type_ligne==='TITRE';
+  const hasK    = n.enfants&&n.enfants.length>0;
+  const isLeaf  = !hasK&&!['C','S','OUV'].includes(n.type_ligne);
+  const total   = calcTotal(n);
+  const mo      = calcMO(n);
+  const mat     = calcMat(n);
+  const tog     = (hasK||isTitre)?(n.ouvert!==false?'▾':'▸'):'';
+
+  const puCalc = (!isLeaf&&!isTitre&&parseFloat(n.quantite||0)!==0)
+    ?(calcTotal(n)/parseFloat(n.quantite)).toFixed(2):null;
+  const costVal      = isLeaf?(n.cout_unitaire!=null?n.cout_unitaire:''):(puCalc||'');
+  const costDisabled = (!isLeaf||isTitre)?'disabled':'';
+
+  const totCls = 'nd-total'
+    +((hasK||['C','S','OUV'].includes(n.type_ligne))?' calc':'')
+    +(isTitre?' titre-total':'');
+
+  const rowExtra = isTitre
+    ?' style="background:var(--prune-lt);border-color:var(--prune-bd);font-weight:500"':'';
+
+  let h = `<div class="tree-node" data-nid="${n._nid}">
+    <div class="node-row"${rowExtra}
+         draggable="true"
+         ondragstart="onNodeRowDragStart(event,'${n._nid}')"
+         ondragend="onNodeRowDragEnd(event)"
+         ondragover="onNodeRowDragOver2(event,'${n._nid}')"
+         ondrop="onNodeRowDrop2(event,'${n._nid}')"
+         ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
+      <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
+      <div class="toggler ${(hasK||isTitre)?'':'leaf'}" onclick="togNode('${n._nid}')">${tog}</div>
+      ${NBADGE[n.type_ligne]||''}
+      <div class="nd-desc-ce">
+        <div contenteditable="true"
+             data-placeholder="${isTitre?'Catégorie…':'Description…'}"
+             data-nid-desc="${n._nid}"
+             class=""
+             onfocus="if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}"
+             oninput="syncDescInline(this,'${n._nid}')"
+        >${isDefaultDesc(n)?'':(n.description||'')}</div>
+      </div>
+      ${isTitre ? `
+        <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right"
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','quantite',parseFloat(this.value)||1)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
+        <div class="nd-unit"></div>
+        <div class="nd-cost"><input type="number" value="${parseFloat(n.quantite||1)!==0?(calcTotal(n)/parseFloat(n.quantite||1)).toFixed(2):''}" disabled style="text-align:right"/></div>
+        <div class="nd-mo">${mo>0?fmtV(mo):'—'}</div>
+        <div class="nd-mat">${mat>0?fmtV(mat):'—'}</div>
+      ` : `
+        <div class="nd-qty"><input type="number" value="${n.quantite||''}" min="0" step="any" style="text-align:right"
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
+        <div class="nd-unit"><input value="${n.unite||''}" placeholder="u."
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','unite',this.value)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
+        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf?'0':'—'}" ${costDisabled} style="text-align:right"
+          onfocus="this.select()"
+          onchange="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"
+          onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
+        <div class="nd-mo">${mo>0?fmtV(mo):'—'}</div>
+        <div class="nd-mat">${mat>0?fmtV(mat):'—'}</div>
+      `}
+      <div class="${totCls}" data-total="${n._nid}">${fmtV(total)}</div>
+      <div class="nd-acts">
+        ${isTitre?`<button class="ico-btn" title="% Matériaux" onclick="openPctModal('${n._nid}','${(n.description||'Catégorie').replace(/'/g,"\\'")}')"><i class="ti ti-percentage"></i></button>`:''}
+        <button class="ico-btn" onclick="copyNode('${n._nid}')" title="Copier"><i class="ti ti-copy"></i></button>
+        <button class="ico-btn danger" onclick="delNode('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+
+  if (n.ouvert!==false) {
+    const canHaveKids = isTitre||hasK||['S','C','OUV'].includes(n.type_ligne);
+    if (canHaveKids) {
+      h += `<div class="kids-wrap d${Math.min(depth,2)}">`;
+      if (hasK) {
+        n.enfants.forEach(c=>{ h+=renderNode(c,depth+1); });
+      } else {
+        h += `<div class="empty-drop-zone"
+          ondragover="onEmptyZoneDragOver(event,'${n._nid}')"
+          ondrop="onEmptyZoneDrop(event,'${n._nid}')"
+          ondragleave="this.classList.remove('empty-drop-active')">
+          Glisser un élément ici
+        </div>`;
+      }
+      if (!isTitre&&n.type_ligne!=='FMO'&&n.type_ligne!=='FMAT') h+=kidBtns(n._nid,n.type_ligne);
+      if (isTitre) h+=titreBtns(n._nid);
+      h+=`</div>`;
+    }
+  }
+  return h+`</div>`;
+}
+
+function kidBtns(nid,type) {
+  const mo  = `<button class="add-kid-btn" onclick="addChild('${nid}','MO')"><i class="ti ti-plus"></i>Main d'œuvre</button>`;
+  const mat = `<button class="add-kid-btn" onclick="addChild('${nid}','MAT')"><i class="ti ti-plus"></i>Matériau</button>`;
+  const ouv = ['C','OUV'].includes(type)
+    ?`<button class="add-kid-btn" onclick="addChild('${nid}','OUV')"><i class="ti ti-plus"></i>Sous-ouvrage</button>`:'';
+  return `<div class="add-kid-row">${mo}${mat}${ouv}</div>`;
+}
+function titreBtns(nid) {
+  return `<div class="add-kid-row">
+    <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','FMO')"><i class="ti ti-plus"></i>Forfait MO</button>
+    <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','FMAT')"><i class="ti ti-plus"></i>Forfait Mat.</button>
+    <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','S')"><i class="ti ti-plus"></i>Ouvrage simple</button>
+    <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','C')"><i class="ti ti-plus"></i>Ouvrage composite</button>
+  </div>`;
+}
+
+function renderTree() {
+  const t = document.getElementById('tree');
+  t.innerHTML = tree.map(n=>renderNode(n,0)).join('');
+  refreshFooter();
+}
+
+function refreshFooter() {
+  const grand   = tree.reduce((s,n)=>s+calcTotal(n),0);
+  const totalMO = tree.reduce((s,n)=>s+calcMO(n),0);
+  const totalMat= tree.reduce((s,n)=>s+calcMat(n),0);
+  document.getElementById('ft-grand').textContent = fmtV(grand)+' €';
+  document.getElementById('ft-mo').textContent    = fmtV(totalMO)+' €';
+  document.getElementById('ft-mat').textContent   = fmtV(totalMat)+' €';
+}
+
+function updateTotalsDisplay() {
+  function updateNode(n) {
+    const el=document.querySelector(`[data-nid="${n._nid}"]`);if(!el)return;
+    const totalEl=el.querySelector(':scope > .node-row .nd-total');
+    if(totalEl)totalEl.textContent=fmtV(calcTotal(n));
+    const moEl=el.querySelector(':scope > .node-row .nd-mo');
+    if(moEl)moEl.textContent=calcMO(n)>0?fmtV(calcMO(n)):'—';
+    const matEl=el.querySelector(':scope > .node-row .nd-mat');
+    if(matEl)matEl.textContent=calcMat(n)>0?fmtV(calcMat(n)):'—';
+    if(n.enfants)n.enfants.forEach(updateNode);
+  }
+  tree.forEach(updateNode);
+  refreshFooter();
+}
+
+// ── MANIPULATION ──
+function updNode(nid,field,val) {
+  const n=findNode(tree,nid);if(!n)return;
+  n[field]=val;
+  updateTotalsDisplay();
+}
+function togNode(nid) {
+  const n=findNode(tree,nid);if(!n)return;
+  n.ouvert=n.ouvert===false;
+  renderTree();
+}
+function delNode(nid) { delFromTree(tree,nid); renderTree(); }
+function syncDescInline(ce,nid) {
+  const n=findNode(tree,nid);if(n)n.description=ce.innerHTML;
+}
+
+function addRootNode(type) {
+  const def={
+    FMO: {description:'Forfait main d\'œuvre',quantite:1,unite:'forfait',cout_unitaire:0},
+    FMAT:{description:'Forfait matériaux',     quantite:1,unite:'forfait',cout_unitaire:0},
+    S:   {description:'Nouvel ouvrage',         quantite:1,unite:'u',     cout_unitaire:null},
+    C:   {description:'Nouvel ouvrage composite',quantite:1,unite:'u',    cout_unitaire:null},
+  };
+  const n={type_ligne:type,enfants:[],ouvert:true,...def[type]};
+  n._nid='_'+(_nidCounter++);
+  tree.push(n); renderTree();
+}
+function addTitre() {
+  const n={type_ligne:'TITRE',description:'Nouvelle catégorie',enfants:[],ouvert:true,quantite:1};
+  n._nid='_'+(_nidCounter++);
+  tree.push(n); renderTree();
+}
+function addOuvrageEnfant(parentNid,type) {
+  const p=findNode(tree,parentNid);if(!p)return;
+  if(!p.enfants)p.enfants=[];
+  const def={
+    FMO: {description:'Forfait main d\'œuvre',quantite:1,unite:'forfait',cout_unitaire:0},
+    FMAT:{description:'Forfait matériaux',     quantite:1,unite:'forfait',cout_unitaire:0},
+    S:   {description:'Nouvel ouvrage',         quantite:1,unite:'u',     cout_unitaire:null},
+    C:   {description:'Nouvel ouvrage composite',quantite:1,unite:'u',    cout_unitaire:null},
+  };
+  const n={type_ligne:type,enfants:[],ouvert:true,...def[type]};
+  n._nid='_'+(_nidCounter++);
+  p.enfants.push(n); p.ouvert=true; renderTree();
+}
+function addChild(pnid,type) {
+  const p=findNode(tree,pnid);if(!p)return;
+  if(!p.enfants)p.enfants=[];
+  const tauxMO=parseFloat(document.getElementById('bib-taux-mo').value)||TAUX_MO;
+  const def={
+    MO: {description:'Main d\'œuvre',quantite:1,unite:'h',  cout_unitaire:tauxMO},
+    MAT:{description:'Matériau',     quantite:1,unite:'u',  cout_unitaire:0},
+    OUV:{description:'Sous-ouvrage', quantite:1,unite:'u',  cout_unitaire:null},
+  };
+  const n={type_ligne:type,enfants:[],ouvert:true,...def[type]};
+  n._nid='_'+(_nidCounter++);
+  p.enfants.push(n); p.ouvert=true; renderTree();
+}
+
+function deepCloneNode(n) {
+  const clone={...n};clone._nid='_'+(_nidCounter++);
+  clone.description=n.description+' (copie)';
+  clone.enfants=(n.enfants||[]).map(e=>deepCloneNodeSilent(e));return clone;
+}
+function deepCloneNodeSilent(n) {
+  const clone={...n};clone._nid='_'+(_nidCounter++);
+  clone.enfants=(n.enfants||[]).map(e=>deepCloneNodeSilent(e));return clone;
+}
+function copyNode(nid) {
+  function insertAfter(nodes,nid,newNode) {
+    const i=nodes.findIndex(n=>n._nid===nid);
+    if(i>=0){nodes.splice(i+1,0,newNode);return true;}
+    for(const n of nodes){if(n.enfants&&insertAfter(n.enfants,nid,newNode))return true;}return false;
+  }
+  const src=findNode(tree,nid);if(!src)return;
+  const clone=deepCloneNode(src);
+  insertAfter(tree,nid,clone);renderTree();
+}
+
+// ── TAUX MO ──
+function applyTauxMO() {
+  const taux=parseFloat(document.getElementById('bib-taux-mo').value)||0;
+  function update(nodes) {
+    nodes.forEach(n=>{
+      if(n.type_ligne==='MO')n.cout_unitaire=taux;
+      if(n.enfants)update(n.enfants);
+    });
+  }
+  update(tree);
+  renderTree();
+  setStatus('Taux MO mis à jour');
+}
+
+// ── % MAT ──
+function openPctModal(nid, nom) {
+  _pctTargetNid=nid;
+  document.getElementById('pct-titre-nom').textContent=nom;
+  document.getElementById('pct-input').value='';
+  document.getElementById('modal-pct').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('pct-input').focus(),100);
+}
+function applyPctMAT() {
+  const pct=parseFloat(document.getElementById('pct-input').value);
+  if(isNaN(pct)){alert('Valeur invalide');return;}
+  const coeff=1+pct/100;
+  const titre=findNode(tree,_pctTargetNid);if(!titre)return;
+  function update(nodes) {
+    nodes.forEach(n=>{
+      if(['MAT','FMAT'].includes(n.type_ligne)&&n.cout_unitaire!=null)
+        n.cout_unitaire=Math.round(n.cout_unitaire*coeff*100)/100;
+      if(n.enfants)update(n.enfants);
+    });
+  }
+  update(titre.enfants||[]);
+  document.getElementById('modal-pct').classList.add('hidden');
+  renderTree();
+  setStatus(`+${pct}% appliqué sur les matériaux`);
+}
+
+// ── DRAG & DROP ──
+function onNodeRowDragStart(e,nid) {
+  draggingNodeNid=nid;e.dataTransfer.effectAllowed='move';
+  e.currentTarget.style.opacity='0.4';
+}
+function onNodeRowDragEnd(e) {
+  draggingNodeNid=null;
+  document.querySelectorAll('.node-row').forEach(el=>el.style.opacity='');
+  document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'));
+}
+function onNodeRowDragOver2(e,nid) {
+  if(!draggingNodeNid||draggingNodeNid===nid)return;
+  e.preventDefault();e.stopPropagation();
+  document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'));
+  e.currentTarget.classList.add('drop-above');
+}
+function onNodeRowDrop2(e,targetNid) {
+  e.preventDefault();e.stopPropagation();
+  if(!draggingNodeNid||draggingNodeNid===targetNid)return;
+  document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'));
+  function extractNode(nodes,nid){const i=nodes.findIndex(n=>n._nid===nid);if(i>=0)return nodes.splice(i,1)[0];for(const n of nodes){if(n.enfants){const f=extractNode(n.enfants,nid);if(f)return f;}}return null;}
+  function findParentList(nodes,nid){const i=nodes.findIndex(n=>n._nid===nid);if(i>=0)return nodes;for(const n of nodes){if(n.enfants){const f=findParentList(n.enfants,nid);if(f)return f;}}return null;}
+  function isDescendant(node,nid){if(!node.enfants)return false;for(const e of node.enfants){if(e._nid===nid||isDescendant(e,nid))return true;}return false;}
+  const srcNode=findNode(tree,draggingNodeNid);if(!srcNode)return;
+  if(isDescendant(srcNode,targetNid))return;
+  const extracted=extractNode(tree,draggingNodeNid);if(!extracted)return;
+  const targetList=findParentList(tree,targetNid);
+  if(targetList){const i=targetList.findIndex(n=>n._nid===targetNid);if(i>=0)targetList.splice(i,0,extracted);else tree.push(extracted);}
+  else tree.push(extracted);
+  draggingNodeNid=null;renderTree();
+}
+function onEmptyZoneDragOver(e,parentNid){e.preventDefault();e.stopPropagation();e.currentTarget.classList.add('empty-drop-active');}
+function onEmptyZoneDrop(e,parentNid) {
+  e.preventDefault();e.stopPropagation();e.currentTarget.classList.remove('empty-drop-active');
+  if(!draggingNodeNid||draggingNodeNid===parentNid)return;
+  const parent=findNode(tree,parentNid);if(!parent)return;
+  if(!parent.enfants)parent.enfants=[];
+  function isDescendant(node,nid){if(!node.enfants)return false;for(const e of node.enfants){if(e._nid===nid||isDescendant(e,nid))return true;}return false;}
+  const src=findNode(tree,draggingNodeNid);
+  if(src&&isDescendant(src,parentNid))return;
+  function extractNode(nodes,nid){const i=nodes.findIndex(n=>n._nid===nid);if(i>=0)return nodes.splice(i,1)[0];for(const n of nodes){if(n.enfants){const f=extractNode(n.enfants,nid);if(f)return f;}}return null;}
+  const extracted=extractNode(tree,draggingNodeNid);
+  if(extracted){parent.enfants.push(extracted);parent.ouvert=true;}
+  draggingNodeNid=null;renderTree();
+}
+
+// ── FORMATAGE ──
+document.addEventListener('focusin',e=>{
+  const ce=e.target.closest('[contenteditable="true"]');
+  if(ce&&ce.closest('#editor-body')){_fmtTarget=ce;document.getElementById('fmt-hint').textContent='';}
+});
+function fmtCmd(event,cmd) {
+  event.preventDefault();if(!_fmtTarget)return;
+  _fmtTarget.focus();document.execCommand(cmd,false,null);
+  syncDesc(_fmtTarget);
+}
+function syncDesc(ce) {
+  const nid=ce.closest('.tree-node')?.dataset.nid;if(!nid)return;
+  const n=findNode(tree,nid);if(n)n.description=ce.innerHTML;
+}
+
+// ── SAUVEGARDE ──
+function stripNids(nodes) {
+  return nodes.map(n=>{const c={...n};delete c._nid;c.enfants=stripNids(c.enfants||[]);return c;});
+}
+function setStatus(msg) {
+  const el=document.getElementById('bib-status');
+  el.textContent=msg;setTimeout(()=>el.textContent='',3000);
+}
+async function saveBiblio() {
+  const btn=document.querySelector('button[onclick="saveBiblio()"]');
+  if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2"></i> Sauvegarde…';}
+  try {
+    const resp=await fetch('/bibliotheque/api/sauvegarder/',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
+      body:JSON.stringify({lignes:stripNids(tree)}),
+    });
+    const data=await resp.json();
+    if(data.ok)setStatus('✓ Sauvegardé');
+  } catch(err){setStatus('Erreur de sauvegarde');}
+  finally{
+    if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-device-floppy"></i> Sauvegarder';}
+  }
+}
+
+// ── CHARGEMENT ──
+fetch('/bibliotheque/api/')
+  .then(r=>r.json())
+  .then(data=>{
+    tree=data.lignes||[];
+    document.getElementById('bib-taux-mo').value=data.taux_mo||TAUX_MO;
+    assignNids(tree);
+    renderTree();
+  });
+</script>
+{% endblock %}
