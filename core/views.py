@@ -215,7 +215,15 @@ def client_delete(request, pk):
 # ══════════════════════════════════════════
 
 @login_required
-def biblio_get(request):
+def bibliotheque(request):
+    profil = get_profil(request.user)
+    return render(request, 'core/bibliotheque.html', {
+        'profil': profil,
+        'taux_mo_js': str(profil.taux_mo_defaut).replace(',', '.'),
+    })
+
+@login_required
+def biblio_api_get(request):
     biblio, _ = Bibliotheque.objects.get_or_create(user=request.user)
     profil = get_profil(request.user)
     return JsonResponse({
@@ -223,10 +231,9 @@ def biblio_get(request):
         'taux_mo': float(profil.taux_mo_defaut),
     })
 
-
 @login_required
 @require_POST
-def biblio_save(request):
+def biblio_api_save(request):
     biblio, _ = Bibliotheque.objects.get_or_create(user=request.user)
     try:
         data = json.loads(request.body)
@@ -235,6 +242,7 @@ def biblio_save(request):
         return JsonResponse({'ok': True})
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
+
 
 # ══════════════════════════════════════════
 #  CLIENTS
