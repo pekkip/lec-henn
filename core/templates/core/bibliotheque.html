@@ -137,10 +137,6 @@
 
   <!-- PIED -->
   <div class="editor-foot">
-    <span class="ft-lbl">MO</span><span class="ft-val" style="color:var(--amber)" id="ft-mo">—</span>
-    <span class="ft-lbl">Matériaux</span><span class="ft-val" style="color:var(--teal-dk)" id="ft-mat">—</span>
-    <div style="width:1px;background:var(--gray-bd);height:16px"></div>
-    <span class="ft-lbl">Total</span><span class="ft-grand" id="ft-grand">—</span>
     <button class="btn btn-sm btn-prune" onclick="saveBiblio()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>
   </div>
 </div>
@@ -338,16 +334,6 @@ function titreBtns(nid) {
 function renderTree() {
   const t = document.getElementById('tree');
   t.innerHTML = tree.map(n=>renderNode(n,0)).join('');
-  refreshFooter();
-}
-
-function refreshFooter() {
-  const grand   = tree.reduce((s,n)=>s+calcTotal(n),0);
-  const totalMO = tree.reduce((s,n)=>s+calcMO(n),0);
-  const totalMat= tree.reduce((s,n)=>s+calcMat(n),0);
-  document.getElementById('ft-grand').textContent = fmtV(grand)+' €';
-  document.getElementById('ft-mo').textContent    = fmtV(totalMO)+' €';
-  document.getElementById('ft-mat').textContent   = fmtV(totalMat)+' €';
 }
 
 function updateTotalsDisplay() {
