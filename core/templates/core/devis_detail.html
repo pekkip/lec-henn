@@ -466,8 +466,15 @@
       <div class="lib-search"><input placeholder="Rechercher…" oninput="filterLib(this.value)" id="lib-q"/></div>
       <div class="lib-list" id="lib-list">
         <div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center" id="lib-loading">Chargement…</div>
+      <div id="biblio-dz"
+        style="margin:6px;border:1.5px dashed var(--gray-bd);border-radius:var(--r);padding:8px;font-size:11px;color:var(--gray-md);text-align:center;display:none"
+        ondragover="onBiblioDzOver(event)"
+        ondragleave="onBiblioDzLeave(event)"
+        ondrop="onBiblioDrop(event)">
+        ↓ Ajouter à ma biblio
       </div>
     </div>
+    
 
 
     <!-- ÉDITEUR -->
@@ -1357,11 +1364,13 @@ function onNodeRowDragStart(e, nid) {
   draggingNodeNid = nid;
   e.dataTransfer.effectAllowed = 'move';
   e.currentTarget.style.opacity = '0.4';
+  document.getElementById('biblio-dz').style.display = 'block';
 }
 function onNodeRowDragEnd(e) {
   draggingNodeNid = null;
   document.querySelectorAll('.node-row').forEach(el => el.style.opacity = '');
   document.querySelectorAll('.drop-above').forEach(el => el.classList.remove('drop-above'));
+  document.getElementById('biblio-dz').style.display = 'none';
 }
 function onNodeRowDragOver2(e, nid) {
   if (draggingLib) return;
@@ -1638,6 +1647,58 @@ document.addEventListener('drop', e => {
     document.getElementById('root-dz').classList.remove('on');
   }
 });
+
+// ── DRAG DEVIS → BIBLIO ──
+function onBiblioDzOver(e) {
+  if (!draggingNodeNid) return;
+  e.preventDefault();
+  e.currentTarget.style.borderColor = 'var(--teal)';
+  e.currentTarget.style.background = 'var(--teal-lt)';
+  e.currentTarget.style.color = 'var(--teal-dk)';
+}
+function onBiblioDzLeave(e) {
+  e.currentTarget.style.borderColor = 'var(--gray-bd)';
+  e.currentTarget.style.background = '';
+  e.currentTarget.style.color = 'var(--gray-md)';
+}
+async function onBiblioDrop(e) {
+  e.preventDefault();
+  onBiblioDzLeave(e);
+  if (!draggingNodeNid) return;
+  const src = findNode(tree, draggingNodeNid);
+  if (!src) return;
+
+  // Cloner sans _nid
+  function cloneForBiblio(n) {
+    const c = {...n}; delete c._nid; delete c._num;
+    c.enfants = (n.enfants||[]).map(cloneForBiblio);
+    return c;
+  }
+  const clone = cloneForBiblio(src);
+
+  // Charger la biblio, ajouter le nœud, sauvegarder
+  try {
+    const r = await fetch('/bibliotheque/api/');
+    const data = await r.json();
+    const lignes = data.lignes || [];
+    lignes.push(clone);
+    await fetch('/bibliotheque/api/sauvegarder/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({lignes}),
+    });
+    // Recharger le panneau
+    biblio = lignes;
+    renderLibPanel();
+    // Feedback visuel
+    const dz = document.getElementById('biblio-dz');
+    dz.textContent = '✓ Ajouté à la bibliothèque';
+    setTimeout(() => { dz.textContent = '↓ Ajouter à ma biblio'; }, 2000);
+  } catch(err) {
+    console.error(err);
+  }
+}
+
 
 // ── SAUVEGARDE ARBRE ──
 function stripNids(nodes) {
