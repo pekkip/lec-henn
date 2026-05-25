@@ -1159,7 +1159,15 @@ function renderFinGroup(finLines) {
             <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
             <div class="toggler leaf" style="visibility:hidden"></div>
             <span class="nbadge nb-FIN">F.${i+1}</span>
-            <div class="nd-desc"><input value="${(n.description||'').replace(/"/g,'&quot;')}" class="neg-inp" placeholder="Subvention…" oninput="updNode('${n._nid}','description',this.value)"/></div>
+            <div class="nd-desc-ce">
+              <div contenteditable="true"
+                  data-placeholder="Financement…"
+                  data-nid-desc="${n._nid}"
+                  class="neg-inp"
+                  onfocus="if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}"
+                  oninput="syncDescInline(this,'${n._nid}')"
+              >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
+            </div>
             <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right" oninput="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"/></div>
             <div class="nd-unit"><input value="${n.unite||'forfait'}" oninput="updNode('${n._nid}','unite',this.value)"/></div>
             <div class="nd-cost"><input type="number" value="${n.cout_unitaire||0}" class="neg-inp" style="text-align:right" oninput="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"/></div>
