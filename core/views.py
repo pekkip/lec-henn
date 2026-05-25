@@ -37,20 +37,32 @@ def get_profil(user):
 def gen_reference(prefix):
     year = date.today().year
     if prefix == 'DEV':
-        count = Devis.objects.filter(date_creation__year=year).count() + 1
+        qs = Devis.objects.filter(
+            reference__startswith=f'DEV-{year}-'
+        )
     elif prefix == 'FAC':
-        count = Facture.objects.filter(
+        qs = Facture.objects.filter(
             type_doc='facture',
-            date_creation__year=year,
-            numero__isnull=False
-        ).count() + 1
-    else:  # AV
-        count = Facture.objects.filter(
+            numero__startswith=f'FAC-{year}-'
+        )
+    else:
+        qs = Facture.objects.filter(
             type_doc='avoir',
-            date_creation__year=year,
-            numero__isnull=False
-        ).count() + 1
-    return f"{prefix}-{year}-{str(count).zfill(3)}"
+            numero__startswith=f'AV-{year}-'
+        )
+
+    # Extrait les numéros existants et prend le max
+    nums = []
+    for obj in qs:
+        ref = obj.reference if prefix == 'DEV' else obj.numero
+        if ref:
+            try:
+                nums.append(int(ref.split('-')[-1]))
+            except ValueError:
+                pass
+
+    next_num = max(nums) + 1 if nums else 1
+    return f"{prefix}-{year}-{str(next_num).zfill(3)}"
 
 
 def add_audit(user, action, devis=None, facture=None, bypass=False):
