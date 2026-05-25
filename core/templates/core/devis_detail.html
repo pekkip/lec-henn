@@ -1135,13 +1135,8 @@ function renderFinGroup(finLines) {
       <div class="toggler" onclick="this.closest('.tree-node').querySelector('.kids-wrap').classList.toggle('hidden')">▾</div>
       <span class="nbadge nb-FIN">financements</span>
       <div class="nd-desc-ce">
-        <div contenteditable="true"
-          data-placeholder="Subvention…"
-          data-nid-desc="${n._nid}"
-          class="neg-inp"
-          oninput="syncDescInline(this,'${n._nid}')"
-        >${n.description || ''}</div>
-      </div
+        <div style="font-size:12px;color:var(--red)">Financements &amp; subventions</div>
+      </div>
       <div class="nd-qty" style="visibility:hidden"><input disabled/></div>
       <div class="nd-unit"></div>
       <div class="nd-cost"><input disabled/></div>
@@ -1149,7 +1144,7 @@ function renderFinGroup(finLines) {
       <div class="nd-mat"></div>
       <div class="nd-total neg">−${fmtV(total)}</div>
       <div class="nd-acts"></div>
-    </div>
+    </div>`;
     <div class="kids-wrap d0">
       ${finLines.map((n,i) => {
         const t = calcTotal(n);
