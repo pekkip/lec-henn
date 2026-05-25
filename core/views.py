@@ -165,7 +165,7 @@ def profil_view(request):
         request.user.email = request.POST.get('email', '').strip()
         request.user.save()
         # Préférences
-        taux = request.POST.get('taux_mo_defaut', '').strip()
+        taux = request.POST.get('taux_mo_defaut', '').strip().replace(',', '.')
         if taux:
             try:
                 profil.taux_mo_defaut = Decimal(taux)
