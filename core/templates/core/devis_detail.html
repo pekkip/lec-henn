@@ -322,6 +322,13 @@
   pointer-events: none;
 }
 
+/* BIBLIOTHÈQUE PANNEAU */
+.lib-cat-hd{display:flex;align-items:center;gap:5px;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:600;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--gray-bd)}
+.lib-cat-hd:hover{background:var(--gray-lt)}
+.lib-cat-body{display:block}
+
+
+
 </style>
 {% endblock %}
 
@@ -452,20 +459,16 @@
   
     <!-- BIBLIOTHÈQUE -->
     <div class="lib-panel">
-      <div class="lib-hd">Ma bibliothèque</div>
+      <div class="lib-hd" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Ma bibliothèque</span>
+        <a href="{% url 'core:biblio' %}" style="font-size:10px;color:var(--teal-dk)" title="Gérer"><i class="ti ti-external-link"></i></a>
+      </div>
       <div class="lib-search"><input placeholder="Rechercher…" oninput="filterLib(this.value)" id="lib-q"/></div>
       <div class="lib-list" id="lib-list">
         <div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center" id="lib-loading">Chargement…</div>
       </div>
-      <div style="padding:8px;border-top:1px solid var(--gray-bd);display:flex;flex-direction:column;gap:4px">
-        <button class="btn btn-sm" style="width:100%;justify-content:center" onclick="addBiblioTitre()">
-          <i class="ti ti-folder-plus"></i> Nouvelle catégorie
-        </button>
-        <button class="btn btn-sm" style="width:100%;justify-content:center" onclick="saveBiblio()">
-          <i class="ti ti-device-floppy"></i> Sauvegarder
-        </button>
-      </div>
     </div>
+
 
     <!-- ÉDITEUR -->
     <div class="editor-main">
@@ -1420,15 +1423,16 @@ function onEmptyZoneDrop(e, parentNid) {
   if (!parent.enfants) parent.enfants = [];
 
   if (draggingLib) {
-    const n = {
-      type_ligne: draggingLib.dataset.type,
-      description: draggingLib.dataset.nom,
-      quantite: 1, unite: draggingLib.dataset.unit,
-      cout_unitaire: draggingLib.dataset.cost ? parseFloat(draggingLib.dataset.cost) : null,
-      enfants:[], ouvert:true,
-    };
-    n._nid = '_' + (_nidCounter++);
-    parent.enfants.push(n); parent.ouvert = true;
+    const src = JSON.parse(decodeURIComponent(draggingLib.dataset.node));
+    function cloneNode(n) {
+      const c = {...n}; delete c._nid;
+      c._nid = '_' + (_nidCounter++);
+      if (c.type_ligne === 'MO') c.cout_unitaire = TAUX_MO;
+      c.enfants = (n.enfants||[]).map(cloneNode);
+      return c;
+    }
+    const clone = cloneNode(src);
+    parent.enfants.push(clone); parent.ouvert = true;
     draggingLib = null;
     document.getElementById('root-dz').classList.remove('on');
     renderTree();
@@ -1454,31 +1458,153 @@ function onEmptyZoneDrop(e, parentNid) {
 }
 
 // ── BIBLIOTHÈQUE ──
-function filterLib(q) {
-  document.querySelectorAll('.lib-item').forEach(el => {
-    const nom = el.querySelector('.lib-name').textContent.toLowerCase();
-    el.style.display = nom.includes(q.toLowerCase()) ? '' : 'none';
+
+let biblio = [];
+
+function renderLibPanel() {
+  const q = (document.getElementById('lib-q')?.value || '').toLowerCase();
+  const list = document.getElementById('lib-list');
+  if (!list) return;
+
+  let html = '';
+  biblio.forEach(n => {
+    if (n.type_ligne === 'TITRE') {
+      const visible = !q || nodeMatchesQuery(n, q);
+      if (!visible) return;
+      html += `<div class="lib-cat">
+        <div class="lib-cat-hd" onclick="toggleLibCat(this)">
+          <i class="ti ti-chevron-down" style="font-size:11px;transition:transform .15s"></i>
+          <span>${n.description || 'Catégorie'}</span>
+        </div>
+        <div class="lib-cat-body">
+          ${renderLibChildren(n.enfants || [], q)}
+        </div>
+      </div>`;
+    } else {
+      if (q && !matchesQuery(n, q)) return;
+      html += renderLibItem(n);
+    }
   });
+
+  if (!html) html = '<div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center">Aucun résultat</div>';
+  list.innerHTML = html;
 }
-function addFromLib(el) {
-  const n = {
-    type_ligne: el.dataset.type, description: el.dataset.nom,
-    quantite:1, unite: el.dataset.unit,
-    cout_unitaire: el.dataset.cost ? parseFloat(el.dataset.cost) : null,
-    enfants:[], ouvert:true,
+
+function renderLibChildren(nodes, q) {
+  let html = '';
+  nodes.forEach(n => {
+    if (n.type_ligne === 'TITRE') {
+      html += `<div class="lib-cat" style="margin-left:8px">
+        <div class="lib-cat-hd" onclick="toggleLibCat(this)">
+          <i class="ti ti-chevron-down" style="font-size:11px"></i>
+          <span>${n.description || 'Catégorie'}</span>
+        </div>
+        <div class="lib-cat-body">${renderLibChildren(n.enfants||[], q)}</div>
+      </div>`;
+    } else {
+      if (q && !matchesQuery(n, q)) return;
+      html += renderLibItem(n);
+    }
+  });
+  return html;
+}
+
+function renderLibItem(n) {
+  const badges = {
+    FMO:'<span class="lib-tag" style="background:var(--amber-lt);color:#8B5E0A">forfait MO</span>',
+    FMAT:'<span class="lib-tag" style="background:#EAF3DE;color:#27500A">forfait mat.</span>',
+    S:'<span class="lib-tag" style="background:var(--teal-lt);color:var(--teal-dk)">simple</span>',
+    C:'<span class="lib-tag" style="background:var(--prune-lt);color:var(--prune-dk)">composite</span>',
+    F:'<span class="lib-tag" style="background:#E1F5EE;color:#085041">forfait</span>',
   };
-  n._nid = '_' + (_nidCounter++);
-  tree.push(n);
+  const badge = badges[n.type_ligne] || '';
+  const nom = (n.description||'').replace(/<[^>]+>/g,'').substring(0,40);
+  const cost = n.cout_unitaire != null ? ` · ${n.cout_unitaire} €` : '';
+  const dataNode = encodeURIComponent(JSON.stringify(n));
+  return `<div class="lib-item" draggable="true"
+    data-node="${dataNode}"
+    ondragstart="onLibItemDragStart(event,this)"
+    ondragend="onLibItemDragEnd()"
+    onclick="addFromLibNode(this)">
+    ${badge}
+    <div><div class="lib-name">${nom}</div><div class="lib-det">${n.unite||''}${cost}</div></div>
+  </div>`;
+}
+
+function matchesQuery(n, q) {
+  const desc = (n.description||'').replace(/<[^>]+>/g,'').toLowerCase();
+  return desc.includes(q);
+}
+function nodeMatchesQuery(n, q) {
+  if (matchesQuery(n, q)) return true;
+  return (n.enfants||[]).some(c => nodeMatchesQuery(c, q));
+}
+
+function filterLib(q) { renderLibPanel(); }
+
+function toggleLibCat(hd) {
+  const body = hd.nextElementSibling;
+  const icon = hd.querySelector('i');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  icon.style.transform = open ? 'rotate(-90deg)' : '';
+}
+
+function addFromLibNode(el) {
+  const n = JSON.parse(decodeURIComponent(el.dataset.node));
+  insertLibNode(n);
+}
+
+function onLibItemDragStart(e, el) {
+  draggingLib = el;
+  e.dataTransfer.effectAllowed = 'copy';
+  document.getElementById('root-dz').classList.add('on');
+}
+function onLibItemDragEnd() {
+  draggingLib = null;
+  document.getElementById('root-dz').classList.remove('on');
+}
+
+function insertLibNode(src) {
+  // Remplace les lignes MO par le taux MO du devis
+  function cloneNode(n) {
+    const c = {...n};
+    delete c._nid;
+    c._nid = '_' + (_nidCounter++);
+    if (c.type_ligne === 'MO') c.cout_unitaire = TAUX_MO;
+    c.enfants = (n.enfants||[]).map(cloneNode);
+    return c;
+  }
+  const clone = cloneNode(src);
+  tree.push(clone);
   renderTree();
 }
+
+// Charger la biblio
+fetch('/bibliotheque/api/')
+  .then(r => r.json())
+  .then(data => {
+    biblio = data.lignes || [];
+    document.getElementById('lib-loading')?.remove();
+    renderLibPanel();
+  });
+
+
 function onLibDragStart(e, el) {
-  draggingLib = el; e.dataTransfer.effectAllowed = 'copy';
+  draggingLib = el;
+  e.dataTransfer.effectAllowed = 'copy';
   document.getElementById('root-dz').classList.add('on');
 }
 function onLibDragEnd() {
   draggingLib = null;
   document.getElementById('root-dz').classList.remove('on');
   document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+function addFromLib(el) {
+  const n = JSON.parse(decodeURIComponent(el.dataset.node));
+  insertLibNode(n);
+  draggingLib = null;
+  document.getElementById('root-dz').classList.remove('on');
 }
 function onNodeDragOver(e, nid) { if (!draggingLib) return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
 function onNodeDrop(e, nid) {
@@ -1505,7 +1631,9 @@ function onNodeDrop(e, nid) {
 document.addEventListener('dragover', e => { if (draggingLib) e.preventDefault(); });
 document.addEventListener('drop', e => {
   if (e.target === document.getElementById('root-dz') && draggingLib) {
-    e.preventDefault(); addFromLib(draggingLib);
+    e.preventDefault();
+    const src = JSON.parse(decodeURIComponent(draggingLib.dataset.node));
+    insertLibNode(src);
     draggingLib = null;
     document.getElementById('root-dz').classList.remove('on');
   }
