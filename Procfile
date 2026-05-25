@@ -1,1 +1,1 @@
-web: gunicorn cbretagne.wsgi
+web: python manage.py migrate && gunicorn cbretagne.wsgi
