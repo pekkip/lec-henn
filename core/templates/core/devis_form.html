@@ -35,7 +35,7 @@
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div class="field"><label>Validité (jours)</label><input class="input" type="number" name="validite_jours" value="30" min="1"/></div>
-          <div class="field"><label>Taux horaire MO (€/h)</label><input class="input" type="number" name="taux_mo" value="{{ profil.taux_mo_defaut }}" min="0" step="0.5"/></div>
+          <div class="field"><label>Taux horaire MO (€/h)</label><input class="input" type="number" name="taux_mo" value="{{ profil.taux_mo_defaut|stringformat:'.2f' }}" min="0" step="0.5"/>
         </div>
         <div class="field"><label>Notes internes</label><textarea class="input" name="notes" rows="3" placeholder="Contexte, observations…"></textarea></div>
         <div style="display:flex;gap:8px;margin-top:.5rem">
