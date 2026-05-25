@@ -165,7 +165,13 @@ def profil_view(request):
         request.user.email = request.POST.get('email', '').strip()
         request.user.save()
         # Préférences
-        profil.taux_mo_defaut = request.POST.get('taux_mo_defaut', profil.taux_mo_defaut)
+        taux = request.POST.get('taux_mo_defaut', '').strip()
+        if taux:
+        try:
+            profil.taux_mo_defaut = Decimal(taux)
+        except Exception:
+            messages.error(request, 'Taux MO invalide.')
+            return redirect('core:profil')
         profil.saisie_ht = request.POST.get('saisie_ht') == 'on'
         profil.conditions_devis = request.POST.get('conditions_devis', '').strip()
         profil.conditions_facture = request.POST.get('conditions_facture', '').strip()
