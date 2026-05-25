@@ -468,10 +468,11 @@
         <div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center" id="lib-loading">Chargement…</div>
       </div>
       <div id="biblio-dz"
-        style="margin:6px;border:1.5px dashed var(--gray-bd);border-radius:var(--r);padding:8px;font-size:11px;color:var(--gray-md);text-align:center;display:none"
+        style="margin:6px;border:1.5px dashed var(--gray-bd);border-radius:var(--r);padding:8px;font-size:11px;color:var(--gray-md);text-align:center;display:none;min-height:60px;align-items:center;justify-content:center"
         ondragover="onBiblioDzOver(event)"
         ondragleave="onBiblioDzLeave(event)"
         ondrop="onBiblioDrop(event)">
+        ↓ Ajouter à ma biblio
       </div>
     </div>
     
@@ -1364,7 +1365,7 @@ function onNodeRowDragStart(e, nid) {
   draggingNodeNid = nid;
   e.dataTransfer.effectAllowed = 'move';
   e.currentTarget.style.opacity = '0.4';
-  document.getElementById('biblio-dz').style.display = 'block';
+  document.getElementById('biblio-dz').style.display = 'flex';
 }
 function onNodeRowDragEnd(e) {
   draggingNodeNid = null;
