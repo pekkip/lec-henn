@@ -84,6 +84,11 @@ class ProfilUtilisateur(models.Model):
         Equipe, blank=True, related_name='membres',
         help_text="Équipes habituelles (filtre par défaut dans les listes)"
     )
+    responsable = models.ForeignKey(
+    'self', on_delete=models.SET_NULL,
+    null=True, blank=True, related_name='techniciens',
+    help_text="Responsable hiérarchique direct (Responsable secteur)"
+    )
     # Préférences personnelles
     taux_mo_defaut = models.DecimalField(
         max_digits=6, decimal_places=2, default=46.00
@@ -276,6 +281,7 @@ class Devis(models.Model):
         Equipe, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='devis'
     )
+
     chantier = models.CharField(max_length=300)
     # Adresse du chantier
     chantier_adresse1 = models.CharField(max_length=200, blank=True)

@@ -19,7 +19,11 @@ from .models import (
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque
 )
-
+from .permissions import (
+    peut_modifier_devis, peut_supprimer_devis,
+    peut_valider_facture, peut_envoyer_facture, peut_supprimer_facture,
+    peut_supprimer_client, is_admin
+)
 # ══════════════════════════════════════════
 #  HELPERS
 # ══════════════════════════════════════════
@@ -203,12 +207,14 @@ def client_create(request):
 @login_required
 @require_POST
 def client_delete(request, pk):
+    if not is_admin(request.user):
+        messages.error(request, 'Action réservée à l\'administrateur.')
+        return redirect('core:clients')
     client = get_object_or_404(Client, pk=pk)
     nom = client.nom
     client.delete()
     messages.success(request, f'Client "{nom}" supprimé.')
     return redirect('core:clients')
-
 
 # ══════════════════════════════════════════
 #  BIBLIOTHÈQUE PERSONNELLE (API JSON)
@@ -334,6 +340,7 @@ def devis_list(request):
         'service_filter': service_id,
         'territoire_filter': territoire_id,
         'q': q,
+        'peut_supprimer': {d.pk: peut_supprimer_devis(request.user, d) for d in qs},  # ← ici
     })
 
 
@@ -481,6 +488,9 @@ def devis_duplicate(request, pk):
 @require_POST
 def devis_delete(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
+    if not peut_supprimer_devis(request.user, devis):
+        messages.error(request, 'Vous ne pouvez pas supprimer ce devis.')
+        return redirect('core:devis-list')
     ref = devis.reference
     devis.delete()
     messages.success(request, f'Devis {ref} supprimé.')
@@ -544,6 +554,8 @@ def devis_pdf(request, pk):
 @require_POST
 def devis_entete_save(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
+    if not peut_modifier_devis(request.user, devis):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
@@ -629,6 +641,8 @@ def lignes_get(request, pk):
 @require_POST
 def lignes_save(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
+    if not peut_modifier_devis(request.user, devis):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
     try:
         data = json.loads(request.body)
         lignes = data.get('lignes', [])
@@ -717,6 +731,9 @@ def facture_create(request, devis_pk):
 @require_POST
 def facture_valider(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
+    if not peut_valider_facture(request.user, facture):
+        messages.error(request, 'Validation réservée au comptable.')
+        return redirect('core:devis-detail', pk=facture.devis.pk)
     if not facture.numero:
         prefix = 'AV' if facture.type_doc == 'avoir' else 'FAC'
         facture.numero = gen_reference(prefix)

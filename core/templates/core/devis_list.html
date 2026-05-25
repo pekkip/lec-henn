@@ -1,4 +1,5 @@
 {% extends 'core/base.html' %}
+{% load core_extras %}
 {% block title %}Devis{% endblock %}
 {% block nav_devis %}active{% endblock %}
 {% block topbar_title %}Devis{% endblock %}
@@ -69,10 +70,12 @@
       </td>
       <td style="text-align:right" onclick="event.stopPropagation()">
         <a href="{% url 'core:devis-duplicate' d.pk %}" class="ico-btn" title="Dupliquer"><i class="ti ti-copy"></i></a>
+        {% if peut_supprimer|get_item:d.pk %}
         <form method="post" action="{% url 'core:devis-delete' d.pk %}" style="display:inline" onsubmit="return confirm('Supprimer ce devis ?')">
           {% csrf_token %}
           <button type="submit" class="ico-btn danger"><i class="ti ti-trash"></i></button>
         </form>
+        {% endif %}
       </td>
     </tr>
     {% empty %}
