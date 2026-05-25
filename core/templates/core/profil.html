@@ -1,0 +1,92 @@
+{% extends 'core/base.html' %}
+{% block title %}Mon profil{% endblock %}
+{% block topbar_title %}Mon profil{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <div class="page-title">Mon profil</div>
+    <div class="page-sub">{{ request.user.get_full_name|default:request.user.username }} — {{ profil.get_role_display }}</div>
+  </div>
+</div>
+
+<div class="page-body">
+  <form method="post" style="max-width:600px">
+    {% csrf_token %}
+
+    <div class="card">
+      <div class="card-hd"><div class="card-title"><i class="ti ti-user"></i> Informations personnelles</div></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="field">
+            <label>Prénom</label>
+            <input class="input" type="text" name="first_name" value="{{ request.user.first_name }}">
+          </div>
+          <div class="field">
+            <label>Nom</label>
+            <input class="input" type="text" name="last_name" value="{{ request.user.last_name }}">
+          </div>
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input class="input" type="email" name="email" value="{{ request.user.email }}">
+        </div>
+        <div class="field">
+          <label>Identifiant</label>
+          <input class="input" type="text" value="{{ request.user.username }}" disabled style="opacity:.6">
+        </div>
+        <div class="field">
+          <label>Rôle</label>
+          <input class="input" type="text" value="{{ profil.get_role_display }}" disabled style="opacity:.6">
+        </div>
+        {% if profil.service %}
+        <div class="field">
+          <label>Service</label>
+          <input class="input" type="text" value="{{ profil.service }}" disabled style="opacity:.6">
+        </div>
+        {% endif %}
+        {% if profil.responsable %}
+        <div class="field">
+          <label>Responsable</label>
+          <input class="input" type="text" value="{{ profil.responsable.user.get_full_name|default:profil.responsable.user.username }}" disabled style="opacity:.6">
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><div class="card-title"><i class="ti ti-settings"></i> Préférences</div></div>
+      <div class="card-body">
+        <div class="field">
+          <label>Taux MO par défaut (€/h)</label>
+          <input class="input" type="number" step="0.01" name="taux_mo_defaut" value="{{ profil.taux_mo_defaut }}" style="max-width:140px">
+        </div>
+        <div class="field" style="flex-direction:row;align-items:center;gap:10px">
+          <input type="checkbox" name="saisie_ht" id="saisie_ht" {% if profil.saisie_ht %}checked{% endif %} style="width:16px;height:16px">
+          <label for="saisie_ht" style="font-size:12px;color:var(--gray);cursor:pointer">Saisir les prix matériaux HT (convertis automatiquement en TTC +20%)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd"><div class="card-title"><i class="ti ti-file-text"></i> Conditions par défaut</div></div>
+      <div class="card-body">
+        <div class="field">
+          <label>Conditions de devis</label>
+          <textarea class="input" name="conditions_devis" rows="4" style="resize:vertical">{{ profil.conditions_devis }}</textarea>
+        </div>
+        <div class="field">
+          <label>Conditions de facture</label>
+          <textarea class="input" name="conditions_facture" rows="4" style="resize:vertical">{{ profil.conditions_facture }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center">
+      <button type="submit" class="btn btn-prune"><i class="ti ti-check"></i> Enregistrer</button>
+      <a href="{% url 'core:dashboard' %}" class="btn">Annuler</a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

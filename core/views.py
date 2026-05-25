@@ -155,7 +155,26 @@ def logout_view(request):
     logout(request)
     return redirect('core:login')
 
+@login_required
+def profil_view(request):
+    profil = get_profil(request.user)
+    if request.method == 'POST':
+        # Infos personnelles
+        request.user.first_name = request.POST.get('first_name', '').strip()
+        request.user.last_name = request.POST.get('last_name', '').strip()
+        request.user.email = request.POST.get('email', '').strip()
+        request.user.save()
+        # Préférences
+        profil.taux_mo_defaut = request.POST.get('taux_mo_defaut', profil.taux_mo_defaut)
+        profil.saisie_ht = request.POST.get('saisie_ht') == 'on'
+        profil.conditions_devis = request.POST.get('conditions_devis', '').strip()
+        profil.conditions_facture = request.POST.get('conditions_facture', '').strip()
+        profil.save()
+        messages.success(request, 'Profil mis à jour.')
+        return redirect('core:profil')
+    return render(request, 'core/profil.html', {'profil': profil})
 
+    
 # ══════════════════════════════════════════
 #  DASHBOARD
 # ══════════════════════════════════════════
