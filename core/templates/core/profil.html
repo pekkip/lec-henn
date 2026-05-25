@@ -59,7 +59,8 @@
       <div class="card-body">
         <div class="field">
           <label>Taux MO par défaut (€/h)</label>
-          <input class="input" type="number" step="0.01" name="taux_mo_defaut" value="{{ profil.taux_mo_defaut }}" style="max-width:140px">
+          <input class="input" type="number" step="0.01" name="taux_mo_defaut" 
+          value="{{ profil.taux_mo_defaut }}" style="max-width:140px">
         </div>
         <div class="field" style="flex-direction:row;align-items:center;gap:10px">
           <input type="checkbox" name="saisie_ht" id="saisie_ht" {% if profil.saisie_ht %}checked{% endif %} style="width:16px;height:16px">
