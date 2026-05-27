@@ -1029,11 +1029,11 @@ const NBADGE = {
 
 // ── CTRL+SHIFT+K — Dupliquer la ligne ──
 document.addEventListener('keydown', function(e) {
-    // Ctrl+Z — annuler
   if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
     const inCE = e.target.closest('[contenteditable="true"]');
-    if (inCE) return; // laisser le navigateur gérer le texte
-    if (!e.target.closest('#pane-edit')) return;
+    if (inCE) return;
+    const editPaneActive = document.getElementById('pane-edit').classList.contains('on');
+    if (!editPaneActive) return;
     e.preventDefault();
     historyUndo();
     return;
@@ -1042,12 +1042,13 @@ document.addEventListener('keydown', function(e) {
       (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
     const inCE = e.target.closest('[contenteditable="true"]');
     if (inCE) return;
-    if (!e.target.closest('#pane-edit')) return;
+    const editPaneActive = document.getElementById('pane-edit').classList.contains('on');
+    if (!editPaneActive) return;
     e.preventDefault();
     historyRedo();
     return;
   }
-  
+
   // Ctrl+Shift+K — Kopy (copie)
   if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
     const activeInput = document.activeElement;
