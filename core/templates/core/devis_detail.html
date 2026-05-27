@@ -760,6 +760,7 @@ function historySnapshot() {
   if (_history.length > HISTORY_MAX) _history.shift();
   _future = []; // toute nouvelle action efface le futur
   refreshUndoRedoBtns();
+  console.log('snapshot OK, history length:', _history.length); 
 }
 
 function historyUndo() {
