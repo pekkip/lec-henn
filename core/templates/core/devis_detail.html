@@ -502,6 +502,14 @@
         <button class="fmt-btn" id="fmt-under"  title="Souligné (Ctrl+U)"   onmousedown="fmtCmd(event,'underline')"><u>S</u></button>
 
         <div class="fmt-sep"></div>
+        <!-- Annuler / Rétablir -->
+        <button class="fmt-btn" id="fmt-undo" title="Annuler (Ctrl+Z)" onclick="historyUndo()" disabled>
+          <i class="ti ti-arrow-back-up"></i>
+        </button>
+        <button class="fmt-btn" id="fmt-redo" title="Rétablir (Ctrl+Y)" onclick="historyRedo()" disabled>
+          <i class="ti ti-arrow-forward-up"></i>
+        </button>
+        <div class="fmt-sep"></div>
 
         <!-- Taille -->
         <select class="fmt-select" id="fmt-size" title="Taille du texte" onchange="fmtSize(this.value)">
@@ -736,6 +744,66 @@ let bypassFactId = null;
 let savedCode = null;
 let _nidCounter = 0;
 
+// ── HISTORIQUE CTRL+Z / CTRL+Y ──
+const HISTORY_MAX = 20;
+let _history = [];      // pile des états passés
+let _future  = [];      // pile des états annulés (pour rétablir)
+let _historyLock = false; // empêche les snapshots récursifs
+
+function historySnapshot() {
+  if (_historyLock) return;
+  // Sérialiser l'état actuel (sans _nid, ils sont réassignés au rendu)
+  const snap = JSON.stringify(stripNidsHistory(tree));
+  // Ne pas dupliquer si identique au dernier état
+  if (_history.length && _history[_history.length - 1] === snap) return;
+  _history.push(snap);
+  if (_history.length > HISTORY_MAX) _history.shift();
+  _future = []; // toute nouvelle action efface le futur
+  refreshUndoRedoBtns();
+}
+
+function historyUndo() {
+  if (_history.length === 0) return;
+  _historyLock = true;
+  // Sauvegarder l'état courant dans le futur
+  _future.push(JSON.stringify(stripNidsHistory(tree)));
+  // Restaurer le dernier état passé
+  const snap = _history.pop();
+  tree = JSON.parse(snap);
+  assignNids(tree);
+  renderTree();
+  _historyLock = false;
+  refreshUndoRedoBtns();
+}
+
+function historyRedo() {
+  if (_future.length === 0) return;
+  _historyLock = true;
+  _history.push(JSON.stringify(stripNidsHistory(tree)));
+  const snap = _future.pop();
+  tree = JSON.parse(snap);
+  assignNids(tree);
+  renderTree();
+  _historyLock = false;
+  refreshUndoRedoBtns();
+}
+
+function stripNidsHistory(nodes) {
+  return nodes.map(n => {
+    const c = {...n};
+    delete c._nid; delete c._num; delete c._isFINGroup;
+    c.enfants = stripNidsHistory(c.enfants || []);
+    return c;
+  });
+}
+
+function refreshUndoRedoBtns() {
+  const u = document.getElementById('fmt-undo');
+  const r = document.getElementById('fmt-redo');
+  if (u) u.disabled = _history.length === 0;
+  if (r) r.disabled = _future.length === 0;
+}
+
 // ── TABS ──
 function switchTab(e, name) {
   if (e && e.preventDefault) e.preventDefault();
@@ -960,6 +1028,23 @@ const NBADGE = {
 
 // ── CTRL+SHIFT+K — Dupliquer la ligne ──
 document.addEventListener('keydown', function(e) {
+    // Ctrl+Z — annuler
+  if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+    // Ignorer si on est dans un input texte natif (ex. en-tête)
+    if (!e.target.closest('#editor-body')) return;
+    e.preventDefault();
+    historyUndo();
+    return;
+  }
+  // Ctrl+Y ou Ctrl+Shift+Z — rétablir
+  if ((e.ctrlKey && (e.key === 'y' || e.key === 'Y')) ||
+      (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
+    if (!e.target.closest('#editor-body')) return;
+    e.preventDefault();
+    historyRedo();
+    return;
+  }
+  // Ctrl+Shift+K — Kopy (copie)
   if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
     const activeInput = document.activeElement;
     if (!activeInput) return;
@@ -1244,6 +1329,7 @@ function delFromTree(nodes, nid) {
 }
 
 function updNode(nid, field, val) {
+  historySnapshot();
   const n = findNode(tree, nid);
   if (!n) return;
   const wasZero = parseFloat(n.quantite || 0) === 0;
@@ -1263,11 +1349,13 @@ function togNode(nid) {
 }
 
 function delNode(nid) {
+  historySnapshot();
   delFromTree(tree, nid);
   renderTree();
 }
 
 function addRootNode(type) {
+  historySnapshot();
   const def = {
     FMO:  {description:'Forfait main d\'œuvre', quantite:1, unite:'forfait', cout_unitaire:0},
     FMAT: {description:'Forfait matériaux',      quantite:1, unite:'forfait', cout_unitaire:0},
@@ -1281,6 +1369,7 @@ function addRootNode(type) {
 }
 
 function addTitre() {
+  historySnapshot();
   const n = {type_ligne:'TITRE', description:'Nouveau titre', enfants:[], ouvert:true};
   n._nid = '_' + (_nidCounter++);
   tree.push(n);
@@ -1288,6 +1377,7 @@ function addTitre() {
 }
 
 function addTitreEnfant(parentNid) {
+  historySnapshot();
   const p = findNode(tree, parentNid); if (!p) return;
   if (!p.enfants) p.enfants = [];
   const n = {type_ligne:'TITRE', description:'Nouveau titre', enfants:[], ouvert:true};
@@ -1298,6 +1388,7 @@ function addTitreEnfant(parentNid) {
 }
 
 function addOuvrageEnfant(parentNid, type) {
+  historySnapshot();
   const p = findNode(tree, parentNid); if (!p) return;
   if (!p.enfants) p.enfants = [];
   const def = {
@@ -1313,6 +1404,7 @@ function addOuvrageEnfant(parentNid, type) {
 }
 
 function addFinancement() {
+  historySnapshot();
   const n = {type_ligne:'FIN', description:'Subvention / financement', quantite:1, unite:'forfait', cout_unitaire:0, enfants:[], ouvert:true};
   n._nid = '_' + (_nidCounter++);
   tree.push(n);
@@ -1320,6 +1412,7 @@ function addFinancement() {
 }
 
 function addChild(pnid, type) {
+  historySnapshot();
   const p = findNode(tree, pnid); if (!p) return;
   if (!p.enfants) p.enfants = [];
   const def = {
@@ -1349,6 +1442,7 @@ function deepCloneNodeSilent(n) {
   return clone;
 }
 function copyNode(nid) {
+  historySnapshot();
   function insertAfter(nodes, nid, newNode) {
     const i = nodes.findIndex(n => n._nid === nid);
     if (i >= 0) { nodes.splice(i + 1, 0, newNode); return true; }
@@ -1466,6 +1560,7 @@ function onEmptyZoneDrop(e, parentNid) {
     const extracted = extractNode(tree, draggingNodeNid);
     if (extracted) { parent.enfants.push(extracted); parent.ouvert = true; }
     draggingNodeNid = null;
+    historySnapshot();
     renderTree();
   }
 }
@@ -1896,6 +1991,8 @@ fetch(`/devis/${DEVIS_ID}/lignes/`)
     window._tauxMOCourant = data.taux_mo || TAUX_MO; // ← ajouter cette ligne
     assignNids(tree);
     renderTree();
+    _history = []; _future = []; // état propre au chargement
+    refreshUndoRedoBtns();       
   });
 
 
