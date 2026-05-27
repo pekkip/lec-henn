@@ -1031,20 +1031,23 @@ const NBADGE = {
 document.addEventListener('keydown', function(e) {
     // Ctrl+Z — annuler
   if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
-    // Ignorer si on est dans un input texte natif (ex. en-tête)
-    if (!e.target.closest('#editor-body')) return;
+    const inCE = e.target.closest('[contenteditable="true"]');
+    if (inCE) return; // laisser le navigateur gérer le texte
+    if (!e.target.closest('#pane-edit')) return;
     e.preventDefault();
     historyUndo();
     return;
   }
-  // Ctrl+Y ou Ctrl+Shift+Z — rétablir
   if ((e.ctrlKey && (e.key === 'y' || e.key === 'Y')) ||
       (e.ctrlKey && e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
-    if (!e.target.closest('#editor-body')) return;
+    const inCE = e.target.closest('[contenteditable="true"]');
+    if (inCE) return;
+    if (!e.target.closest('#pane-edit')) return;
     e.preventDefault();
     historyRedo();
     return;
   }
+  
   // Ctrl+Shift+K — Kopy (copie)
   if (e.ctrlKey && e.shiftKey && (e.key === 'K' || e.key === 'k')) {
     const activeInput = document.activeElement;
