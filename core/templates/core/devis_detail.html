@@ -1516,6 +1516,7 @@ function onNodeRowDrop2(e, targetNid) {
     tree.push(extracted);
   }
   draggingNodeNid = null;
+  historySnapshot();
   renderTree();
 }
 
@@ -1530,6 +1531,7 @@ function onEmptyZoneDrop(e, parentNid) {
   if (!parent.enfants) parent.enfants = [];
 
   if (draggingLib) {
+    historySnapshot();
     const src = JSON.parse(decodeURIComponent(draggingLib.dataset.node));
     function cloneNode(n) {
       const c = {...n}; delete c._nid;
@@ -1560,6 +1562,7 @@ function onEmptyZoneDrop(e, parentNid) {
     const extracted = extractNode(tree, draggingNodeNid);
     if (extracted) { parent.enfants.push(extracted); parent.ouvert = true; }
     draggingNodeNid = null;
+    historySnapshot();
     historySnapshot();
     renderTree();
   }
@@ -1674,6 +1677,7 @@ function onLibItemDragEnd() {
 }
 
 function insertLibNode(src) {
+  historySnapshot();
   // Remplace les lignes MO par le taux MO du devis
   function cloneNode(n) {
     const c = {...n};
@@ -1734,6 +1738,7 @@ function onNodeDrop(e, nid) {
   } else { tree.push(n); }
   draggingLib = null;
   document.getElementById('root-dz').classList.remove('on');
+  historySnapshot();
   renderTree();
 }
 document.addEventListener('dragover', e => { if (draggingLib) e.preventDefault(); });
