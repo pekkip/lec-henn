@@ -335,8 +335,8 @@
 {% block content %}
 <!-- TABS -->
 <div class="tabs">
-  <a href="#" class="tab on" onclick="switchTab(event,'entete')"><i class="ti ti-info-circle" style="font-size:12px;margin-right:4px"></i>En-tête</a>
-  <a href="#" class="tab" onclick="switchTab(event,'edit')"><i class="ti ti-edit" style="font-size:12px;margin-right:4px"></i>Édition</a>
+  <a href="#" class="tab" onclick="switchTab(event,'entete')"><i class="ti ti-info-circle" style="font-size:12px;margin-right:4px"></i>En-tête</a>
+  <a href="#" class="tab on" onclick="switchTab(event,'edit')"><i class="ti ti-edit" style="font-size:12px;margin-right:4px"></i>Édition</a>
   <a href="#" class="tab" onclick="switchTab(event,'factures')">Factures <span id="fcount" style="background:var(--prune-lt);color:var(--prune);border-radius:99px;padding:1px 7px;font-size:11px;margin-left:3px">{{ factures|length }}</span></a>
   <a href="#" class="tab" onclick="switchTab(event,'audit')">Journal</a>
   <a href="{% url 'core:devis-pdf' devis.pk %}" target="_blank" class="tab"><i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Vue client</a>
@@ -345,7 +345,7 @@
 <!-- ═══════════════════════════════════════════
      TAB EN-TÊTE
 ════════════════════════════════════════════ -->
-<div class="tab-pane on" id="pane-entete" style="overflow-y:auto">
+<div class="tab-pane" id="pane-entete" style="overflow-y:auto">
   <div class="entete-section">
 
     <!-- Client & Chantier -->
@@ -454,7 +454,7 @@
 <!-- ═══════════════════════════════════════════
      TAB EDIT
 ════════════════════════════════════════════ -->
-<div class="tab-pane" id="pane-edit">
+<div class="tab-pane on" id="pane-edit">
   <div class="editor-shell">
   
     <!-- BIBLIOTHÈQUE -->
