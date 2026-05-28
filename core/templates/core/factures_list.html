@@ -22,7 +22,7 @@
     <tbody>
       {% for f in factures %}
       <tr>
-        <td><span class="mono">{{ f.reference }}</span></td>
+        <td><span class="mono">{{ f.get_reference }}</span></td>
         <td>
           <a href="{% url 'core:devis-detail' f.devis.pk %}" style="color:var(--prune);font-family:var(--fm);font-size:11px">
             {{ f.devis.reference }}
