@@ -635,6 +635,14 @@
           <i class="ti ti-edit"></i>
           </a>
           {% endif %}
+          {% if f.status == 'draft' %}
+          <form method="post" action="{% url 'core:facture-valider' f.pk %}" ...>...</form>
+          <button class="ico-btn" style="color:var(--amber)" ...>...</button>
+          <button class="ico-btn" style="color:var(--red)" title="Supprimer"
+            onclick="openDeleteFacture({{ f.pk }}, '{{ f.get_reference }}')">
+            <i class="ti ti-trash"></i>
+          </button>
+          {% endif %}
         </div>
       </div>
       {% empty %}
@@ -713,6 +721,30 @@
     </form>
   </div>
 </div>
+
+<!-- MODAL SUPPRESSION FACTURE -->
+<div id="modal-delete-facture" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--red)">Supprimer la facture</div>
+    <p style="font-size:13px;margin-bottom:1rem">
+      Supprimer <strong id="delete-facture-ref"></strong> ? Cette action est irréversible.
+    </p>
+    <form id="delete-facture-form" method="post">
+      {% csrf_token %}
+      <div class="modal-acts">
+        <button type="button" class="btn"
+          onclick="document.getElementById('modal-delete-facture').classList.add('hidden')">
+          Annuler
+        </button>
+        <button type="submit" class="btn" style="background:var(--red);color:#fff;border-color:var(--red)">
+          <i class="ti ti-trash"></i> Supprimer
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
 
 <!-- MODAL BYPASS -->
 <div id="modal-bypass" class="modal-bg hidden">
@@ -2011,4 +2043,13 @@ fetch(`/devis/${DEVIS_ID}/lignes/`)
 
   
 </script>
+
+<script>
+function openDeleteFacture(pk, ref) {
+  document.getElementById('delete-facture-ref').textContent = ref;
+  document.getElementById('delete-facture-form').action = `/factures/${pk}/supprimer/`;
+  document.getElementById('modal-delete-facture').classList.remove('hidden');
+}
+</script>
+
 {% endblock %}

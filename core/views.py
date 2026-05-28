@@ -856,6 +856,19 @@ def facture_bypass(request, pk):
     )
     return JsonResponse({'ok': True, 'redirect': f'/devis/{facture.devis.pk}/'})
 
+@login_required
+@require_POST
+def facture_delete(request, pk):
+    facture = get_object_or_404(Facture, pk=pk)
+    if facture.status != 'draft':
+        messages.error(request, 'Seules les factures en brouillon peuvent être supprimées.')
+        return redirect('core:devis-detail', pk=facture.devis.pk)
+    devis = facture.devis
+    ref = facture.get_reference()
+    add_audit(request.user, f"Suppression facture brouillon {ref}", devis=devis)
+    facture.delete()
+    messages.success(request, f'Facture {ref} supprimée.')
+    return redirect('core:devis-detail', pk=devis.pk)
 
 @login_required
 def facture_bypass_send_code(request, pk):
@@ -1055,7 +1068,21 @@ def lignes_facture_get(request, pk):
         'factures_prec': factures_prec_data,
     })
 
+@login_required
+@require_POST
+def facture_delete(request, pk):
+    facture = get_object_or_404(Facture, pk=pk)
+    if facture.status != 'draft':
+        messages.error(request, 'Seules les factures en brouillon peuvent être supprimées.')
+        return redirect('core:devis-detail', pk=facture.devis.pk)
+    devis_pk = facture.devis.pk
+    ref = facture.get_reference()
+    facture.delete()
+    add_audit(request.user, f"Suppression facture brouillon {ref}", devis=facture.devis)
+    messages.success(request, f'Facture {ref} supprimée.')
+    return redirect('core:devis-detail', pk=devis_pk)
 
+    
 @login_required
 @require_POST
 def lignes_facture_save(request, pk):
