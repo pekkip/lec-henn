@@ -20,6 +20,11 @@
 
 {% block extra_css %}
 <style>
+  /* ── TABS ── */
+.tabs{background:#fff;border-bottom:1px solid var(--gray-bd);display:flex;padding:0 1.25rem;flex-shrink:0}
+.tab{padding:10px 14px;font-size:13px;color:var(--gray-md);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
+.tab.on{color:var(--prune);border-bottom-color:var(--prune);font-weight:500}
+.tab:hover:not(.on){color:var(--gray)}
 /* ── BARRE FORMAT ── */
 .fmt-bar{display:flex;align-items:center;gap:3px;padding:5px 8px;background:#fff;border-bottom:1px solid var(--gray-bd);flex-shrink:0;flex-wrap:wrap}
 .fmt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid transparent;border-radius:4px;background:none;cursor:pointer;color:var(--gray);font-size:13px;font-family:var(--f);transition:background .1s,border-color .1s;flex-shrink:0}
