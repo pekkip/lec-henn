@@ -8,7 +8,7 @@
     <td colspan="5">{{ lf.description }}</td>
   </tr>
   {# Enfants filtrés (attribut _enfants_filtres défini par la vue) #}
-  {% for enfant in lf._enfants_filtres %}
+  {% for enfant in lf.enfants_filtres %}
     {% include 'core/_apercu_ligne.html' with lf=enfant depth=1 %}
   {% endfor %}
 {% else %}
