@@ -1,0 +1,24 @@
+{# core/templates/core/_apercu_ligne.html
+   Sous-template récursif pour les lignes de l'aperçu facture.
+   Appelé depuis facture_apercu.html et lui-même récursivement.
+   Affiche uniquement les lignes avec quantite > 0 (déjà filtré par la vue).
+#}
+{% if lf.type_ligne == 'TITRE' %}
+  <tr class="row-titre">
+    <td colspan="5">{{ lf.description }}</td>
+  </tr>
+  {# Enfants filtrés (attribut _enfants_filtres défini par la vue) #}
+  {% for enfant in lf._enfants_filtres %}
+    {% include 'core/_apercu_ligne.html' with lf=enfant depth=1 %}
+  {% endfor %}
+{% else %}
+  <tr class="{% if depth > 0 %}row-child{% endif %}">
+    <td>{{ lf.description }}</td>
+    <td class="td-num">{{ lf.quantite|floatformat:"-3" }}</td>
+    <td class="td-num" style="color:var(--gray-md)">{{ lf.unite }}</td>
+    <td class="td-num" style="color:var(--gray-md)">
+      {% if lf.cout_unitaire %}{{ lf.cout_unitaire|floatformat:2 }} €{% endif %}
+    </td>
+    <td class="td-total">{{ lf.total|floatformat:2 }} €</td>
+  </tr>
+{% endif %}

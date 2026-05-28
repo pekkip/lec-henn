@@ -630,6 +630,11 @@
           <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">{% csrf_token %}<input type="hidden" name="status" value="paid"/><button type="submit" class="ico-btn" style="color:#3B6D11" title="Payée"><i class="ti ti-cash"></i></button></form>
           {% endif %}
           <button class="ico-btn" title="PDF"><i class="ti ti-download"></i></button>
+          {% if f.status == 'draft' %}
+          <a href="{% url 'core:facture-detail' f.pk %}" class="ico-btn" title="Éditer la facture">
+          <i class="ti ti-edit"></i>
+          </a>
+          {% endif %}
         </div>
       </div>
       {% empty %}

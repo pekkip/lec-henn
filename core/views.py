@@ -92,7 +92,22 @@ def ligne_to_dict(ligne):
     }
 
 
-def ligne_facture_to_dict(ligne):
+def ligne_facture_to_dict(ligne, deja_par_source=None):
+    """
+    Sérialise une LigneFacture en dict JSON pour le frontend.
+
+    deja_par_source : dict {ligne_devis_source_id: montant_total_deja_facture}
+    Calculé une fois pour toute la facture et passé en paramètre (évite N+1).
+
+    # PROTO : le calcul du "déjà facturé" est fait depuis les factures validées
+    # uniquement (status='validated', 'sent', 'paid'). Les brouillons ne comptent pas.
+    """
+    if deja_par_source is None:
+        deja_par_source = {}
+
+    source_id = ligne.ligne_devis_source_id
+    deja = float(deja_par_source.get(source_id, 0)) if source_id else 0
+
     return {
         'id': ligne.pk,
         'type_ligne': ligne.type_ligne,
@@ -104,24 +119,39 @@ def ligne_facture_to_dict(ligne):
         'ordre': ligne.ordre,
         'ouvert': ligne.ouvert,
         'parent_id': ligne.parent_id,
-        'enfants': [ligne_facture_to_dict(e) for e in ligne.enfants.all()],
+        'deja_facture': deja,           # montant déjà facturé sur les factures précédentes validées
+        'ligne_devis_source_id': source_id,
+        'enfants': [ligne_facture_to_dict(e, deja_par_source) for e in ligne.enfants.all()],
     }
 
 
 def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None, ordre=0):
-    """Copie récursivement les lignes du devis vers la facture."""
+    """
+    Copie récursivement les lignes du devis vers la facture.
+
+    Différence vs version précédente :
+    - quantite est initialisée à la qté du devis
+      → l'utilisateur modifit ce qu'il veut facturer, 
+    - ligne_devis_source est renseigné pour tracer l'origine
+      → permet de calculer "déjà facturé" sur les factures suivantes
+
+    # PROTO : quantite est initialisée avec la qté du devis (pas à 0).
+    # L'utilisateur met à 0 ou ajuste ce qu'il ne veut pas facturer.
+    # quantite_originale garde la qté devis figée comme référence (snapshot)
+    """
     for ligne in lignes_devis:
         lf = LigneFacture.objects.create(
             facture=facture,
             parent=parent_facture,
             type_ligne=ligne.type_ligne,
             description=ligne.description,
-            quantite=ligne.quantite,
-            quantite_originale=ligne.quantite,
+            quantite=Decimal('0'),          # ← MODIF : 0 par défaut, pas la qté devis
+            quantite_originale=ligne.quantite,  # qté devis figée au snapshot
             unite=ligne.unite,
             cout_unitaire=ligne.cout_unitaire,
             ordre=ordre,
             ouvert=ligne.ouvert,
+            ligne_devis_source=ligne,       # ← NOUVEAU : traçabilité
         )
         if ligne.enfants.exists():
             copier_lignes_devis_vers_facture(
@@ -834,19 +864,195 @@ def facture_bypass_send_code(request, pk):
     return JsonResponse({'ok': True, 'code': code})
 
 
+def calc_deja_facture_par_source(devis, facture_courante):
+    """
+    Retourne un dict {ligne_devis_id: montant_total_facture} pour toutes les
+    factures VALIDÉES du devis, en excluant la facture courante.
+
+    Statuts comptabilisés : validated, sent, paid.
+    Exclus : draft, cancelled.
+
+    # PROTO : on agrège par ligne_devis_source_id. Si une facture n'a pas ce champ
+    # renseigné (factures créées avant session 6), elle est ignorée dans le calcul.
+    """
+    STATUTS_VALIDES = ('validated', 'sent', 'paid')
+
+    factures_prec = devis.factures.filter(
+        status__in=STATUTS_VALIDES,
+        type_doc='facture',
+    ).exclude(pk=facture_courante.pk)
+
+    deja = {}
+    for f in factures_prec:
+        for lf in f.lignes.filter(parent=None):
+            _agreger_ligne(lf, deja)
+
+    return deja
+
+
+def _agreger_ligne(ligne, deja):
+    """Parcourt récursivement et accumule les montants par source."""
+    if ligne.ligne_devis_source_id:
+        montant = float(ligne.total())
+        deja[ligne.ligne_devis_source_id] = deja.get(ligne.ligne_devis_source_id, 0) + montant
+    for enfant in ligne.enfants.all():
+        _agreger_ligne(enfant, deja)
+
+
+# ──────────────────────────────────────────
+#  VUE — Détail / éditeur d'une facture
+#  NOUVELLE — URL : /factures/<pk>/
+# ──────────────────────────────────────────
+
+@login_required
+def facture_detail(request, pk):
+    """
+    Page d'édition d'une facture brouillon.
+    Accessible depuis l'onglet Factures du devis.
+
+    # PROTO : pour l'instant, toute personne connectée peut accéder.
+    # À terme : restreindre selon rôle (voir notes session 6).
+    """
+    facture = get_object_or_404(Facture, pk=pk)
+    devis = facture.devis
+    profil = get_profil(request.user)
+
+    # Factures précédentes validées sur le même devis (pour le récapitulatif)
+    # PROTO : on affiche toutes les factures validées, pas les avoirs.
+    STATUTS_VALIDES = ('validated', 'sent', 'paid')
+    factures_prec = devis.factures.filter(
+        status__in=STATUTS_VALIDES,
+        type_doc='facture',
+    ).exclude(pk=facture.pk).order_by('created_at')
+
+    # Totaux pour le footer
+    total_devis = float(devis.total_brut())
+    total_deja = float(devis.total_facture())  # méthode existante sur Devis
+
+    return render(request, 'core/facture_detail.html', {
+        'facture': facture,
+        'devis': devis,
+        'profil': profil,
+        'factures_prec': factures_prec,
+        'total_devis': total_devis,
+        'total_deja': total_deja,
+        'modifiable': facture.status == 'draft',
+    })
+
+
+# ──────────────────────────────────────────
+#  VUE — Aperçu imprimable d'une facture
+#  NOUVELLE — URL : /factures/<pk>/apercu/
+# ──────────────────────────────────────────
+
+@login_required
+def facture_apercu(request, pk):
+    """
+    Aperçu HTML imprimable de la facture.
+    Lecture seule — même données que facture_detail.
+    window.print() déclenché par un bouton, CSS @media print intégré.
+
+    # PROTO : remplacé par WeasyPrint en Phase 3.
+    # Affiche uniquement les lignes avec quantite > 0.
+    """
+    facture = get_object_or_404(Facture, pk=pk)
+    devis = facture.devis
+
+    from .models import ParametresAssociation
+    params = ParametresAssociation.get()
+
+    # Lignes racines avec quantite > 0 uniquement (vue client)
+    # PROTO : règle d'affichage à affiner selon retours Frédérick/Yann
+    def filtrer_lignes(lignes_qs):
+        result = []
+        for lf in lignes_qs:
+            if lf.type_ligne == 'TITRE':
+                enfants = filtrer_lignes(lf.enfants.all())
+                if enfants:  # titre affiché seulement s'il a des enfants visibles
+                    lf._enfants_filtres = enfants
+                    result.append(lf)
+            else:
+                if float(lf.quantite) > 0:
+                    result.append(lf)
+        return result
+
+    lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None))
+
+    return render(request, 'core/facture_apercu.html', {
+        'facture': facture,
+        'devis': devis,
+        'params': params,
+        'lignes': lignes_filtrees,
+    })
+
+
+# ──────────────────────────────────────────
+#  VUE — Sauvegarde du libellé inline
+#  NOUVELLE — URL : /factures/<pk>/libelle/
+# ──────────────────────────────────────────
+
+@login_required
+@require_POST
+def facture_libelle_save(request, pk):
+    """
+    Sauvegarde le libellé court d'une facture (éditable inline dans le
+    récapitulatif des factures précédentes).
+
+    # PROTO : pas de validation de longueur côté serveur pour l'instant.
+    # max_length=200 est géré par le modèle.
+    """
+    facture = get_object_or_404(Facture, pk=pk)
+    try:
+        data = json.loads(request.body)
+        libelle = data.get('libelle', '').strip()[:200]
+        facture.libelle = libelle
+        facture.save(update_fields=['libelle'])
+        return JsonResponse({'ok': True, 'libelle': libelle})
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
 # ══════════════════════════════════════════
 #  LIGNES FACTURE (API JSON)
 # ══════════════════════════════════════════
 
 @login_required
 def lignes_facture_get(request, pk):
+    """
+    Retourne les lignes de la facture + montant "déjà facturé" par ligne.
+
+    # PROTO : deja_par_source est calculé à chaque appel.
+    # Optimisation possible si les factures sont nombreuses.
+    """
     facture = get_object_or_404(Facture, pk=pk)
+    deja_par_source = calc_deja_facture_par_source(facture.devis, facture)
     racines = facture.lignes.filter(parent=None)
-    data = [ligne_facture_to_dict(l) for l in racines]
+    data = [ligne_facture_to_dict(l, deja_par_source) for l in racines]
+
+    # Factures précédentes pour le récapitulatif JS (libellé + montant global)
+    STATUTS_VALIDES = ('validated', 'sent', 'paid')
+    factures_prec = facture.devis.factures.filter(
+        status__in=STATUTS_VALIDES,
+        type_doc='facture',
+    ).exclude(pk=facture.pk).order_by('created_at')
+
+    factures_prec_data = [
+        {
+            'pk': f.pk,
+            'reference': f.get_reference(),
+            'libelle': f.libelle or '',
+            'montant': float(f.montant),
+            'libelle_save_url': f'/factures/{f.pk}/libelle/',
+        }
+        for f in factures_prec
+    ]
+
     return JsonResponse({
         'lignes': data,
         'montant': float(facture.montant),
         'taux_mo': float(facture.devis.taux_mo),
+        'total_devis': float(facture.devis.total_brut()),
+        'total_deja': float(facture.devis.total_facture()),
+        'factures_prec': factures_prec_data,
     })
 
 
@@ -858,6 +1064,9 @@ def lignes_facture_save(request, pk):
         return JsonResponse({'error': 'Facture non modifiable'}, status=400)
     try:
         data = json.loads(request.body)
+        notes = data.get('notes', None)
+        if notes is not None:
+            facture.notes = notes
         lignes = data.get('lignes', [])
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)

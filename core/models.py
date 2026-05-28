@@ -302,6 +302,7 @@ class Devis(models.Model):
         blank=True,
         help_text="Conditions de vente pour ce devis (copié depuis les préférences à la création)"
     )
+
     fin_group_title = models.CharField(
         max_length=100, default='Financements',
         help_text="Titre du groupe de financements"
@@ -460,6 +461,13 @@ class Facture(models.Model):
     date_creation = models.DateField(auto_now_add=True)
     date_echeance = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
+
+    libelle = models.CharField(
+        max_length=200, blank=True,
+        help_text="Court libellé affiché dans le récapitulatif des factures précédentes"
+    # PROTO : éditable inline dans l'éditeur de facture.
+    )
+
     conditions_facture = models.TextField(
         blank=True,
         help_text="Conditions de vente pour cette facture"
@@ -518,6 +526,15 @@ class LigneFacture(models.Model):
     )
     ordre = models.IntegerField(default=0)
     ouvert = models.BooleanField(default=True)
+    
+    ligne_devis_source = models.ForeignKey(
+        'LigneDevis',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='lignes_factures',
+        help_text="Ligne du devis à l'origine de cette ligne de facture"
+        # PROTO : permet le calcul du 'déjà facturé' par ligne.
+    )
 
     class Meta:
         ordering = ['ordre']

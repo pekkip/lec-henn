@@ -42,6 +42,9 @@ urlpatterns = [
     path('factures/<int:pk>/statut/', views.facture_status, name='facture-status'),
     path('factures/<int:pk>/bypass/', views.facture_bypass, name='facture-bypass'),
     path('factures/<int:pk>/bypass/send/', views.facture_bypass_send_code, name='facture-bypass-send'),
+    path('factures/<int:pk>/',           views.facture_detail,       name='facture-detail'),
+    path('factures/<int:pk>/apercu/',    views.facture_apercu,       name='facture-apercu'),
+    path('factures/<int:pk>/libelle/',   views.facture_libelle_save, name='facture-libelle-save'),
 
     # Lignes facture (API JSON)
     path('factures/<int:pk>/lignes/', views.lignes_facture_get, name='lignes-facture-get'),
