@@ -13,11 +13,6 @@
 {% endblock %}
 
 {% block topbar_actions %}
-  {% if modifiable %}
-  <button onclick="saveFacture()" class="btn btn-ghost btn-sm" id="btn-save">
-    <i class="ti ti-device-floppy"></i> Sauvegarder
-  </button>
-  {% endif %}
   <a href="{% url 'core:facture-apercu' facture.pk %}" target="_blank" class="btn btn-ghost btn-sm">
     <i class="ti ti-eye"></i> Aperçu
   </a>
@@ -125,6 +120,19 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 
 {% block content %}
 
+{# Barre de navigation — même niveau que les tabs du devis #}
+<div class="tabs">
+  <a href="{% url 'core:devis-detail' devis.pk %}" class="tab">
+    <i class="ti ti-arrow-left" style="font-size:12px;margin-right:4px"></i>{{ devis.reference }}
+  </a>
+  <span class="tab on">
+    <i class="ti ti-receipt" style="font-size:12px;margin-right:4px"></i>{{ facture.get_reference }}
+  </span>
+  <a href="{% url 'core:facture-apercu' facture.pk %}" target="_blank" class="tab">
+    <i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Aperçu
+  </a>
+</div>
+
 {# Bandeau si la facture n'est plus modifiable #}
 {% if not modifiable %}
 <div class="readonly-banner">
@@ -172,6 +180,11 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 
 {# Footer totaux #}
 <div class="editor-foot">
+  {% if modifiable %}
+  <button onclick="saveFacture()" class="btn btn-ghost btn-sm" id="btn-save">
+    <i class="ti ti-device-floppy"></i> Sauvegarder
+  </button>
+  {% endif %}
   <span class="ft-lbl">Montant global devis</span>
   <span class="ft-val" id="ft-devis">{{ total_devis|floatformat:2 }} €</span>
   <div class="ft-sep"></div>
