@@ -124,7 +124,7 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 {% endblock %}
 
 {% block content %}
-
+<div style="display:none">modifiable={{ modifiable }}</div>
 {# Barre de navigation — même niveau que les tabs du devis #}
 <div class="tabs">
   <a href="{% url 'core:devis-detail' devis.pk %}" class="tab">
