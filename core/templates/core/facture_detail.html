@@ -373,13 +373,11 @@ function renderNode(n, parentZero) {
       <span class="nbadge nb-${n.type_ligne}">${BADGE_LABELS[n.type_ligne] || n.type_ligne}</span>
       <div class="nd-desc-ce">${descCe}</div>
       <div class="nd-qty-wrap">
-        ${!isTitre ? `
         <input class="nd-qty" type="number" value="${n.quantite}" min="0" step="any"
           ${disabled}
           onchange="updQty(${n.id}, parseFloat(this.value) || 0)"
           onfocus="this.select()"/>
         <span class="nd-unit">${n.unite || ''}</span>
-        ` : `<span style="font-size:11px;color:var(--gray-md);width:80px;text-align:right">${isZero ? 'non facturé' : 'facturé'}</span>`}
       </div>
       <div class="nd-ref">${!isTitre && qd > 0 ? qd : ''}</div>
       <div class="nd-pu">${!isTitre && pu != null ? fmtV(pu) : ''}</div>
