@@ -397,7 +397,7 @@ function renderNode(n, parentZero) {
           onfocus="this.select()"/>
         <span class="nd-unit">${n.unite || ''}</span>
       </div>
-      <div class="nd-ref">${!isTitre && qd > 0 ? qd : ''}</div>
+      <div class="nd-ref">${qd > 0 ? qd : ''}</div>
       <div class="nd-pu">${!isTitre && pu != null ? fmtV(pu) : ''}</div>
       <div class="nd-total${isZero ? ' zero' : ''}">${isZero ? '—' : fmtV(totalFact)}</div>
     </div>
@@ -437,7 +437,8 @@ function updQty(id, val) {
   if (!n) return;
   n.quantite = val;
   dirty = true;
-  renderAll();
+  clearTimeout(updQty._t);
+  updQty._t = setTimeout(() => renderAll(), 50);
 }
 
 function syncDesc(ce, id) {
