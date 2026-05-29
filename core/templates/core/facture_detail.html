@@ -437,8 +437,51 @@ function updQty(id, val) {
   if (!n) return;
   n.quantite = val;
   dirty = true;
-  clearTimeout(updQty._t);
-  updQty._t = setTimeout(() => renderAll(), 50);
+
+  // Recalculer et mettre à jour le total de ce nœud
+  const nodeEl = document.querySelector(`[data-nid="${id}"]`);
+  if (nodeEl) {
+    const isZero = val === 0;
+    const totalFact = calcFactureNode(n);
+    // Total de la ligne
+    const totalEl = nodeEl.querySelector(':scope > .node-row .nd-total');
+    if (totalEl) {
+      totalEl.textContent = isZero ? '—' : fmtV(totalFact);
+      totalEl.className = `nd-total${isZero ? ' zero' : ''}`;
+    }
+    // Grisage de la ligne
+    const rowEl = nodeEl.querySelector(':scope > .node-row');
+    if (rowEl) {
+      rowEl.classList.toggle('zero', isZero);
+    }
+    // Grisage des enfants si titre
+    if (n.type_ligne === 'TITRE') {
+      const kidsEl = nodeEl.querySelector(':scope > .kids-wrap');
+      if (kidsEl) kidsEl.style.opacity = isZero ? '.35' : '';
+      // Désactiver/activer les inputs enfants
+      nodeEl.querySelectorAll('.kids-wrap .nd-qty').forEach(inp => {
+        inp.disabled = isZero || !MODIFIABLE;
+      });
+    }
+  }
+
+  // Recalculer le total du titre parent si ce nœud est un enfant
+  if (n.parent_id) {
+    const parent = findNode(lignes, n.parent_id);
+    if (parent) {
+      const parentEl = document.querySelector(`[data-nid="${n.parent_id}"]`);
+      if (parentEl) {
+        const parentTotal = calcFactureNode(parent);
+        const parentTotalEl = parentEl.querySelector(':scope > .node-row .nd-total');
+        if (parentTotalEl) {
+          parentTotalEl.textContent = fmtV(parentTotal);
+        }
+      }
+    }
+  }
+
+  // Mettre à jour le footer
+  refreshFooter();
 }
 
 function syncDesc(ce, id) {
