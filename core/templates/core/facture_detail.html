@@ -185,11 +185,6 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 
 {# Footer totaux #}
 <div class="editor-foot">
-  {% if modifiable %}
-  <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save">
-    <i class="ti ti-device-floppy"></i> Sauvegarder
-  </button>
-  {% endif %}
   <span class="ft-lbl">Montant global devis</span>
   <span class="ft-val" id="ft-devis">{{ total_devis|floatformat:2 }} €</span>
   <div class="ft-sep"></div>
@@ -199,6 +194,11 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
   <span class="ft-lbl">Cette facture</span>
   <span class="ft-grand" id="ft-total">—</span>
   <span class="ft-lbl">HT</span>
+  {% if modifiable %}
+  <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save" style="margin-left:auto">
+    <i class="ti ti-device-floppy"></i> Sauvegarder
+  </button>
+  {% endif %}
 </div>
 
 <div class="toast" id="toast"></div>
