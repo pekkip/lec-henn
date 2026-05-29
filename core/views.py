@@ -345,16 +345,6 @@ def client_create(request):
     return redirect('core:clients')
 
 
-@login_required
-@require_POST
-def client_delete(request, pk):
-    client = get_object_or_404(Client, pk=pk)
-    nom = client.nom
-    client.delete()
-    messages.success(request, f'Client "{nom}" supprimé.')
-    return redirect('core:clients')
-
-
 # ══════════════════════════════════════════
 #  DEVIS — LISTE
 # ══════════════════════════════════════════
@@ -860,6 +850,10 @@ def facture_bypass(request, pk):
 @require_POST
 def facture_delete(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
+    # Vérification permission avant le statut (évite de donner une info sur l'existence)
+    if not peut_supprimer_facture(request.user, facture):
+        messages.error(request, 'Vous ne pouvez pas supprimer cette facture.')
+        return redirect('core:devis-detail', pk=facture.devis.pk)
     if facture.status != 'draft':
         messages.error(request, 'Seules les factures en brouillon peuvent être supprimées.')
         return redirect('core:devis-detail', pk=facture.devis.pk)
@@ -923,12 +917,15 @@ def facture_detail(request, pk):
     Page d'édition d'une facture brouillon.
     Accessible depuis l'onglet Factures du devis.
 
-    # PROTO : pour l'instant, toute personne connectée peut accéder.
-    # À terme : restreindre selon rôle (voir notes session 6).
     """
     facture = get_object_or_404(Facture, pk=pk)
     devis = facture.devis
     profil = get_profil(request.user)
+
+    # Vérification accès — même règle que pour le devis parent
+    if not peut_modifier_devis(request.user, devis):
+        messages.error(request, "Vous n'avez pas accès à cette facture.")
+        return redirect('core:devis-list')
 
     # Factures précédentes validées sur le même devis (pour le récapitulatif)
     # PROTO : on affiche toutes les factures validées, pas les avoirs.
@@ -1068,21 +1065,6 @@ def lignes_facture_get(request, pk):
         'factures_prec': factures_prec_data,
     })
 
-@login_required
-@require_POST
-def facture_delete(request, pk):
-    facture = get_object_or_404(Facture, pk=pk)
-    if facture.status != 'draft':
-        messages.error(request, 'Seules les factures en brouillon peuvent être supprimées.')
-        return redirect('core:devis-detail', pk=facture.devis.pk)
-    devis_pk = facture.devis.pk
-    ref = facture.get_reference()
-    facture.delete()
-    add_audit(request.user, f"Suppression facture brouillon {ref}", devis=facture.devis)
-    messages.success(request, f'Facture {ref} supprimée.')
-    return redirect('core:devis-detail', pk=devis_pk)
-
-    
 @login_required
 @require_POST
 def lignes_facture_save(request, pk):

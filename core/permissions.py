@@ -31,25 +31,60 @@ def get_techniciens(user):
     return list(profil.techniciens.all())
 
 
+def _partage_equipe_devis(profil, devis):
+    """
+    Vérifie si l'utilisateur a accès au devis via l'équipe.
+
+    Deux cas :
+      - Le devis est rattaché à une équipe ET l'utilisateur en fait partie
+      - L'utilisateur est le responsable hiérarchique du créateur du devis
+        (couvre le cas responsable hors équipe mais chef de l'auteur)
+    """
+    # Cas 1 — même équipe que le devis
+    if devis.equipe and profil.equipes.filter(pk=devis.equipe.pk).exists():
+        return True
+
+    # Cas 2 — responsable hiérarchique du créateur
+    if devis.created_by:
+        createur_profil = get_profil(devis.created_by)
+        if createur_profil and createur_profil.responsable == profil:
+            return True
+
+    return False
+
+
 def peut_modifier_devis(user, devis):
-    """Peut modifier un devis ?"""
+    """
+    Peut modifier un devis ?
+
+    Autorisé si :
+      - admin
+      - créateur du devis
+      - membre de l'équipe du devis
+      - responsable hiérarchique du créateur
+    """
     if not user.is_authenticated:
         return False
     profil = get_profil(user)
     if not profil:
         return False
+
+    # Admin → accès total
     if profil.role == 'admin':
         return True
+
+    # Comptable → jamais sur les devis
     if profil.role == 'comptable':
         return False
+
     # Créateur du devis
     if devis.created_by == user:
         return True
-    # Responsable d'un technicien qui a créé le devis
-    if profil.role == 'responsable':
-        createur_profil = get_profil(devis.created_by)
-        if createur_profil and createur_profil.responsable == profil:
-            return True
+
+    # Équipe ou responsable hiérarchique
+    if _partage_equipe_devis(profil, devis):
+        return True
+
     return False
 
 
@@ -61,41 +96,62 @@ def peut_supprimer_devis(user, devis):
 
 
 def peut_envoyer_facture(user, facture):
-    """Peut envoyer une facture en validation ?"""
+    """
+    Peut envoyer une facture en validation ?
+
+    Même règle que peut_modifier_devis, appliquée au devis parent de la facture.
+    """
     if not user.is_authenticated:
         return False
     profil = get_profil(user)
     if not profil:
         return False
+
+    # Admin → accès total
     if profil.role == 'admin':
         return True
+
+    # Comptable → non
     if profil.role == 'comptable':
         return False
+
+    # Créateur de la facture
     if facture.created_by == user:
         return True
-    if profil.role == 'responsable':
-        createur_profil = get_profil(facture.created_by)
-        if createur_profil and createur_profil.responsable == profil:
-            return True
+
+    # Accès via le devis parent (équipe ou responsable)
+    if _partage_equipe_devis(profil, facture.devis):
+        return True
+
     return False
 
 
 def peut_valider_facture(user, facture):
-    """Peut modifier/valider un brouillon de facture (rôle comptable) ?"""
+    """
+    Peut modifier/valider un brouillon de facture ?
+    Réservé à l'admin et au comptable.
+    """
     if not user.is_authenticated:
         return False
     profil = get_profil(user)
     if not profil:
         return False
+
     if profil.role == 'admin':
         return True
+
+    # Comptable uniquement sur les brouillons
     if profil.role == 'comptable' and facture.status == 'draft':
         return True
+
     return False
 
 
 def peut_supprimer_facture(user, facture):
-    """Peut supprimer une facture ? Jamais si validée."""
+    """
+    Peut supprimer une facture ?
+    Jamais si validée, envoyée ou payée.
+    """
     if facture.status in ('validated', 'sent', 'paid'):
         return False
     if not user.is_authenticated:
@@ -103,16 +159,23 @@ def peut_supprimer_facture(user, facture):
     profil = get_profil(user)
     if not profil:
         return False
+
+    # Admin → accès total
     if profil.role == 'admin':
         return True
+
+    # Comptable → non
     if profil.role == 'comptable':
         return False
+
+    # Créateur de la facture
     if facture.created_by == user:
         return True
-    if profil.role == 'responsable':
-        createur_profil = get_profil(facture.created_by)
-        if createur_profil and createur_profil.responsable == profil:
-            return True
+
+    # Accès via le devis parent (équipe ou responsable)
+    if _partage_equipe_devis(profil, facture.devis):
+        return True
+
     return False
 
 
