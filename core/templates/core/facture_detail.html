@@ -185,20 +185,22 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 
 {# Footer totaux #}
 <div class="editor-foot">
-  <span class="ft-lbl">Montant global devis</span>
-  <span class="ft-val" id="ft-devis">{{ total_devis|floatformat:2 }} €</span>
-  <div class="ft-sep"></div>
-  <span class="ft-lbl">Déjà facturé</span>
-  <span class="ft-val" style="color:var(--gray-md)" id="ft-deja">{{ total_deja|floatformat:2 }} €</span>
-  <div class="ft-sep"></div>
-  <span class="ft-lbl">Cette facture</span>
-  <span class="ft-grand" id="ft-total">—</span>
-  <span class="ft-lbl">HT</span>
   {% if modifiable %}
-  <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save" style="margin-left:auto">
+  <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save">
     <i class="ti ti-device-floppy"></i> Sauvegarder
   </button>
   {% endif %}
+  <div style="margin-left:auto;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+    <span class="ft-lbl">Montant global devis</span>
+    <span class="ft-val" id="ft-devis">{{ total_devis|floatformat:2 }} €</span>
+    <div class="ft-sep"></div>
+    <span class="ft-lbl">Déjà facturé</span>
+    <span class="ft-val" style="color:var(--gray-md)" id="ft-deja">{{ total_deja|floatformat:2 }} €</span>
+    <div class="ft-sep"></div>
+    <span class="ft-lbl">Cette facture</span>
+    <span class="ft-grand" id="ft-total">—</span>
+    <span class="ft-lbl">HT</span>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -273,12 +275,13 @@ function calcFactureNode(n) {
   const qf = parseFloat(n.quantite || 0);
   if (n.type_ligne === 'TITRE') {
     if (qf === 0) return 0;
-    return (n.enfants || []).reduce((s, c) => s + calcFactureNode(c), 0);
+    // Même logique que devis : quantite titre × somme enfants
+    return qf * (n.enfants || []).reduce((s, c) => s + calcFactureNode(c), 0);
   }
   if (!n.enfants || !n.enfants.length) {
     return qf * (n.cout_unitaire || 0);
   }
-  // Composite : on utilise le PU devis
+  // Composite : quantite × PU devis
   const pu = getPU(n);
   return qf * (pu || 0);
 }
@@ -397,9 +400,9 @@ function renderNode(n, parentZero) {
           onfocus="this.select()"/>
         <span class="nd-unit">${n.unite || ''}</span>
       </div>
-      <div class="nd-ref">${qd > 0 ? qd : ''}</div>
+      <div class="nd-ref">${!isTitre && qd > 0 ? qd : ''}</div>
       <div class="nd-pu">${!isTitre && pu != null ? fmtV(pu) : ''}</div>
-      <div class="nd-total${isZero ? ' zero' : ''}">${isZero ? '—' : fmtV(totalFact)}</div>
+      <div class="nd-total${isZero ? ' zero' : ''}" data-total="${n.id}">${isZero ? '—' : fmtV(totalFact)}</div>
     </div>
     ${progHtml}`;
 
@@ -439,27 +442,23 @@ function updQty(id, val) {
   n.quantite = val;
   const isNowZero = val === 0;
   dirty = true;
-
   if (wasZero !== isNowZero) {
-    // Passage zéro ↔ non-zéro : re-rendu complet nécessaire (grisage/dégrisage)
+    // Passage zéro ↔ non-zéro : re-rendu complet pour grisage/dégrisage
     renderAll();
   } else {
-    // Sinon : mise à jour des totaux sans toucher au DOM
     updateTotalsDisplay();
   }
 }
 
 function updateTotalsDisplay() {
   function updateNode(n) {
-    const el = document.querySelector(`[data-nid="${n.id}"]`);
-    if (!el) return;
-    const totalEl = el.querySelector(':scope > .node-row .nd-total');
+    const totalEl = document.querySelector('[data-total="' + n.id + '"]');
     if (totalEl) {
       const qf = parseFloat(n.quantite || 0);
       const isZero = qf === 0;
       const total = calcFactureNode(n);
       totalEl.textContent = isZero ? '—' : fmtV(total);
-      totalEl.className = `nd-total${isZero ? ' zero' : ''}`;
+      totalEl.className = 'nd-total' + (isZero ? ' zero' : '');
     }
     if (n.enfants) n.enfants.forEach(updateNode);
   }
