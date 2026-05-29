@@ -185,11 +185,6 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 
 {# Footer totaux #}
 <div class="editor-foot">
-  {% if modifiable %}
-  <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save">
-    <i class="ti ti-device-floppy"></i> Sauvegarder
-  </button>
-  {% endif %}
   <div style="margin-left:auto;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
     <span class="ft-lbl">Montant global devis</span>
     <span class="ft-val" id="ft-devis">{{ total_devis|floatformat:2 }} €</span>
@@ -201,6 +196,11 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
     <span class="ft-grand" id="ft-total">—</span>
     <span class="ft-lbl">HT</span>
   </div>
+  {% if modifiable %}
+  <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save">
+    <i class="ti ti-device-floppy"></i> Sauvegarder
+  </button>
+  {% endif %}
 </div>
 
 <div class="toast" id="toast"></div>
@@ -400,7 +400,7 @@ function renderNode(n, parentZero) {
           onfocus="this.select()"/>
         <span class="nd-unit">${n.unite || ''}</span>
       </div>
-      <div class="nd-ref">${!isTitre && qd > 0 ? qd : ''}</div>
+      <div class="nd-ref">${qd > 0 ? qd : ''}</div>
       <div class="nd-pu">${!isTitre && pu != null ? fmtV(pu) : ''}</div>
       <div class="nd-total${isZero ? ' zero' : ''}" data-total="${n.id}">${isZero ? '—' : fmtV(totalFact)}</div>
     </div>
