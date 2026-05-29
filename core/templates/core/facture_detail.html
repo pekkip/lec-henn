@@ -435,52 +435,35 @@ function refreshFooter() {
 function updQty(id, val) {
   const n = findNode(lignes, id);
   if (!n) return;
+  const wasZero = parseFloat(n.quantite || 0) === 0;
   n.quantite = val;
+  const isNowZero = val === 0;
   dirty = true;
 
-  // Recalculer et mettre à jour le total de ce nœud
-  const nodeEl = document.querySelector(`[data-nid="${id}"]`);
-  if (nodeEl) {
-    const isZero = val === 0;
-    const totalFact = calcFactureNode(n);
-    // Total de la ligne
-    const totalEl = nodeEl.querySelector(':scope > .node-row .nd-total');
+  if (wasZero !== isNowZero) {
+    // Passage zéro ↔ non-zéro : re-rendu complet nécessaire (grisage/dégrisage)
+    renderAll();
+  } else {
+    // Sinon : mise à jour des totaux sans toucher au DOM
+    updateTotalsDisplay();
+  }
+}
+
+function updateTotalsDisplay() {
+  function updateNode(n) {
+    const el = document.querySelector(`[data-nid="${n.id}"]`);
+    if (!el) return;
+    const totalEl = el.querySelector(':scope > .node-row .nd-total');
     if (totalEl) {
-      totalEl.textContent = isZero ? '—' : fmtV(totalFact);
+      const qf = parseFloat(n.quantite || 0);
+      const isZero = qf === 0;
+      const total = calcFactureNode(n);
+      totalEl.textContent = isZero ? '—' : fmtV(total);
       totalEl.className = `nd-total${isZero ? ' zero' : ''}`;
     }
-    // Grisage de la ligne
-    const rowEl = nodeEl.querySelector(':scope > .node-row');
-    if (rowEl) {
-      rowEl.classList.toggle('zero', isZero);
-    }
-    // Grisage des enfants si titre
-    if (n.type_ligne === 'TITRE') {
-      const kidsEl = nodeEl.querySelector(':scope > .kids-wrap');
-      if (kidsEl) kidsEl.style.opacity = isZero ? '.35' : '';
-      // Désactiver/activer les inputs enfants
-      nodeEl.querySelectorAll('.kids-wrap .nd-qty').forEach(inp => {
-        inp.disabled = isZero || !MODIFIABLE;
-      });
-    }
+    if (n.enfants) n.enfants.forEach(updateNode);
   }
-
-  // Recalculer le total du titre parent si ce nœud est un enfant
-  if (n.parent_id) {
-    const parent = findNode(lignes, n.parent_id);
-    if (parent) {
-      const parentEl = document.querySelector(`[data-nid="${n.parent_id}"]`);
-      if (parentEl) {
-        const parentTotal = calcFactureNode(parent);
-        const parentTotalEl = parentEl.querySelector(':scope > .node-row .nd-total');
-        if (parentTotalEl) {
-          parentTotalEl.textContent = fmtV(parentTotal);
-        }
-      }
-    }
-  }
-
-  // Mettre à jour le footer
+  lignes.forEach(updateNode);
   refreshFooter();
 }
 
