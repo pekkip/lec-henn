@@ -22,7 +22,8 @@ from .models import (
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis,
     peut_valider_facture, peut_envoyer_facture, peut_supprimer_facture,
-    peut_supprimer_client, is_admin
+    peut_supprimer_client, is_admin,
+    peut_gerer_utilisateurs, peut_gerer_cet_utilisateur
 )
 # ══════════════════════════════════════════
 #  HELPERS
