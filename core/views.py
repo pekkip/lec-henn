@@ -750,40 +750,82 @@ def factures_list(request):
     return render(request, 'core/factures_list.html', {'factures': factures})
 
 
-@login_required
-@require_POST
 def facture_create(request, devis_pk):
     devis = get_object_or_404(Devis, pk=devis_pk)
-    profil = get_profil(request.user)
-    type_doc = request.POST.get('type_doc', 'facture')
-    echeance_jours = int(request.POST.get('echeance_jours', 30))
+    profil = _get_profil(request)
+    if not profil.peut_acceder_devis(devis):
+        return HttpResponseForbidden()
 
-    facture = Facture.objects.create(
-        # Pas de numéro — assigné à la validation
-        type_doc=type_doc,
-        devis=devis,
-        destinataire=request.POST.get('destinataire', devis.client.nom),
-        montant=0,  # calculé depuis les lignes
-        date_echeance=date.today() + timedelta(days=echeance_jours),
-        notes=request.POST.get('notes', ''),
-        conditions_facture=profil.conditions_facture,
-        created_by=request.user,
-    )
+    if request.method != 'POST':
+        return redirect('core:devis-detail', devis_pk)
 
-    # Copier les lignes du devis vers la facture
-    copier_lignes_devis_vers_facture(
-        devis.lignes.filter(parent=None),
-        facture
-    )
+    type_doc     = request.POST.get('type_doc', 'facture')
+    destinataire = request.POST.get('destinataire', '').strip()
+    notes        = request.POST.get('notes', '').strip()
 
-    type_label = 'Avoir' if type_doc == 'avoir' else 'Facture'
-    add_audit(
-        request.user,
-        f"Génération {type_label} (brouillon) — {devis.reference} · {facture.destinataire}",
-        devis=devis, facture=facture
-    )
-    return redirect('core:devis-detail', pk=devis_pk)
+    if type_doc == 'acompte': 
+        # -> facture acompte
+        montant_raw = request.POST.get('montant', '').strip()
+        try:
+            montant = Decimal(montant_raw)
+        except Exception:
+            montant = Decimal('0')
 
+        facture = Facture.objects.create(
+            devis=devis,
+            type_doc='acompte',
+            destinataire=destinataire or str(devis.client),
+            montant=montant,
+            notes=notes,
+            created_by=request.user,
+        )
+        AuditLog.objects.create(
+            user=request.user,
+            action=f"Facture d'acompte {facture.get_reference()} créée ({montant} €)",
+            devis=devis,
+            facture=facture,
+        )
+        return redirect('core:devis-detail', devis_pk)
+
+    else:
+        # -> facture normale
+        echeance_jours = int(request.POST.get('echeance_jours') or 30)
+        date_echeance  = date.today() + timedelta(days=echeance_jours)
+
+        facture = Facture.objects.create(
+            devis=devis,
+            type_doc='facture',
+            destinataire=destinataire or str(devis.client),
+            notes=notes,
+            date_echeance=date_echeance,
+            created_by=request.user,
+        )
+        # Copie des lignes du devis
+        _copier_lignes_devis(facture, devis)
+
+        AuditLog.objects.create(
+            user=request.user,
+            action=f"Facture {facture.get_reference()} créée",
+            devis=devis,
+            facture=facture,
+        )
+        return redirect('core:facture-detail', facture.pk)
+
+@login_required
+@require_POST
+def facture_date_versement(request, pk):
+    facture = get_object_or_404(Facture, pk=pk, type_doc='acompte')
+    try:
+        data = json.loads(request.body)
+        date_str = data.get('date_versement', '').strip()
+        if date_str:
+            facture.date_versement = datetime.strptime(date_str, '%d/%m/%Y').date()
+        else:
+            facture.date_versement = None
+        facture.save(update_fields=['date_versement'])
+        return JsonResponse({'ok': True})
+    except (ValueError, KeyError):
+        return JsonResponse({'ok': False, 'error': 'Format invalide (jj/mm/aaaa)'})
 
 @login_required
 @require_POST
@@ -1057,6 +1099,23 @@ def lignes_facture_get(request, pk):
         for f in factures_prec
     ]
 
+     # Acomptes versés — affichés dans la zone financement
+    acomptes = facture.devis.factures.filter(
+        status__in=STATUTS_VALIDES,
+        type_doc='acompte',
+    ).order_by('created_at')
+
+    acomptes_data = [
+        {
+            'pk': f.pk,
+            'reference': f.get_reference(),
+            'montant': float(f.montant),
+            'notes': f.notes or '',
+            'date_versement': f.date_versement.strftime('%d/%m/%Y') if f.date_versement else '',
+        }
+        for f in acomptes
+    ]
+
     return JsonResponse({
         'lignes': data,
         'montant': float(facture.montant),
@@ -1064,6 +1123,7 @@ def lignes_facture_get(request, pk):
         'total_devis': float(facture.devis.total_brut()),
         'total_deja': float(facture.devis.total_facture()),
         'factures_prec': factures_prec_data,
+        'acomptes': acomptes_data,
     })
 
 @login_required

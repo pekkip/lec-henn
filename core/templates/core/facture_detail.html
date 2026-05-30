@@ -203,6 +203,16 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
   {% endif %}
 </div>
 
+{# Section acomptes versés #}
+<div id="acomptes-section" style="display:none;background:#fff;border-top:1px solid var(--gray-bd);padding:8px 14px">
+  <div style="font-size:10px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+    <i class="ti ti-receipt" style="font-size:12px"></i> Acomptes versés
+  </div>
+  <div id="acomptes-list"></div>
+  <div id="acomptes-total" style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--amber);padding-top:4px;border-top:1px solid var(--amber-lt);margin-top:4px"></div>
+</div>
+
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -220,9 +230,11 @@ const CSRF_TOKEN    = "{{ csrf_token }}";
 // ═══════════════════════════════════════════════════════
 let lignes = [];           // arbre des LigneFacture
 let factures_prec = [];    // factures précédentes (pour récap par titre)
+let acomptes = [];
 let TOTAL_DEVIS = 0;
 let TOTAL_DEJA  = 0;
 let dirty = false;         // modifications non sauvegardées
+
 
 // ═══════════════════════════════════════════════════════
 //  UTILITAIRES
@@ -583,6 +595,50 @@ window.addEventListener('beforeunload', e => {
   }
 });
 
+
+// ═══════════════════════════════════════════════════════
+//  VUE ACOMPTE
+// ═══════════════════════════════════════════════════════
+
+
+function renderAcomptes() {
+  if (!acomptes.length) return;
+  const section = document.getElementById('acomptes-section');
+  const list    = document.getElementById('acomptes-list');
+  const totEl   = document.getElementById('acomptes-total');
+  section.style.display = '';
+
+  let total = 0;
+  list.innerHTML = acomptes.map(a => {
+    total += a.montant;
+    return `
+      <div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid var(--gray-bd);font-size:11px">
+        <span style="font-family:var(--fm);font-size:10px;color:var(--amber);width:100px;flex-shrink:0">${a.reference}</span>
+        <span style="flex:1;color:var(--gray-md)">${a.notes || '—'}</span>
+        <div contenteditable="${MODIFIABLE ? 'true' : 'false'}"
+             style="width:90px;font-size:11px;color:var(--gray-md);text-align:center;border-radius:3px;padding:0 2px"
+             placeholder="jj/mm/aaaa"
+             onblur="saveDateVersement(this, ${a.pk})"
+        >${a.date_versement || ''}</div>
+        <span style="width:72px;text-align:right;font-weight:500;color:var(--amber);font-variant-numeric:tabular-nums">${fmtV(a.montant)}</span>
+      </div>`;
+  }).join('');
+
+  totEl.innerHTML = `<span>Total acomptes</span><span style="font-variant-numeric:tabular-nums">${fmtV(total)}</span>`;
+}
+
+async function saveDateVersement(el, pk) {
+  const date_versement = el.textContent.trim();
+  try {
+    await fetch(`/factures/${pk}/date-versement/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify({date_versement}),
+    });
+  } catch(e) { console.warn('Erreur sauvegarde date versement', e); }
+}
+
+
 // ═══════════════════════════════════════════════════════
 //  CHARGEMENT INITIAL
 // ═══════════════════════════════════════════════════════
@@ -591,11 +647,13 @@ async function init() {
   try {
     const resp = await fetch(URL_LIGNES);
     const data = await resp.json();
-    lignes       = data.lignes || [];
+    lignes        = data.lignes || [];
     factures_prec = data.factures_prec || [];
-    TOTAL_DEVIS  = data.total_devis || 0;
-    TOTAL_DEJA   = data.total_deja  || 0;
+    acomptes      = data.acomptes || [];
+    TOTAL_DEVIS   = data.total_devis || 0;
+    TOTAL_DEJA    = data.total_deja  || 0;
     renderAll();
+    renderAcomptes();
   } catch(e) {
     document.getElementById('editor-body').innerHTML =
       '<div style="color:var(--red);padding:1rem;font-size:12px">Erreur de chargement.</div>';

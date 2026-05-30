@@ -614,30 +614,28 @@
     <div id="factures-list">
       {% for f in factures %}
       <div class="fact-row">
-        <span class="fact-ref">{{ f.reference }}</span>
+        <span class="fact-ref">{{ f.get_reference }}</span>
         <span class="fact-dest">{{ f.destinataire }}</span>
+        {% if f.type_doc == 'acompte' %}
+        <span class="fact-amt" style="color:var(--amber)">{{ f.montant|floatformat:2 }} €</span>
+        <span class="fact-status">
+          <span class="badge" style="background:var(--amber-lt);color:#8B5E0A">Acompte</span>
+        </span>
+        {% else %}
         <span class="fact-amt">{{ f.montant|floatformat:2 }} €</span>
         <span class="fact-status">
           <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
         </span>
+        {% endif %}
         <div class="fact-acts">
           {% if f.status == 'draft' %}
-          <form method="post" action="{% url 'core:facture-valider' f.pk %}" style="display:inline">{% csrf_token %}<button type="submit" class="ico-btn" title="Valider (comptable)"><i class="ti ti-user-check"></i></button></form>
+          <form method="post" action="{% url 'core:facture-valider' f.pk %}" style="display:inline">
+            {% csrf_token %}<button type="submit" class="ico-btn" title="Valider (comptable)"><i class="ti ti-user-check"></i></button>
+          </form>
           <button class="ico-btn" style="color:var(--amber)" title="Bypass" onclick="openBypass({{ f.pk }})"><i class="ti ti-bolt"></i></button>
-          {% elif f.status == 'validated' %}
-          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">{% csrf_token %}<input type="hidden" name="status" value="sent"/><button type="submit" class="ico-btn" style="color:var(--teal-dk)" title="Envoyer"><i class="ti ti-send"></i></button></form>
-          {% elif f.status == 'sent' %}
-          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">{% csrf_token %}<input type="hidden" name="status" value="paid"/><button type="submit" class="ico-btn" style="color:#3B6D11" title="Payée"><i class="ti ti-cash"></i></button></form>
+          {% if f.type_doc != 'acompte' %}
+          <a href="{% url 'core:facture-detail' f.pk %}" class="ico-btn" title="Éditer"><i class="ti ti-edit"></i></a>
           {% endif %}
-          <button class="ico-btn" title="PDF"><i class="ti ti-download"></i></button>
-          {% if f.status == 'draft' %}
-          <a href="{% url 'core:facture-detail' f.pk %}" class="ico-btn" title="Éditer la facture">
-          <i class="ti ti-edit"></i>
-          </a>
-          {% endif %}
-          {% if f.status == 'draft' %}
-          <form method="post" action="{% url 'core:facture-valider' f.pk %}" ...>...</form>
-          <button class="ico-btn" style="color:var(--amber)" ...>...</button>
           <button class="ico-btn" style="color:var(--red)" title="Supprimer"
             onclick="openDeleteFacture({{ f.pk }}, '{{ f.get_reference }}')">
             <i class="ti ti-trash"></i>
@@ -707,9 +705,39 @@
     <div class="modal-title">Nouvelle facture</div>
     <form method="post" action="{% url 'core:facture-create' devis.pk %}">
       {% csrf_token %}
+      <input type="hidden" name="type_doc" id="modal-type-doc" value="facture"/>
+
+      <!-- Choix du type -->
+      <div class="field" style="margin-bottom:1rem">
+        <label>Type</label>
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <button type="button" class="btn btn-sm btn-teal" id="btn-type-facture"
+            onclick="setModalType('facture')">
+            <i class="ti ti-receipt"></i> Facture
+          </button>
+          <button type="button" class="btn btn-sm" id="btn-type-acompte"
+            onclick="setModalType('acompte')" style="border-color:var(--amber);color:var(--amber)">
+            <i class="ti ti-receipt"></i> Acompte
+          </button>
+        </div>
+      </div>
+
       <div class="field"><label>Destinataire *</label><input class="input" name="destinataire" value="{{ devis.client }}" required/></div>
-      <div class="field"><label>Échéance (jours)</label><input class="input" type="number" name="echeance_jours" value="30" min="1"/></div>
-      <div class="field"><label>Notes</label><textarea class="input" name="notes" rows="2"></textarea></div>
+
+      <!-- Champ montant — acompte seulement -->
+      <div class="field" id="field-montant" style="display:none">
+        <label>Montant de l'acompte (€) *</label>
+        <input class="input" type="number" name="montant" min="0" step="0.01" placeholder="Ex : 1200.00"/>
+      </div>
+
+      <!-- Échéance — facture normale seulement -->
+      <div class="field" id="field-echeance">
+        <label>Échéance (jours)</label>
+        <input class="input" type="number" name="echeance_jours" value="30" min="1"/>
+      </div>
+
+      <div class="field"><label>Notes / description</label><textarea class="input" name="notes" rows="2"></textarea></div>
+
       <div class="ib ib-teal" style="font-size:11px">
         <i class="ti ti-info-circle" style="font-size:13px;flex-shrink:0"></i>
         La facture sera créée en brouillon et devra être validée avant envoi.
@@ -2026,6 +2054,17 @@ function syncDescInline(ce, nid) {
   if (n) n.description = ce.innerHTML;
 }
 
+function setModalType(type) {
+  document.getElementById('modal-type-doc').value = type;
+  const isAcompte = type === 'acompte';
+  document.getElementById('field-montant').style.display = isAcompte ? '' : 'none';
+  document.getElementById('field-echeance').style.display = isAcompte ? 'none' : '';
+  // Boutons
+  document.getElementById('btn-type-facture').className = 'btn btn-sm' + (isAcompte ? '' : ' btn-teal');
+  document.getElementById('btn-type-acompte').style.cssText = isAcompte
+    ? 'background:var(--amber);color:#fff;border-color:var(--amber)'
+    : 'border-color:var(--amber);color:var(--amber)';
+}
 
 // ── CHARGEMENT INITIAL ──
 fetch(`/devis/${DEVIS_ID}/lignes/`)
