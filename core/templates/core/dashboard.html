@@ -57,7 +57,7 @@
       <tbody>
         {% for f in factures_recentes %}
         <tr>
-          <td><span class="mono">{{ f.reference }}</span></td>
+          <td><span class="mono">{{ f.get_reference }}</span></td>
           <td>{{ f.destinataire }}</td>
           <td><span class="mono">{{ f.devis.reference }}</span></td>
           <td class="num">{{ f.montant|floatformat:2 }} €</td>
