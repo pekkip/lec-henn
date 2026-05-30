@@ -372,7 +372,7 @@ class Devis(models.Model):
     def total_facture(self):
         return sum(
             f.montant for f in self.factures.exclude(status='cancelled')
-            if f.type_doc == 'facture'
+            if f.type_doc in ('facture', 'acompte')
         ) - sum(
             f.montant for f in self.factures.exclude(status='cancelled')
             if f.type_doc == 'avoir'
@@ -464,6 +464,8 @@ class LigneDevis(models.Model):
 class Facture(models.Model):
     TYPE_DOC_CHOICES = [
         ('facture', 'Facture'),
+        ('acompte', "Facture d'acompte"),
+        ('appel', "Facture d'appel convention"),
         ('avoir',   'Avoir'),
     ]
     STATUS_CHOICES = [
@@ -493,6 +495,10 @@ class Facture(models.Model):
     )
     date_creation = models.DateField(auto_now_add=True)
     date_echeance = models.DateField(null=True, blank=True)
+    date_versement = models.DateField(
+    null=True, blank=True,
+    help_text="Date de versement de l'acompte (renseignée sur la facture normale)"
+    )
     notes = models.TextField(blank=True)
 
     libelle = models.CharField(
