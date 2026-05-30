@@ -752,7 +752,7 @@ def factures_list(request):
 
 def facture_create(request, devis_pk):
     devis = get_object_or_404(Devis, pk=devis_pk)
-    profil = _get_profil(request)
+    profil = get_profil(request.user)
     if not profil.peut_acceder_devis(devis):
         return HttpResponseForbidden()
 
