@@ -122,6 +122,39 @@ class ProfilUtilisateur(models.Model):
     def is_comptable(self):
         return self.role == 'comptable'
 
+    def peut_acceder_devis(self, devis):
+        """
+        Règle d'accès unifiée pour la modification d'un devis (et ses factures).
+
+        Autorisé si :
+          1. L'utilisateur est admin
+          2. L'utilisateur a créé le devis
+          3. L'utilisateur appartient à l'équipe du devis
+          4. L'utilisateur est le responsable hiérarchique du créateur du devis
+        """
+
+        # 1. Admin → accès total
+        if self.is_admin():
+            return True
+
+        # 2. Créateur du devis → accès direct
+        if devis.created_by == self.user:
+            return True
+
+        # 3. Même équipe que le devis → tout le monde dans l'équipe peut modifier
+        if devis.equipe and self.equipes.filter(pk=devis.equipe.pk).exists():
+            return True
+
+        # 4. Responsable hiérarchique du créateur → accès de supervision
+        if devis.created_by:
+            try:
+                profil_createur = devis.created_by.profil
+                if profil_createur.responsable == self:
+                    return True
+            except ProfilUtilisateur.DoesNotExist:
+                pass
+
+        return False
 
 class Bibliotheque(models.Model):
     user = models.OneToOneField(

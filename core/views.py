@@ -1107,3 +1107,270 @@ def lignes_facture_save(request, pk):
     facture.save()
 
     return JsonResponse({'ok': True, 'montant': float(total)})
+
+
+@login_required
+def utilisateurs_list(request):
+    """
+    Liste des utilisateurs.
+    - Admin : voit tous les utilisateurs actifs et inactifs
+    - Responsable : voit uniquement les membres de ses équipes
+    """
+    if not peut_gerer_utilisateurs(request.user):
+        messages.error(request, 'Accès réservé aux administrateurs et responsables.')
+        return redirect('core:dashboard')
+
+    profil = get_profil(request.user)
+
+    if profil.role == 'admin':
+        profils = ProfilUtilisateur.objects.select_related(
+            'user', 'service__territoire', 'responsable__user'
+        ).prefetch_related('equipes__service').order_by(
+            'user__last_name', 'user__first_name'
+        )
+    else:
+        # Responsable — uniquement les membres de ses équipes
+        equipes_ids = profil.equipes.values_list('pk', flat=True)
+        profils = ProfilUtilisateur.objects.filter(
+            equipes__pk__in=equipes_ids
+        ).exclude(
+            pk=profil.pk  # s'exclut lui-même de la liste
+        ).select_related(
+            'user', 'service__territoire', 'responsable__user'
+        ).prefetch_related('equipes__service').distinct().order_by(
+            'user__last_name', 'user__first_name'
+        )
+
+    return render(request, 'core/utilisateurs_list.html', {
+        'profils': profils,
+        'profil': profil,
+    })
+
+
+@login_required
+def utilisateur_create(request):
+    """
+    Création d'un nouvel utilisateur.
+    - Génère un mot de passe temporaire affiché une seule fois
+    - Copie optionnelle de la bibliothèque d'un utilisateur existant
+    - Admin : peut attribuer tous les rôles et toutes les équipes
+    - Responsable : ne peut pas créer d'admin, voit uniquement ses équipes
+    """
+    if not peut_gerer_utilisateurs(request.user):
+        messages.error(request, 'Accès réservé aux administrateurs et responsables.')
+        return redirect('core:dashboard')
+
+    profil_courant = get_profil(request.user)
+
+    if request.method == 'POST':
+        username   = request.POST.get('username', '').strip()
+        first_name = request.POST.get('first_name', '').strip()
+        last_name  = request.POST.get('last_name', '').strip()
+        email      = request.POST.get('email', '').strip()
+        role       = request.POST.get('role', 'technicien')
+        service_id = request.POST.get('service') or None
+        equipes_ids = request.POST.getlist('equipes')
+        responsable_id = request.POST.get('responsable') or None
+        copier_biblio_de = request.POST.get('copier_biblio_de') or None
+
+        # Validation
+        if not username:
+            messages.error(request, 'Le nom d\'utilisateur est obligatoire.')
+            return redirect('core:utilisateur-create')
+
+        if User.objects.filter(username=username).exists():
+            messages.error(request, f'Le nom d\'utilisateur "{username}" est déjà utilisé.')
+            return redirect('core:utilisateur-create')
+
+        # Responsable ne peut pas créer d'admin
+        if profil_courant.role == 'responsable' and role == 'admin':
+            messages.error(request, 'Vous ne pouvez pas créer un administrateur.')
+            return redirect('core:utilisateur-create')
+
+        # Génération mot de passe temporaire
+        mdp_temp = ''.join(random.choices(
+            string.ascii_letters + string.digits, k=12
+        ))
+
+        # Création User Django
+        user = User.objects.create_user(
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            password=mdp_temp,
+        )
+
+        # Création ProfilUtilisateur
+        nouveau_profil = ProfilUtilisateur.objects.create(
+            user=user,
+            role=role,
+            service_id=service_id,
+            responsable_id=responsable_id,
+        )
+
+        # Attribution des équipes
+        if equipes_ids:
+            nouveau_profil.equipes.set(equipes_ids)
+
+        # Copie de bibliothèque
+        if copier_biblio_de:
+            try:
+                source_user = User.objects.get(pk=copier_biblio_de)
+                biblio_source, _ = Bibliotheque.objects.get_or_create(user=source_user)
+                Bibliotheque.objects.create(
+                    user=user,
+                    lignes=biblio_source.lignes,
+                )
+            except User.DoesNotExist:
+                pass
+        else:
+            Bibliotheque.objects.create(user=user, lignes=[])
+
+        # Afficher le mot de passe temporaire une seule fois via la page de succès
+        request.session['nouveau_user_mdp'] = {
+            'username': username,
+            'mdp': mdp_temp,
+            'nom': f'{first_name} {last_name}'.strip() or username,
+        }
+        return redirect('core:utilisateur-create-succes')
+
+    # GET — construction du formulaire
+    if profil_courant.role == 'admin':
+        equipes_disponibles = Equipe.objects.select_related('service__territoire').all()
+        roles_disponibles = ProfilUtilisateur.ROLE_CHOICES
+    else:
+        equipes_disponibles = profil_courant.equipes.select_related('service__territoire').all()
+        # Responsable ne peut pas créer d'admin
+        roles_disponibles = [
+            (k, v) for k, v in ProfilUtilisateur.ROLE_CHOICES if k != 'admin'
+        ]
+
+    return render(request, 'core/utilisateur_form.html', {
+        'profil': profil_courant,
+        'equipes': equipes_disponibles,
+        'roles': roles_disponibles,
+        'services': Service.objects.select_related('territoire').all(),
+        'responsables': ProfilUtilisateur.objects.filter(
+            role__in=('admin', 'responsable'), user__is_active=True
+        ).select_related('user').order_by('user__last_name'),
+        'utilisateurs_biblio': User.objects.filter(
+            is_active=True
+        ).select_related('profil').order_by('last_name', 'first_name'),
+        'mode': 'creation',
+    })
+
+
+@login_required
+def utilisateur_create_succes(request):
+    """
+    Page affichée une seule fois après la création d'un utilisateur.
+    Affiche le mot de passe temporaire puis le supprime de la session.
+    """
+    if not peut_gerer_utilisateurs(request.user):
+        return redirect('core:dashboard')
+
+    infos = request.session.pop('nouveau_user_mdp', None)
+    if not infos:
+        return redirect('core:utilisateurs-list')
+
+    return render(request, 'core/utilisateur_succes.html', {
+        'infos': infos,
+        'profil': get_profil(request.user),
+    })
+
+
+@login_required
+def utilisateur_edit(request, pk):
+    """
+    Modification d'un utilisateur existant : rôle, équipes, service, responsable.
+    Ne modifie pas le mot de passe (feature séparée).
+    """
+    if not peut_gerer_utilisateurs(request.user):
+        messages.error(request, 'Accès réservé aux administrateurs et responsables.')
+        return redirect('core:dashboard')
+
+    cible_profil = get_object_or_404(ProfilUtilisateur, user__pk=pk)
+    profil_courant = get_profil(request.user)
+
+    if not peut_gerer_cet_utilisateur(request.user, cible_profil):
+        messages.error(request, 'Vous ne pouvez pas modifier cet utilisateur.')
+        return redirect('core:utilisateurs-list')
+
+    if request.method == 'POST':
+        # Infos de base
+        cible_profil.user.first_name = request.POST.get('first_name', '').strip()
+        cible_profil.user.last_name  = request.POST.get('last_name', '').strip()
+        cible_profil.user.email      = request.POST.get('email', '').strip()
+        cible_profil.user.save()
+
+        role = request.POST.get('role', cible_profil.role)
+
+        # Responsable ne peut pas promouvoir en admin
+        if profil_courant.role == 'responsable' and role == 'admin':
+            messages.error(request, 'Vous ne pouvez pas attribuer le rôle administrateur.')
+            return redirect('core:utilisateur-edit', pk=pk)
+
+        cible_profil.role          = role
+        cible_profil.service_id    = request.POST.get('service') or None
+        cible_profil.responsable_id = request.POST.get('responsable') or None
+        cible_profil.save()
+
+        equipes_ids = request.POST.getlist('equipes')
+        cible_profil.equipes.set(equipes_ids)
+
+        messages.success(request, f'Utilisateur "{cible_profil.user.username}" mis à jour.')
+        return redirect('core:utilisateurs-list')
+
+    # GET
+    if profil_courant.role == 'admin':
+        equipes_disponibles = Equipe.objects.select_related('service__territoire').all()
+        roles_disponibles = ProfilUtilisateur.ROLE_CHOICES
+    else:
+        equipes_disponibles = profil_courant.equipes.select_related('service__territoire').all()
+        roles_disponibles = [
+            (k, v) for k, v in ProfilUtilisateur.ROLE_CHOICES if k != 'admin'
+        ]
+
+    return render(request, 'core/utilisateur_form.html', {
+        'profil': profil_courant,
+        'cible': cible_profil,
+        'equipes': equipes_disponibles,
+        'roles': roles_disponibles,
+        'services': Service.objects.select_related('territoire').all(),
+        'responsables': ProfilUtilisateur.objects.filter(
+            role__in=('admin', 'responsable'), user__is_active=True
+        ).select_related('user').order_by('user__last_name'),
+        'mode': 'edition',
+    })
+
+
+@login_required
+@require_POST
+def utilisateur_toggle(request, pk):
+    """
+    Bascule is_active de l'utilisateur (désactiver / réactiver).
+    Un admin ne peut pas se désactiver lui-même.
+    """
+    if not peut_gerer_utilisateurs(request.user):
+        messages.error(request, 'Accès réservé aux administrateurs et responsables.')
+        return redirect('core:dashboard')
+
+    cible_profil = get_object_or_404(ProfilUtilisateur, user__pk=pk)
+
+    if not peut_gerer_cet_utilisateur(request.user, cible_profil):
+        messages.error(request, 'Vous ne pouvez pas modifier cet utilisateur.')
+        return redirect('core:utilisateurs-list')
+
+    # Empêcher l'auto-désactivation
+    if cible_profil.user == request.user:
+        messages.error(request, 'Vous ne pouvez pas désactiver votre propre compte.')
+        return redirect('core:utilisateurs-list')
+
+    cible_user = cible_profil.user
+    cible_user.is_active = not cible_user.is_active
+    cible_user.save()
+
+    action = 'réactivé' if cible_user.is_active else 'désactivé'
+    messages.success(request, f'Utilisateur "{cible_user.username}" {action}.')
+    return redirect('core:utilisateurs-list')

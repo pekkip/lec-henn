@@ -30,6 +30,7 @@ urlpatterns = [
     path('devis/<int:pk>/dupliquer/', views.devis_duplicate, name='devis-duplicate'),
     path('devis/<int:pk>/supprimer/', views.devis_delete, name='devis-delete'),
     path('devis/<int:pk>/pdf/', views.devis_pdf, name='devis-pdf'),
+    path('devis/<int:pk>/entete/sauvegarder/', views.devis_entete_save, name='devis-entete-save'),
 
     # Lignes devis (API JSON)
     path('devis/<int:pk>/lignes/', views.lignes_get, name='lignes-get'),
@@ -51,6 +52,10 @@ urlpatterns = [
     path('factures/<int:pk>/lignes/', views.lignes_facture_get, name='lignes-facture-get'),
     path('factures/<int:pk>/lignes/sauvegarder/', views.lignes_facture_save, name='lignes-facture-save'),
 
-    # En tête
-    path('devis/<int:pk>/entete/sauvegarder/', views.devis_entete_save, name='devis-entete-save'),
+    # Gestion utilisateurs
+    path('utilisateurs/', views.utilisateurs_list, name='utilisateurs-list'),
+    path('utilisateurs/nouveau/', views.utilisateur_create, name='utilisateur-create'),
+    path('utilisateurs/<int:pk>/modifier/', views.utilisateur_edit, name='utilisateur-edit'),
+    path('utilisateurs/<int:pk>/toggle/', views.utilisateur_toggle, name='utilisateur-toggle'),
+    path('utilisateurs/nouveau/succes/', views.utilisateur_create_succes, name='utilisateur-create-succes'),
 ]

@@ -1,0 +1,107 @@
+{% extends 'core/base.html' %}
+{% block title %}Utilisateurs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Utilisateurs</h1>
+  {% if profil.role == 'admin' or profil.role == 'responsable' %}
+  <a href="{% url 'core:utilisateur-create' %}" class="btn btn-primary">
+    <i class="ti ti-plus"></i> Nouvel utilisateur
+  </a>
+  {% endif %}
+</div>
+
+{% if messages %}
+  {% for msg in messages %}
+  <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
+  {% endfor %}
+{% endif %}
+
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Nom</th>
+        <th>Identifiant</th>
+        <th>Rôle</th>
+        <th>Service</th>
+        <th>Équipes</th>
+        <th>Statut</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in profils %}
+      <tr class="{% if not p.user.is_active %}row-inactive{% endif %}">
+        <td>
+          <strong>{{ p.user.get_full_name|default:p.user.username }}</strong>
+          {% if p.user.email %}
+          <br><small class="text-muted">{{ p.user.email }}</small>
+          {% endif %}
+        </td>
+        <td><code>{{ p.user.username }}</code></td>
+        <td>
+          <span class="badge badge-role badge-{{ p.role }}">
+            {{ p.get_role_display }}
+          </span>
+        </td>
+        <td>{{ p.service|default:"—" }}</td>
+        <td>
+          {% for eq in p.equipes.all %}
+            <span class="badge badge-equipe">{{ eq.nom }}</span>
+          {% empty %}
+            <span class="text-muted">—</span>
+          {% endfor %}
+        </td>
+        <td>
+          {% if p.user.is_active %}
+            <span class="badge badge-success">Actif</span>
+          {% else %}
+            <span class="badge badge-inactive">Inactif</span>
+          {% endif %}
+        </td>
+        <td class="actions">
+          {% if p.user != request.user or profil.role == 'admin' %}
+            <a href="{% url 'core:utilisateur-edit' p.user.pk %}" class="btn btn-sm">
+              <i class="ti ti-edit"></i> Modifier
+            </a>
+            {% if p.user != request.user %}
+            <form method="post" action="{% url 'core:utilisateur-toggle' p.user.pk %}" style="display:inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-sm {% if p.user.is_active %}btn-warning{% else %}btn-success{% endif %}"
+                onclick="return confirm('{% if p.user.is_active %}Désactiver{% else %}Réactiver{% endif %} {{ p.user.username }} ?')">
+                {% if p.user.is_active %}
+                  <i class="ti ti-user-off"></i> Désactiver
+                {% else %}
+                  <i class="ti ti-user-check"></i> Réactiver
+                {% endif %}
+              </button>
+            </form>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" class="text-center text-muted">Aucun utilisateur trouvé.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .row-inactive td { opacity: 0.5; }
+  .badge-role { font-size: 12px; padding: 3px 8px; border-radius: 4px; }
+  .badge-admin { background: #EEEDFE; color: #3C3489; }
+  .badge-responsable { background: #E1F5EE; color: #0F6E56; }
+  .badge-technicien { background: #E6F1FB; color: #185FA5; }
+  .badge-comptable { background: #FAEEDA; color: #854F0B; }
+  .badge-equipe { background: #F1EFE8; color: #5F5E5A; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 3px; }
+  .badge-success { background: #EAF3DE; color: #3B6D11; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
+  .badge-inactive { background: #F1EFE8; color: #888780; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
+  .actions { white-space: nowrap; }
+  .btn-warning { border-color: #EF9F27; color: #854F0B; }
+  .btn-warning:hover { background: #FAEEDA; }
+</style>
+{% endblock %}

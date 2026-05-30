@@ -1,0 +1,65 @@
+{% extends 'core/base.html' %}
+{% block title %}Utilisateur créé{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Utilisateur créé</h1>
+</div>
+
+<div class="card card-succes">
+  <div class="succes-header">
+    <i class="ti ti-user-check" style="font-size:32px; color: var(--color-text-success)"></i>
+    <div>
+      <h2 style="margin:0; font-size:18px;">{{ infos.nom }} a été créé avec succès</h2>
+      <p style="margin:4px 0 0; color: var(--color-text-secondary); font-size:14px;">
+        Identifiant : <code>{{ infos.username }}</code>
+      </p>
+    </div>
+  </div>
+
+  <div class="mdp-block">
+    <p class="mdp-label">Mot de passe temporaire</p>
+    <div class="mdp-value">
+      <code id="mdp-code">{{ infos.mdp }}</code>
+      <button class="btn btn-sm" onclick="copyMdp()" id="copy-btn">
+        <i class="ti ti-copy"></i> Copier
+      </button>
+    </div>
+    <p class="mdp-warning">
+      <i class="ti ti-alert-triangle"></i>
+      Ce mot de passe ne sera plus affiché après avoir quitté cette page.
+      Communiquez-le à l'utilisateur pour sa première connexion.
+    </p>
+  </div>
+</div>
+
+<div class="form-actions" style="margin-top:1.5rem;">
+  <a href="{% url 'core:utilisateur-create' %}" class="btn">
+    <i class="ti ti-plus"></i> Créer un autre utilisateur
+  </a>
+  <a href="{% url 'core:utilisateurs-list' %}" class="btn btn-primary">
+    <i class="ti ti-users"></i> Retour à la liste
+  </a>
+</div>
+
+<style>
+  .card-succes { border-color: var(--color-border-success); }
+  .succes-header { display: flex; align-items: center; gap: 16px; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .mdp-label { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px; }
+  .mdp-value { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .mdp-value code { font-size: 20px; letter-spacing: 0.08em; padding: 8px 16px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); }
+  .mdp-warning { font-size: 13px; color: var(--color-text-warning); display: flex; align-items: flex-start; gap: 6px; margin: 0; background: var(--color-background-warning); padding: 10px 12px; border-radius: var(--border-radius-md); }
+  .form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+</style>
+
+<script>
+function copyMdp() {
+  const code = document.getElementById('mdp-code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.innerHTML = '<i class="ti ti-check"></i> Copié';
+    setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> Copier'; }, 2000);
+  });
+}
+</script>
+{% endblock %}
