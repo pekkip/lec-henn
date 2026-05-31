@@ -280,57 +280,25 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
 
     {# ── TOTAUX ── #}
     <div class="doc-totaux">
-
-      {# Montant brut travaux #}
-      <div class="tot-row {% if not has_acomptes %}tot-grand{% endif %}">
-        <span class="tot-lbl">{% if has_acomptes %}Montant total travaux HT{% else %}Montant net de taxes{% endif %}</span>
+      <div class="tot-row tot-grand">
+        <span class="tot-lbl">Montant net de taxes</span>
         <span class="tot-val">{{ facture.montant|floatformat:2 }} €</span>
       </div>
-
-      {# Déduction acomptes payés #}
-      {% if has_acomptes %}
-        {% for a in acomptes %}
-        <div class="tot-row">
-          <span class="tot-lbl" style="font-size:10.5px">
-            Acompte {{ a.get_reference }}
-            {% if a.date_versement %}<span style="color:var(--teal-dk)"> · Paiement validé le {{ a.date_versement|date:"d/m/Y" }}</span>{% endif %}
-          </span>
-          <span class="tot-val" style="color:var(--teal-dk)">−{{ a.montant|floatformat:2 }} €</span>
-        </div>
-        {% endfor %}
-
-        <div class="tot-sep"></div>
-
-        <div class="tot-row tot-grand">
-          <span class="tot-lbl">Solde à régler</span>
-          <span class="tot-val">{{ solde|floatformat:2 }} €</span>
-        </div>
-      {% else %}
-        <div class="tot-sep"></div>
-      {% endif %}
-
-      {# TVA #}
-      <div class="tot-row" style="margin-top:{% if has_acomptes %}4{% else %}0{% endif %}px">
+      <div class="tot-sep"></div>
+      <div class="tot-row">
         <span class="tot-lbl" style="font-size:10px;color:var(--gray-md)">TVA non applicable — art. 293B du CGI</span>
         <span class="tot-val" style="font-size:10px;color:var(--gray-md)">0,00 €</span>
       </div>
-
-      {# Total TTC = solde si acomptes, sinon montant brut #}
-      {% if not has_acomptes %}
       <div class="tot-row tot-grand" style="margin-top:4px">
         <span class="tot-lbl">Total TTC</span>
         <span class="tot-val">{{ facture.montant|floatformat:2 }} €</span>
       </div>
-      {% endif %}
-
-      {# Date paiement acompte #}
       {% if facture.type_doc == 'acompte' and facture.date_versement %}
       <div class="tot-row" style="margin-top:8px">
         <span class="tot-lbl" style="font-size:11px;color:var(--teal-dk);font-weight:500">Paiement validé le</span>
         <span class="tot-val" style="font-size:11px;color:var(--teal-dk);font-weight:600">{{ facture.date_versement|date:"d/m/Y" }}</span>
       </div>
       {% endif %}
-
     </div>
 
     {# ── ACOMPTES VERSÉS ── #}

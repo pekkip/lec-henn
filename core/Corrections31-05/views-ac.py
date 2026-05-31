@@ -1030,16 +1030,12 @@ def facture_apercu(request, pk):
 
     lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None))
 
-    # Acomptes payés sur ce devis (exclus la facture courante si c'est un acompte)
+    # Acomptes versés sur ce devis (validés uniquement)
+    STATUTS_VALIDES = ('validated', 'sent', 'paid')
     acomptes = devis.factures.filter(
-        status='paid',
+        status__in=STATUTS_VALIDES,
         type_doc='acompte',
-    ).exclude(pk=facture.pk).order_by('created_at')
-
-    # Calcul du solde : montant facture − total acomptes payés
-    from decimal import Decimal
-    total_acomptes = sum(a.montant for a in acomptes) if acomptes else Decimal('0')
-    solde = facture.montant - total_acomptes
+    ).order_by('created_at')
 
     return render(request, 'core/facture_apercu.html', {
         'facture': facture,
@@ -1048,9 +1044,6 @@ def facture_apercu(request, pk):
         'lignes': lignes_filtrees,
         'coordonnees_cb': devis.coordonnees_cb,
         'acomptes': acomptes,
-        'total_acomptes': total_acomptes,
-        'solde': solde,
-        'has_acomptes': total_acomptes > 0,
     })
 
 
