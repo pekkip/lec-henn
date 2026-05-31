@@ -1,7 +1,7 @@
 
 {% if lf.type_ligne == 'TITRE' %}
   <tr class="row-titre">
-    <td colspan="5">{{ lf.description }}</td>
+    <td colspan="5">{{ lf.description|safe }}</td>
   </tr>
   {# Enfants filtrés (attribut _enfants_filtres défini par la vue) #}
   {% for enfant in lf.enfants_filtres %}
