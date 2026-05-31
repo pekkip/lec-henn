@@ -462,9 +462,6 @@ def devis_detail(request, pk):
     profil = get_profil(request.user)
     factures = devis.factures.all()
     audit_logs = devis.audit_logs.all()
-
-
-
     circuit_steps = [
         ('ti-file-plus', 'var(--gray-lt)', 'var(--gray-bd)', 'Brouillon auto'),
         ('ti-user-check', '#E6F1FB', '#B5D4F4', 'Validation comptable'),
@@ -472,7 +469,6 @@ def devis_detail(request, pk):
         ('ti-send', 'var(--prune-lt)', 'var(--prune-bd)', 'Envoyée'),
         ('ti-cash', '#EAF3DE', '#C0DD97', 'Payée'),
     ]
-
     taux_mo_js = str(devis.taux_mo).replace(',', '.')
     articles_biblio = []
     return render(request, 'core/devis_detail.html', {
@@ -483,6 +479,7 @@ def devis_detail(request, pk):
         'circuit_steps': circuit_steps,
         'profil': profil,
         'taux_mo_js': taux_mo_js,
+        'saisie_ht': profil.saisie_ht,  # ← ajouté
         'clients': Client.objects.all(),
         'equipes': Equipe.objects.select_related('service__territoire').all(),
     })

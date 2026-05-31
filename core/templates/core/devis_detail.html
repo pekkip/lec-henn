@@ -574,7 +574,7 @@
         <!-- EN-TÊTES COLONNES -->
         <div style="display:flex;align-items:center;padding:0 8px 4px 4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;gap:4px;margin-bottom:3px">
           <div style="flex:1">Description</div>
-          <div style="width:52px;text-align:right">Coût u.</div>
+          <div style="width:52px;text-align:right">Coût u. {% if saisie_ht %}<span style="color:var(--teal-dk)" title="Saisie en HT — conversion TTC +20% automatique">HT</span>{% endif %}</div>
           <div style="width:60px;text-align:right;color:var(--amber)">Coût MO</div>
           <div style="width:60px;text-align:right;color:var(--teal-dk)">Coût Mtx</div>
           <div style="width:68px;text-align:right;color:var(--prune)">Total</div>
@@ -799,6 +799,7 @@
 <script>
 const DEVIS_ID = {{ devis.pk }};
 const TAUX_MO = {{ taux_mo_js }};
+const SAISIE_HT = {{ saisie_ht|yesno:"true,false" }};
 const CSRF = '{{ csrf_token }}';
 let tree = [];
 let draggingLib = null;
@@ -823,7 +824,6 @@ function historySnapshot() {
   if (_history.length > HISTORY_MAX) _history.shift();
   _future = []; // toute nouvelle action efface le futur
   refreshUndoRedoBtns();
-  console.log('snapshot OK, history length:', _history.length); 
 }
 
 function historyUndo() {
@@ -1149,7 +1149,12 @@ function renderNode(n, depth) {
   const puCalc = (!isLeaf && !isNeg && !isTitre && parseFloat(n.quantite || 0) !== 0)
     ? (calcTotal(n) / parseFloat(n.quantite)).toFixed(2)
     : null;
-  const costVal      = isLeaf && !isNeg ? (n.cout_unitaire != null ? n.cout_unitaire : '') : (puCalc || '');
+  const isMat = ['MAT','FMAT'].includes(n.type_ligne);
+  const costVal      = isLeaf && !isNeg
+    ? (n.cout_unitaire != null
+        ? (SAISIE_HT && isMat ? (n.cout_unitaire / 1.20).toFixed(2) : n.cout_unitaire)
+        : '')
+    : (puCalc || '');
   const costDisabled = (!isLeaf || isNeg || isTitre) ? 'disabled' : '';
 
   const isZero = parseFloat(n.quantite || 0) === 0 && !isTitre && !isNeg;
@@ -1183,7 +1188,8 @@ function renderNode(n, depth) {
             data-placeholder="${isTitre ? 'Titre…' : 'Description…'}"
             data-nid-desc="${n._nid}"
             class="${isNeg ? 'neg-inp' : ''}"
-            onfocus="if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}"
+            onfocus="if(this.textContent.trim() && !this.dataset.wasFocused){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}this.dataset.wasFocused='1';"
+            onblur="delete this.dataset.wasFocused"
             oninput="syncDescInline(this,'${n._nid}')"
         >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
       </div>
@@ -1207,9 +1213,9 @@ function renderNode(n, depth) {
           onchange="updNode('${n._nid}','unite',this.value)"
           onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
 
-        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf&&!isNeg?'0':'—'}" ${costDisabled} ${isNeg?'class="neg-inp"':''} style="text-align:right"
+        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf&&!isNeg ? (SAISIE_HT && isMat ? '0 HT' : '0') : '—'}" ${costDisabled} ${isNeg?'class="neg-inp"':''} style="text-align:right"
           onfocus="this.select()"
-          onchange="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"
+          onchange="(function(inp){let v=parseFloat(inp.value)||0;if(SAISIE_HT&&${isMat})v=parseFloat((v*1.20).toFixed(4));updNode('${n._nid}','cout_unitaire',v);})(this)"
           onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
         <div class="nd-mo">${moDisplay}</div>
         <div class="nd-mat">${matDisplay}</div>
@@ -1317,7 +1323,8 @@ function renderFinGroup(finLines) {
                   data-placeholder="Financement…"
                   data-nid-desc="${n._nid}"
                   class="neg-inp"
-                  onfocus="if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}"
+                  onfocus="if(this.textContent.trim() && !this.dataset.wasFocused){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}this.dataset.wasFocused='1';"
+                  onblur="delete this.dataset.wasFocused"
                   oninput="syncDescInline(this,'${n._nid}')"
               >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
             </div>
@@ -1484,7 +1491,7 @@ function addChild(pnid, type) {
   const p = findNode(tree, pnid); if (!p) return;
   if (!p.enfants) p.enfants = [];
   const def = {
-    MO:  {description:"Main d'œuvre", quantite:1, unite:'h', cout_unitaire:TAUX_MO},
+    MO:  {description:"Main d'œuvre", quantite:1, unite:'h', cout_unitaire:window._tauxMOCourant || TAUX_MO},
     MAT: {description:'Matériau',     quantite:1, unite:'u', cout_unitaire:0},
     OUV: {description:'Sous-ouvrage', quantite:1, unite:'u', cout_unitaire:null},
   };
@@ -1604,7 +1611,7 @@ function onEmptyZoneDrop(e, parentNid) {
     function cloneNode(n) {
       const c = {...n}; delete c._nid;
       c._nid = '_' + (_nidCounter++);
-      if (c.type_ligne === 'MO') c.cout_unitaire = TAUX_MO;
+      if (c.type_ligne === 'MO') c.cout_unitaire = window._tauxMOCourant || TAUX_MO;
       c.enfants = (n.enfants||[]).map(cloneNode);
       return c;
     }
@@ -1630,7 +1637,6 @@ function onEmptyZoneDrop(e, parentNid) {
     const extracted = extractNode(tree, draggingNodeNid);
     if (extracted) { parent.enfants.push(extracted); parent.ouvert = true; }
     draggingNodeNid = null;
-    historySnapshot();
     historySnapshot();
     renderTree();
   }
@@ -1751,7 +1757,7 @@ function insertLibNode(src) {
     const c = {...n};
     delete c._nid;
     c._nid = '_' + (_nidCounter++);
-    if (c.type_ligne === 'MO') c.cout_unitaire = TAUX_MO;
+    if (c.type_ligne === 'MO') c.cout_unitaire = window._tauxMOCourant || TAUX_MO;
     c.enfants = (n.enfants||[]).map(cloneNode);
     return c;
   }
@@ -1770,45 +1776,6 @@ fetch('/bibliotheque/api/')
   });
 
 
-function onLibDragStart(e, el) {
-  draggingLib = el;
-  e.dataTransfer.effectAllowed = 'copy';
-  document.getElementById('root-dz').classList.add('on');
-}
-function onLibDragEnd() {
-  draggingLib = null;
-  document.getElementById('root-dz').classList.remove('on');
-  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-}
-function addFromLib(el) {
-  const n = JSON.parse(decodeURIComponent(el.dataset.node));
-  insertLibNode(n);
-  draggingLib = null;
-  document.getElementById('root-dz').classList.remove('on');
-}
-function onNodeDragOver(e, nid) { if (!draggingLib) return; e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
-function onNodeDrop(e, nid) {
-  if (!draggingLib) return;
-  e.preventDefault(); e.stopPropagation();
-  e.currentTarget.classList.remove('drag-over');
-  const b = draggingLib;
-  const n = {
-    type_ligne: b.dataset.type, description: b.dataset.nom,
-    quantite:1, unite: b.dataset.unit,
-    cout_unitaire: b.dataset.cost ? parseFloat(b.dataset.cost) : null,
-    enfants:[], ouvert:true,
-  };
-  n._nid = '_' + (_nidCounter++);
-  const tgt = findNode(tree, nid);
-  if (tgt && ['C','OUV','S','TITRE'].includes(tgt.type_ligne)) {
-    if (!tgt.enfants) tgt.enfants = [];
-    tgt.enfants.push(n); tgt.ouvert = true;
-  } else { tree.push(n); }
-  draggingLib = null;
-  document.getElementById('root-dz').classList.remove('on');
-  historySnapshot();
-  renderTree();
-}
 document.addEventListener('dragover', e => { if (draggingLib) e.preventDefault(); });
 document.addEventListener('drop', e => {
   if (e.target === document.getElementById('root-dz') && draggingLib) {
@@ -1883,7 +1850,7 @@ function stripNids(nodes) {
 }
 async function saveTree() {
   const btn = document.querySelector('button[onclick="saveTree()"]');
-  btn.textContent = 'Sauvegarde…'; btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader-2"></i> Sauvegarde…'; btn.disabled = true;
   const finTitleInput = document.getElementById('fin-group-title');
   if (finTitleInput) window._finGroupTitle = finTitleInput.value;
   try {
@@ -2072,7 +2039,7 @@ fetch(`/devis/${DEVIS_ID}/lignes/`)
   .then(data => {
     tree = data.lignes || [];
     window._finGroupTitle = data.fin_group_title || 'Financements';
-    window._tauxMOCourant = data.taux_mo || TAUX_MO; // ← ajouter cette ligne
+    window._tauxMOCourant = data.taux_mo || TAUX_MO;
     assignNids(tree);
     renderTree();
     _history = []; _future = []; // état propre au chargement
