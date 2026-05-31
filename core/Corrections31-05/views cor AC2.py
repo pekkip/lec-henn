@@ -861,10 +861,6 @@ def facture_status(request, pk):
         f"Statut {facture.get_reference()} : {old} → {new_status}",
         devis=facture.devis, facture=facture
     )
-    # Si appel AJAX (fetch depuis JS), retourner JSON
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json':
-        return JsonResponse({'ok': True})
-    # Sinon redirect normal (formulaires HTML)
     return redirect('core:devis-detail', pk=facture.devis.pk)
 
 
@@ -1034,17 +1030,15 @@ def facture_apercu(request, pk):
 
     lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None))
 
-    # Acomptes non-brouillon sur ce devis (exclus la facture courante)
-    # Affichés tous, déduits seulement si payés
+    # Acomptes payés sur ce devis (exclus la facture courante si c'est un acompte)
     acomptes = devis.factures.filter(
+        status='paid',
         type_doc='acompte',
-    ).exclude(pk=facture.pk).exclude(status='draft').order_by('created_at')
+    ).exclude(pk=facture.pk).order_by('created_at')
 
-    # Calcul du solde : montant facture − total acomptes PAYÉS uniquement
+    # Calcul du solde : montant facture − total acomptes payés
     from decimal import Decimal
-    total_acomptes = sum(
-        a.montant for a in acomptes if a.status == 'paid'
-    ) if acomptes else Decimal('0')
+    total_acomptes = sum(a.montant for a in acomptes) if acomptes else Decimal('0')
     solde = facture.montant - total_acomptes
 
     return render(request, 'core/facture_apercu.html', {

@@ -341,15 +341,8 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
       </div>
       {% for a in acomptes %}
       <div style="display:flex;justify-content:space-between;font-size:11px;padding:6px 12px;border-bottom:1px solid var(--gray-bd);color:var(--gray-md)">
-        <span>{{ a.get_reference }}{% if a.notes %} — {{ a.notes }}{% endif %}
-          {% if a.status == 'paid' and a.date_versement %} · Paiement validé le {{ a.date_versement|date:"d/m/Y" }}
-          {% elif a.status == 'sent' %} <em style="color:var(--amber)">(envoyé — en attente de paiement)</em>
-          {% elif a.status == 'validated' %} <em style="color:var(--gray-md)">(validé — non encore envoyé)</em>
-          {% endif %}
-        </span>
-        <span style="font-weight:600;color:{% if a.status == 'paid' %}var(--teal){% else %}var(--gray-md){% endif %};font-variant-numeric:tabular-nums">
-          {% if a.status == 'paid' %}{{ a.montant|floatformat:2 }} €{% else %}({{ a.montant|floatformat:2 }} €){% endif %}
-        </span>
+        <span>{{ a.get_reference }}{% if a.notes %} — {{ a.notes }}{% endif %}{% if a.date_versement %} · Paiement validé le {{ a.date_versement|date:"d/m/Y" }}{% endif %}</span>
+        <span style="font-weight:600;color:var(--teal);font-variant-numeric:tabular-nums">{{ a.montant|floatformat:2 }} €</span>
       </div>
       {% endfor %}
     </div>

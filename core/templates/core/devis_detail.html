@@ -2140,26 +2140,43 @@ function openMarquerPaye(pk, ref, type) {
 async function confirmerPaye() {
   if (!_payeFk) return;
   const dateVal = document.getElementById('modal-paye-date').value;
+  const btn = document.querySelector('#modal-paye .btn-teal');
+  btn.disabled = true;
+  btn.textContent = 'En cours…';
 
-  // 1. Changer le statut → paid
-  const formData = new FormData();
-  formData.append('status', 'paid');
-  formData.append('csrfmiddlewaretoken', CSRF);
-  await fetch(`/factures/${_payeFk}/status/`, { method: 'POST', body: formData });
-
-  // 2. Si acompte, enregistrer la date de versement
-  if (_payeType === 'acompte' && dateVal) {
-    // Convertir YYYY-MM-DD → JJ/MM/AAAA pour l'API existante
-    const [y, m, d] = dateVal.split('-');
-    await fetch(`/factures/${_payeFk}/versement/`, {
+  try {
+    // 1. Changer le statut → paid
+    const formData = new FormData();
+    formData.append('status', 'paid');
+    formData.append('csrfmiddlewaretoken', CSRF);
+    const r1 = await fetch(`/factures/${_payeFk}/status/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({ date_versement: `${d}/${m}/${y}` }),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: formData,
     });
-  }
+    if (!r1.ok) throw new Error('Erreur status');
 
-  document.getElementById('modal-paye').classList.add('hidden');
-  window.location.reload();
+    // 2. Si acompte, enregistrer la date de versement
+    if (_payeType === 'acompte' && dateVal) {
+      const [y, m, d] = dateVal.split('-');
+      const r2 = await fetch(`/factures/${_payeFk}/versement/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': CSRF,
+        },
+        body: JSON.stringify({ date_versement: `${d}/${m}/${y}` }),
+      });
+      if (!r2.ok) throw new Error('Erreur versement');
+    }
+
+    document.getElementById('modal-paye').classList.add('hidden');
+    window.location.reload();
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-circle-check"></i> Confirmer';
+    alert('Une erreur est survenue, veuillez réessayer.');
+  }
 }
 </script>
 
