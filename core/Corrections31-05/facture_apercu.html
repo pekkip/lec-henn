@@ -172,13 +172,7 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
       {% endif %}
     </div>
     <div class="header-right">
-      <div class="doc-type-label">
-        {% if facture.type_doc == 'acompte' %}
-          {% if facture.status == 'draft' %}Acompte proforma{% else %}Facture d'acompte{% endif %}
-        {% else %}
-          {% if facture.status == 'draft' %}Facture proforma{% else %}Facture{% endif %}
-        {% endif %}
-      </div>
+      <div class="doc-type-label">Facture</div>
       <div class="doc-meta-grid">
         <span class="lbl">Numéro :</span>
         <span class="val">{{ facture.get_reference }}</span>
@@ -293,12 +287,6 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
         <span class="tot-lbl">Total TTC</span>
         <span class="tot-val">{{ facture.montant|floatformat:2 }} €</span>
       </div>
-      {% if facture.type_doc == 'acompte' and facture.date_versement %}
-      <div class="tot-row" style="margin-top:8px">
-        <span class="tot-lbl" style="font-size:11px;color:var(--teal-dk);font-weight:500">Paiement validé le</span>
-        <span class="tot-val" style="font-size:11px;color:var(--teal-dk);font-weight:600">{{ facture.date_versement|date:"d/m/Y" }}</span>
-      </div>
-      {% endif %}
     </div>
 
     {# ── ACOMPTES VERSÉS ── #}
@@ -309,7 +297,7 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
       </div>
       {% for a in acomptes %}
       <div style="display:flex;justify-content:space-between;font-size:11px;padding:6px 12px;border-bottom:1px solid var(--gray-bd);color:var(--gray-md)">
-        <span>{{ a.get_reference }}{% if a.notes %} — {{ a.notes }}{% endif %}{% if a.date_versement %} · Paiement validé le {{ a.date_versement|date:"d/m/Y" }}{% endif %}</span>
+        <span>{{ a.get_reference }}{% if a.notes %} — {{ a.notes }}{% endif %}{% if a.date_versement %} · versé le {{ a.date_versement|date:"d/m/Y" }}{% endif %}</span>
         <span style="font-weight:600;color:var(--teal);font-variant-numeric:tabular-nums">{{ a.montant|floatformat:2 }} €</span>
       </div>
       {% endfor %}

@@ -43,9 +43,8 @@ def gen_reference(prefix):
             reference__startswith=f'DEV-{year}-'
         )
     elif prefix == 'FAC':
-        # Cherche dans toutes les factures (acomptes inclus) pour éviter
-        # les collisions sur le champ unique `numero`
         qs = Facture.objects.filter(
+            type_doc='facture',
             numero__startswith=f'FAC-{year}-'
         )
     else:
@@ -1030,20 +1029,11 @@ def facture_apercu(request, pk):
 
     lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None))
 
-    # Acomptes versés sur ce devis (validés uniquement)
-    STATUTS_VALIDES = ('validated', 'sent', 'paid')
-    acomptes = devis.factures.filter(
-        status__in=STATUTS_VALIDES,
-        type_doc='acompte',
-    ).order_by('created_at')
-
     return render(request, 'core/facture_apercu.html', {
         'facture': facture,
         'devis': devis,
         'params': params,
         'lignes': lignes_filtrees,
-        'coordonnees_cb': devis.coordonnees_cb,
-        'acomptes': acomptes,
     })
 
 

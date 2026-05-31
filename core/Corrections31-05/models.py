@@ -103,10 +103,6 @@ class ProfilUtilisateur(models.Model):
     )
     conditions_devis = models.TextField(blank=True)
     conditions_facture = models.TextField(blank=True)
-    coordonnees_cb = models.TextField(
-        blank=True,
-        help_text="Coordonnées CB affichées sur les devis/factures (nom, fonction, tél.)"
-    )
 
     class Meta:
         verbose_name = 'Profil utilisateur'
@@ -338,10 +334,6 @@ class Devis(models.Model):
     conditions_devis = models.TextField(
         blank=True,
         help_text="Conditions de vente pour ce devis (copié depuis les préférences à la création)"
-    )
-    coordonnees_cb = models.TextField(
-        blank=True,
-        help_text="Coordonnées CB du contact pour ce devis (copié depuis le profil à la création)"
     )
 
     fin_group_title = models.CharField(

@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+{# ══════════════════════════════════════════════════════════
+   core/templates/core/facture_apercu.html
+   Aperçu HTML imprimable — PROTO (remplacé par WeasyPrint Phase 3)
+   Affiche uniquement les lignes avec quantite > 0
+   Bouton "Imprimer" → window.print() avec CSS @media print
+══════════════════════════════════════════════════════════ #}
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{{ facture.get_reference }} — Aperçu</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+<style>
+:root {
+  --prune: #4A1F3F;
+  --prune-lt: #F5EEF3;
+  --prune-bd: #D4A8C7;
+  --teal: #1D9E75;
+  --teal-lt: #E1F5EE;
+  --teal-dk: #085041;
+  --amber-lt: #FAEEDA;
+  --gray: #2C2C2A;
+  --gray-md: #888780;
+  --gray-lt: #F1EFE8;
+  --gray-bd: #D3D1C7;
+  --red: #A32D2D;
+  --red-lt: #FCEBEB;
+  --bg: #F1EFE8;
+  --f: 'Segoe UI', system-ui, sans-serif;
+  --fm: 'Consolas', monospace;
+  --r: 4px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--f); background: var(--bg); color: var(--gray); font-size: 12px; }
+
+/* ── BARRE OUTILS (masquée à l'impression) ── */
+.no-print {
+  background: var(--prune);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.no-print a, .no-print button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--r);
+  border: 1px solid rgba(255,255,255,.25);
+  background: rgba(255,255,255,.1);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--f);
+}
+.no-print button:hover, .no-print a:hover { background: rgba(255,255,255,.2); }
+.no-print .title { color: rgba(255,255,255,.7); font-size: 12px; margin-left: 4px; }
+
+/* ── DOCUMENT ── */
+.doc {
+  max-width: 820px;
+  margin: 24px auto;
+  background: #fff;
+  padding: 32px 36px;
+  border: 1px solid var(--gray-bd);
+  border-radius: 6px;
+}
+
+/* ── EN-TÊTE DOCUMENT ── */
+.doc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; gap: 24px; }
+.doc-logo-zone { display: flex; flex-direction: column; gap: 4px; }
+.doc-asso-nom { font-size: 15px; font-weight: 700; color: var(--prune); }
+.doc-asso-sub { font-size: 11px; color: var(--gray-md); line-height: 1.5; }
+.doc-ref-zone { text-align: right; }
+.doc-type { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--gray-md); margin-bottom: 4px; }
+.doc-ref { font-size: 20px; font-weight: 700; color: var(--prune); font-family: var(--fm); }
+.doc-date { font-size: 11px; color: var(--gray-md); margin-top: 4px; }
+
+/* ── BLOC CLIENT / DEVIS ── */
+.doc-parties { display: flex; gap: 24px; margin-bottom: 24px; }
+.doc-bloc { flex: 1; padding: 12px 14px; border: 1px solid var(--gray-bd); border-radius: var(--r); }
+.doc-bloc-title { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--gray-md); margin-bottom: 6px; }
+.doc-bloc-val { font-size: 12px; font-weight: 500; line-height: 1.5; }
+.doc-bloc-sub { font-size: 11px; color: var(--gray-md); margin-top: 2px; line-height: 1.5; }
+
+/* ── OBJET ── */
+.doc-objet { background: var(--gray-lt); border-left: 3px solid var(--prune-bd); padding: 9px 12px; margin-bottom: 20px; border-radius: 0 var(--r) var(--r) 0; font-size: 12px; line-height: 1.5; color: var(--gray); }
+.doc-objet-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--gray-md); margin-bottom: 4px; }
+
+/* ── TABLEAU LIGNES ── */
+table.lignes { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+table.lignes th { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--gray-md); padding: 6px 8px; border-bottom: 1.5px solid var(--prune); text-align: left; }
+table.lignes th.num { text-align: right; }
+table.lignes td { padding: 6px 8px; border-bottom: 1px solid var(--gray-bd); font-size: 12px; vertical-align: top; }
+table.lignes tr:last-child td { border-bottom: none; }
+table.lignes .td-num { text-align: right; font-variant-numeric: tabular-nums; }
+table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune); font-variant-numeric: tabular-nums; }
+
+/* Ligne titre */
+.row-titre td { background: var(--prune-lt); font-weight: 600; color: var(--prune); font-size: 12px; }
+.row-titre td:first-child { border-left: 3px solid var(--prune-bd); }
+
+/* Ligne enfant */
+.row-child td:first-child { padding-left: 20px; }
+
+/* ── TOTAUX ── */
+.doc-totaux { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-bottom: 20px; }
+.tot-row { display: flex; gap: 16px; align-items: baseline; font-size: 12px; }
+.tot-lbl { color: var(--gray-md); min-width: 160px; text-align: right; }
+.tot-val { font-variant-numeric: tabular-nums; min-width: 90px; text-align: right; font-weight: 500; }
+.tot-sep { width: 100%; height: 1px; background: var(--gray-bd); margin: 4px 0; }
+.tot-grand { font-size: 15px; font-weight: 700; color: var(--prune); }
+
+/* ── CONDITIONS ── */
+.doc-conditions { font-size: 10px; color: var(--gray-md); line-height: 1.7; border-top: 1px solid var(--gray-bd); padding-top: 14px; margin-top: 8px; }
+.doc-conditions strong { color: var(--gray); }
+
+/* ── IMPRESSION ── */
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+  .doc { margin: 0; border: none; padding: 20px 24px; border-radius: 0; max-width: 100%; }
+  table.lignes th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .row-titre td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+
+{# ── Barre outils (masquée à l'impression) ── #}
+<div class="no-print">
+  <a href="{% url 'core:facture-detail' facture.pk %}"><i class="ti ti-arrow-left"></i> Retour</a>
+  <button onclick="window.print()"><i class="ti ti-printer"></i> Imprimer / PDF</button>
+  <span class="title">{{ facture.get_reference }} — Aperçu</span>
+</div>
+
+{# ── Document ── #}
+<div class="doc">
+
+  {# En-tête #}
+  <div class="doc-header">
+    <div class="doc-logo-zone">
+      <div class="doc-asso-nom">{{ params.nom }}</div>
+      <div class="doc-asso-sub">
+        {% if params.forme_juridique %}{{ params.forme_juridique }}<br>{% endif %}
+        {% if params.adresse %}{{ params.adresse|linebreaksbr }}<br>{% endif %}
+        {% if params.email %}{{ params.email }}{% endif %}
+        {% if params.telephone %} · {{ params.telephone }}{% endif %}
+        {% if params.siret %}<br>SIRET {{ params.siret }}{% endif %}
+      </div>
+    </div>
+    <div class="doc-ref-zone">
+      <div class="doc-type">Facture</div>
+      <div class="doc-ref">{{ facture.get_reference }}</div>
+      <div class="doc-date">
+        Émise le {{ facture.date_creation|date:"d/m/Y" }}<br>
+        {% if facture.date_echeance %}Échéance : {{ facture.date_echeance|date:"d/m/Y" }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Parties #}
+  <div class="doc-parties">
+    <div class="doc-bloc">
+      <div class="doc-bloc-title">Destinataire</div>
+      <div class="doc-bloc-val">{{ facture.destinataire }}</div>
+      <div class="doc-bloc-sub">
+        {{ devis.client.contact }}<br>
+        {{ devis.client.email }}<br>
+        {{ devis.client.telephone }}
+      </div>
+    </div>
+    <div class="doc-bloc">
+      <div class="doc-bloc-title">Chantier / Devis</div>
+      <div class="doc-bloc-val">{{ devis.chantier }}</div>
+      <div class="doc-bloc-sub">
+        {% if devis.chantier_adresse1 %}{{ devis.chantier_adresse1 }}<br>{% endif %}
+        {% if devis.chantier_adresse2 %}{{ devis.chantier_adresse2 }}<br>{% endif %}
+        {% if devis.chantier_cp or devis.chantier_ville %}{{ devis.chantier_cp }} {{ devis.chantier_ville }}<br>{% endif %}
+        Devis <span style="font-family:var(--fm)">{{ devis.reference }}</span>
+      </div>
+    </div>
+  </div>
+
+  {# Objet #}
+  {% if facture.notes %}
+  <div class="doc-objet">
+    <div class="doc-objet-lbl">Objet</div>
+    {{ facture.notes|linebreaksbr }}
+  </div>
+  {% endif %}
+
+  {# Tableau des lignes — uniquement celles avec quantite > 0 #}
+  <table class="lignes">
+    <thead>
+      <tr>
+        <th style="width:100%">Description</th>
+        <th class="num" style="width:60px">Qté</th>
+        <th class="num" style="width:40px">U.</th>
+        <th class="num" style="width:70px">P.U. HT</th>
+        <th class="num" style="width:80px">Total HT</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lf in lignes %}
+        {% include 'core/_apercu_ligne.html' with lf=lf depth=0 only %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# Totaux #}
+  <div class="doc-totaux">
+    <div class="tot-row">
+      <span class="tot-lbl">Total HT</span>
+      <span class="tot-val">{{ facture.montant|floatformat:2 }} €</span>
+    </div>
+    <div class="tot-row">
+      <span class="tot-lbl">TVA (non applicable — art. 293B CGI)</span>
+      <span class="tot-val" style="color:var(--gray-md)">0,00 €</span>
+    </div>
+    {# PROTO : TVA à adapter selon le régime fiscal réel de l'association #}
+    <div class="tot-sep" style="width:260px"></div>
+    <div class="tot-row">
+      <span class="tot-lbl">Total TTC</span>
+      <span class="tot-val tot-grand">{{ facture.montant|floatformat:2 }} €</span>
+    </div>
+  </div>
+
+  {# Conditions #}
+  {% if facture.conditions_facture %}
+  <div class="doc-conditions">
+    <strong>Conditions de règlement</strong><br>
+    {{ facture.conditions_facture|linebreaksbr }}
+  </div>
+  {% endif %}
+
+</div>{# /.doc #}
+
+</body>
+</html>

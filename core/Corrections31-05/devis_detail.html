@@ -613,83 +613,34 @@
 
     <div id="factures-list">
       {% for f in factures %}
-      <div class="fact-row" style="flex-wrap:wrap;align-items:flex-start;padding:10px 12px">
-
-        {# Référence + type #}
-        <span class="fact-ref" style="padding-top:2px">{{ f.get_reference }}</span>
-
-        {# Destinataire #}
-        <span class="fact-dest" style="padding-top:2px">{{ f.destinataire }}</span>
-
-        {# Montant + date versement acompte #}
-        <span class="fact-amt" style="color:{% if f.type_doc == 'acompte' %}var(--amber){% else %}var(--prune){% endif %};padding-top:2px">
-          {{ f.montant|floatformat:2 }} €
-          {% if f.type_doc == 'acompte' and f.date_versement %}
-          <br><span style="font-size:10px;color:var(--teal-dk);font-weight:400">Paiement validé le {{ f.date_versement|date:"d/m/Y" }}</span>
-          {% endif %}
+      <div class="fact-row">
+        <span class="fact-ref">{{ f.get_reference }}</span>
+        <span class="fact-dest">{{ f.destinataire }}</span>
+        {% if f.type_doc == 'acompte' %}
+        <span class="fact-amt" style="color:var(--amber)">{{ f.montant|floatformat:2 }} €</span>
+        <span class="fact-status">
+          <span class="badge" style="background:var(--amber-lt);color:#8B5E0A">Acompte</span>
         </span>
-
-        {# Badge statut #}
-        <span class="fact-status" style="padding-top:2px">
-          {% if f.type_doc == 'acompte' %}
-            {% if f.status == 'draft' %}
-              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">Acompte · Brouillon</span>
-            {% elif f.status == 'validated' %}
-              <span class="badge" style="background:var(--teal-lt);color:var(--teal-dk)">Acompte · Validé</span>
-            {% elif f.status == 'sent' %}
-              <span class="badge" style="background:var(--prune-lt);color:var(--prune)">Acompte · Envoyé</span>
-            {% elif f.status == 'paid' %}
-              <span class="badge" style="background:#EAF3DE;color:#27500A">Acompte · Payé</span>
-            {% else %}
-              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">Acompte · {{ f.get_status_display }}</span>
-            {% endif %}
-          {% else %}
-            <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
-          {% endif %}
+        {% else %}
+        <span class="fact-amt">{{ f.montant|floatformat:2 }} €</span>
+        <span class="fact-status">
+          <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
         </span>
-
-        {# Actions #}
-        <div class="fact-acts" style="padding-top:1px">
-
-          {# Aperçu — toujours visible #}
-          <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu / Imprimer" target="_blank"><i class="ti ti-eye"></i></a>
-
-          {# Éditer — toujours visible #}
-          <a href="{% url 'core:facture-detail' f.pk %}" class="ico-btn" title="Éditer"><i class="ti ti-edit"></i></a>
-
-          {# Valider + Bypass — brouillon seulement #}
+        {% endif %}
+        <div class="fact-acts">
           {% if f.status == 'draft' %}
           <form method="post" action="{% url 'core:facture-valider' f.pk %}" style="display:inline">
             {% csrf_token %}<button type="submit" class="ico-btn" title="Valider (comptable)"><i class="ti ti-user-check"></i></button>
           </form>
           <button class="ico-btn" style="color:var(--amber)" title="Bypass" onclick="openBypass({{ f.pk }})"><i class="ti ti-bolt"></i></button>
+          {% if f.type_doc != 'acompte' %}
+          <a href="{% url 'core:facture-detail' f.pk %}" class="ico-btn" title="Éditer"><i class="ti ti-edit"></i></a>
           {% endif %}
-
-          {# Marquer envoyé(e) — validé seulement #}
-          {% if f.status == 'validated' %}
-          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">
-            {% csrf_token %}
-            <input type="hidden" name="status" value="sent">
-            <button type="submit" class="ico-btn" title="Marquer envoyé(e)"><i class="ti ti-send"></i></button>
-          </form>
-          {% endif %}
-
-          {# Marquer payé(e) — envoyé seulement (tous types) #}
-          {% if f.status == 'sent' %}
-          <button class="ico-btn" style="color:var(--teal-dk)" title="Marquer payé(e)"
-            onclick="openMarquerPaye({{ f.pk }}, '{{ f.get_reference }}', '{{ f.type_doc }}')">
-            <i class="ti ti-circle-check"></i>
-          </button>
-          {% endif %}
-
-          {# Supprimer — brouillon seulement #}
-          {% if f.status == 'draft' %}
           <button class="ico-btn" style="color:var(--red)" title="Supprimer"
             onclick="openDeleteFacture({{ f.pk }}, '{{ f.get_reference }}')">
             <i class="ti ti-trash"></i>
           </button>
           {% endif %}
-
         </div>
       </div>
       {% empty %}
@@ -839,22 +790,6 @@
     <div class="modal-acts">
       <button class="btn" onclick="document.getElementById('modal-bypass').classList.add('hidden')">Annuler</button>
       <button class="btn btn-prune" id="bypass-confirm-btn" onclick="confirmBypass()" disabled>Confirmer</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL MARQUER PAYÉ -->
-<div id="modal-paye" class="modal-bg hidden">
-  <div class="modal">
-    <div class="modal-title"><i class="ti ti-circle-check" style="color:var(--teal-dk);margin-right:6px;vertical-align:-2px"></i>Marquer comme payé(e)</div>
-    <p style="font-size:13px;color:var(--gray-md);margin-bottom:1.25rem" id="modal-paye-ref"></p>
-    <div class="field" style="margin-bottom:1.25rem">
-      <label>Date de paiement</label>
-      <input class="input" type="date" id="modal-paye-date" style="max-width:180px"/>
-    </div>
-    <div class="modal-acts">
-      <button type="button" class="btn" onclick="document.getElementById('modal-paye').classList.add('hidden')">Annuler</button>
-      <button type="button" class="btn btn-teal" onclick="confirmerPaye()"><i class="ti ti-circle-check"></i> Confirmer</button>
     </div>
   </div>
 </div>
@@ -2120,46 +2055,6 @@ function openDeleteFacture(pk, ref) {
   document.getElementById('delete-facture-ref').textContent = ref;
   document.getElementById('delete-facture-form').action = `/factures/${pk}/supprimer/`;
   document.getElementById('modal-delete-facture').classList.remove('hidden');
-}
-</script>
-
-<script>
-let _payeFk = null;
-let _payeType = null;
-
-function openMarquerPaye(pk, ref, type) {
-  _payeFk = pk;
-  _payeType = type;
-  document.getElementById('modal-paye-ref').textContent = ref;
-  // Date du jour par défaut
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('modal-paye-date').value = today;
-  document.getElementById('modal-paye').classList.remove('hidden');
-}
-
-async function confirmerPaye() {
-  if (!_payeFk) return;
-  const dateVal = document.getElementById('modal-paye-date').value;
-
-  // 1. Changer le statut → paid
-  const formData = new FormData();
-  formData.append('status', 'paid');
-  formData.append('csrfmiddlewaretoken', CSRF);
-  await fetch(`/factures/${_payeFk}/status/`, { method: 'POST', body: formData });
-
-  // 2. Si acompte, enregistrer la date de versement
-  if (_payeType === 'acompte' && dateVal) {
-    // Convertir YYYY-MM-DD → JJ/MM/AAAA pour l'API existante
-    const [y, m, d] = dateVal.split('-');
-    await fetch(`/factures/${_payeFk}/versement/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({ date_versement: `${d}/${m}/${y}` }),
-    });
-  }
-
-  document.getElementById('modal-paye').classList.add('hidden');
-  window.location.reload();
 }
 </script>
 
