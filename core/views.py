@@ -13,6 +13,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.utils import timezone
+from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 
 from .models import (
     Client, Devis, LigneDevis,
@@ -801,7 +802,7 @@ def facture_create(request, devis_pk):
             created_by=request.user,
         )
         # Copie des lignes du devis
-        _copier_lignes_devis(facture, devis)
+        copier_lignes_devis_vers_facture(devis.lignes.filter(parent=None), facture)
 
         AuditLog.objects.create(
             user=request.user,

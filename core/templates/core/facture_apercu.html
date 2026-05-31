@@ -207,7 +207,7 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
     </thead>
     <tbody>
       {% for lf in lignes %}
-        {% include 'core/_apercu_ligne.html' with lf=lf depth=0 %}
+        {% include 'core/_apercu_ligne.html' with lf=lf depth=0 only %}
       {% endfor %}
     </tbody>
   </table>

@@ -1,8 +1,4 @@
-{# core/templates/core/_apercu_ligne.html
-   Sous-template récursif pour les lignes de l'aperçu facture.
-   Appelé depuis facture_apercu.html et lui-même récursivement.
-   Affiche uniquement les lignes avec quantite > 0 (déjà filtré par la vue).
-#}
+
 {% if lf.type_ligne == 'TITRE' %}
   <tr class="row-titre">
     <td colspan="5">{{ lf.description }}</td>
