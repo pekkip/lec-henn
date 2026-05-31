@@ -9,7 +9,7 @@
   {% endfor %}
 {% else %}
   <tr class="{% if depth > 0 %}row-child{% endif %}">
-    <td>{{ lf.description }}</td>
+    <td>{{ lf.description|safe }}</td>
     <td class="td-num">{{ lf.quantite|floatformat:"-3" }}</td>
     <td class="td-num" style="color:var(--gray-md)">{{ lf.unite }}</td>
     <td class="td-num" style="color:var(--gray-md)">
