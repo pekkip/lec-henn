@@ -1,0 +1,665 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ facture.get_reference }} — Facture{% endblock %}
+{% block nav_factures %}active{% endblock %}
+
+{% block topbar_title %}
+  <span style="color:rgba(255,255,255,.4);font-size:11px">
+    <a href="{% url 'core:devis-detail' devis.pk %}" style="color:rgba(255,255,255,.55);text-decoration:none">{{ devis.reference }}</a>
+    /
+  </span>
+  <span style="color:#fff;font-weight:500">{{ facture.get_reference }}</span>
+  <span style="color:rgba(255,255,255,.45)">— {{ devis.client }}</span>
+  <span class="badge b-{{ facture.status }}" style="font-size:11px">{{ facture.get_status_display }}</span>
+{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{% url 'core:facture-apercu' facture.pk %}" target="_blank" class="btn btn-ghost btn-sm">
+    <i class="ti ti-eye"></i> Aperçu
+  </a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── TABS ── */
+.tabs{background:#fff;border-bottom:1px solid var(--gray-bd);display:flex;padding:0 1.25rem;flex-shrink:0}
+.tab{padding:10px 14px;font-size:13px;color:var(--gray-md);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
+.tab.on{color:var(--prune);border-bottom-color:var(--prune);font-weight:500}
+.tab:hover:not(.on){color:var(--gray)}
+/* ── BARRE FORMAT ── */
+.fmt-bar{display:flex;align-items:center;gap:3px;padding:5px 8px;background:#fff;border-bottom:1px solid var(--gray-bd);flex-shrink:0;flex-wrap:wrap}
+.fmt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid transparent;border-radius:4px;background:none;cursor:pointer;color:var(--gray);font-size:13px;font-family:var(--f);transition:background .1s,border-color .1s;flex-shrink:0}
+.fmt-btn:hover{background:var(--gray-lt);border-color:var(--gray-bd)}
+.fmt-btn.active{background:var(--teal-lt);border-color:var(--teal-bd);color:var(--teal-dk)}
+.fmt-sep{width:1px;height:16px;background:var(--gray-bd);margin:0 3px;flex-shrink:0}
+
+/* ── ZONE OBJET ── */
+.notes-bar{background:#fff;border-bottom:1px solid var(--gray-bd);padding:7px 12px;flex-shrink:0}
+.notes-lbl{font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.notes-lbl span{text-transform:none;letter-spacing:0;font-weight:400}
+textarea.notes-input{width:100%;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;color:var(--gray);background:var(--gray-lt);resize:none;font-family:var(--f);outline:none;line-height:1.5}
+textarea.notes-input:focus{border-color:var(--teal);background:#fff}
+
+/* ── EN-TÊTES COLONNES ── */
+.col-hd{background:#fff;border-bottom:1px solid var(--gray-bd);padding:4px 10px;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+
+/* ── ÉDITEUR ── */
+.editor-shell{display:flex;flex:1;overflow:hidden}
+.editor-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:3px;background:var(--bg)}
+
+/* ── LIGNES ── */
+.tree-node{margin-bottom:2px}
+.node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:34px}
+.node-row:hover{border-color:#BBBAB8}
+.node-row.zero{opacity:.38;background:var(--gray-lt)}
+.node-row.titre-row{background:var(--prune-lt);border-color:var(--prune-bd)}
+.node-row.titre-row.zero{opacity:.38}
+
+.nbadge{font-size:10px;padding:2px 5px;border-radius:3px;font-weight:500;flex-shrink:0}
+.nb-TITRE{background:var(--prune-lt);color:#72243E}
+.nb-MO{background:var(--amber-lt);color:#8B5E0A}
+.nb-MAT{background:#EAF3DE;color:#27500A}
+.nb-S{background:var(--teal-lt);color:var(--teal-dk)}
+.nb-C{background:var(--prune-lt);color:#72243E}
+.nb-FMO{background:var(--amber-lt);color:#8B5E0A}
+.nb-FMAT{background:#EAF3DE;color:#27500A}
+.nb-FIN{background:var(--red-lt);color:var(--red)}
+.nb-OUV{background:var(--teal-lt);color:var(--teal-dk)}
+.nb-F{background:#E1F5EE;color:#085041}
+
+/* ── COLONNES LIGNE ── */
+.nd-desc-ce{flex:1;min-width:0}
+.nd-desc-ce [contenteditable]{width:100%;min-height:18px;font-size:12px;color:inherit;font-family:var(--f);outline:none;border-radius:3px;padding:0;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.nd-desc-ce [contenteditable]:focus{outline:1px solid var(--teal);padding:0 3px}
+.nd-desc-ce [contenteditable].zero-text{color:var(--gray-md);text-decoration:line-through}
+
+.nd-qty-wrap{width:80px;flex-shrink:0;display:flex;align-items:center;gap:3px;justify-content:flex-end}
+.nd-qty{width:52px;text-align:right;font-size:12px;border:1px solid var(--gray-bd);border-radius:4px;padding:2px 5px;background:var(--gray-lt);color:var(--gray);font-family:var(--f);outline:none}
+.nd-qty:focus{border-color:var(--teal);background:#fff}
+.nd-qty:disabled{opacity:.4;cursor:not-allowed}
+.nd-unit{font-size:11px;color:var(--gray-md);width:24px;flex-shrink:0}
+.nd-pu{width:64px;text-align:right;font-size:11px;color:var(--gray-md);flex-shrink:0;font-variant-numeric:tabular-nums}
+.nd-ref{width:56px;text-align:right;font-size:11px;color:var(--gray-md);flex-shrink:0;font-variant-numeric:tabular-nums;opacity:.7}
+.nd-total{width:74px;text-align:right;font-size:12px;font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums;color:var(--prune)}
+.nd-total.zero{color:var(--gray-md);font-weight:400}
+
+.kids-wrap{margin-left:22px;border-left:2px solid var(--teal-bd);padding-left:4px;margin-top:3px;display:flex;flex-direction:column;gap:3px}
+
+/* ── BARRE PROGRESSION TITRE ── */
+.titre-prog{padding:0 8px 8px}
+.prog-track{height:4px;background:var(--gray-bd);border-radius:2px;margin-bottom:5px;position:relative;overflow:hidden}
+.prog-fill-prev{height:4px;border-radius:2px;background:var(--prune-bd);position:absolute;top:0;left:0}
+.prog-fill{height:4px;border-radius:2px;background:var(--prune);position:absolute;top:0;left:0;transition:width .3s}
+.prog-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--gray-md)}
+.prog-labels .current{color:var(--prune);font-weight:500}
+
+/* ── RÉCAPITULATIF FACTURES PRÉCÉDENTES ── */
+.prec-wrap{margin:0 8px 8px;padding:6px 8px;background:var(--prune-lt);border-radius:4px;border:1px solid var(--prune-bd)}
+.prec-title{font-size:10px;color:#72243E;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.prec-row{display:flex;align-items:baseline;gap:6px;padding:2px 0;border-bottom:1px solid var(--prune-bd);font-size:11px}
+.prec-row:last-child{border-bottom:none}
+.prec-ref{font-family:var(--fm);font-size:10px;color:#72243E;flex-shrink:0;width:100px}
+.prec-libelle{flex:1;min-width:0}
+.prec-libelle [contenteditable]{font-size:11px;color:var(--gray);font-family:var(--f);outline:none;border-radius:2px;padding:0;width:100%}
+.prec-libelle [contenteditable]:focus{outline:1px solid var(--teal);padding:0 2px;background:#fff}
+.prec-libelle [contenteditable]:empty::before{content:'Libellé…';color:#BBBAB8;pointer-events:none}
+.prec-montant{font-size:11px;font-weight:500;color:#72243E;font-variant-numeric:tabular-nums;flex-shrink:0;text-align:right;width:72px}
+.prec-total{display:flex;justify-content:space-between;padding-top:4px;font-size:11px;font-weight:600;color:#72243E}
+
+/* ── FOOTER ── */
+.editor-foot{background:#fff;border-top:1px solid var(--gray-bd);padding:9px 14px;display:flex;justify-content:flex-end;align-items:baseline;gap:16px;flex-shrink:0;flex-wrap:wrap}
+.ft-lbl{font-size:11px;color:var(--gray-md)}
+.ft-val{font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.ft-grand{font-size:20px;font-weight:600;color:var(--prune);font-variant-numeric:tabular-nums}
+.ft-sep{width:1px;height:16px;background:var(--gray-bd)}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:18px;right:18px;background:var(--gray);color:#fff;padding:8px 14px;border-radius:var(--r);font-size:12px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.ok{background:var(--teal-dk)}
+.toast.err{background:var(--red)}
+.toast.show{opacity:1}
+
+/* ── LECTURE SEULE ── */
+.readonly-banner{background:var(--amber-lt);border-bottom:1px solid #D4A030;padding:6px 14px;font-size:11px;color:#7A4F00;flex-shrink:0;display:flex;align-items:center;gap:6px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:none">modifiable={{ modifiable }}</div>
+{# Barre de navigation — même niveau que les tabs du devis #}
+<div class="tabs">
+  <a href="{% url 'core:devis-detail' devis.pk %}" class="tab">
+    <i class="ti ti-arrow-left" style="font-size:12px;margin-right:4px"></i>{{ devis.reference }}
+  </a>
+  <span class="tab on">
+    <i class="ti ti-receipt" style="font-size:12px;margin-right:4px"></i>{{ facture.get_reference }}
+  </span>
+  <a href="{% url 'core:facture-apercu' facture.pk %}" target="_blank" class="tab">
+    <i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Aperçu
+  </a>
+</div>
+
+{# Bandeau si la facture n'est plus modifiable #}
+{% if not modifiable %}
+<div class="readonly-banner">
+  <i class="ti ti-lock" style="font-size:13px"></i>
+  Cette facture est en statut « {{ facture.get_status_display }} » — lecture seule.
+</div>
+{% endif %}
+
+{# Barre de formatage pour les descriptions #}
+<div class="fmt-bar">
+  <button class="fmt-btn" title="Gras (Ctrl+B)" onmousedown="fmtCmd(event,'bold')"><b>G</b></button>
+  <button class="fmt-btn" title="Italique (Ctrl+I)" onmousedown="fmtCmd(event,'italic')"><i>I</i></button>
+  <button class="fmt-btn" title="Souligné (Ctrl+U)" onmousedown="fmtCmd(event,'underline')"><u>S</u></button>
+  <button class="fmt-btn" title="Barré" onmousedown="fmtCmd(event,'strikethrough')"><s>S</s></button>
+  <div class="fmt-sep"></div>
+  <span style="font-size:11px;color:var(--gray-md);margin-left:4px" id="fmt-hint">
+    Cliquez dans une description pour formater
+  </span>
+</div>
+
+{# Zone objet / commentaire #}
+<div class="notes-bar">
+  <div class="notes-lbl">Objet / commentaire <span>(apparaît sur l'aperçu et le PDF)</span></div>
+  <textarea class="notes-input" id="facture-notes" rows="2"
+    placeholder="Ex : Acompte 1/2 — travaux cuisine et salle de bain."
+    {% if not modifiable %}disabled{% endif %}
+  >{{ facture.notes }}</textarea>
+</div>
+
+{# En-têtes colonnes #}
+<div class="col-hd">
+  <div style="flex:1">Description</div>
+  <div style="width:80px;text-align:right">Qté facturée</div>
+  <div style="width:56px;text-align:right">Qté devis</div>
+  <div style="width:64px;text-align:right">P.U.</div>
+  <div style="width:74px;text-align:right;color:var(--prune)">Total</div>
+</div>
+
+{# Corps de l'éditeur — rendu par JS #}
+<div class="editor-shell">
+  <div class="editor-body" id="editor-body">
+    <div style="color:var(--gray-md);font-size:12px;padding:1rem">Chargement…</div>
+  </div>
+</div>
+
+{# Footer totaux #}
+<div class="editor-foot">
+  <div style="margin-left:auto;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+    <span class="ft-lbl">Montant global devis</span>
+    <span class="ft-val" id="ft-devis">{{ total_devis|floatformat:2 }} €</span>
+    <div class="ft-sep"></div>
+    <span class="ft-lbl">Déjà facturé</span>
+    <span class="ft-val" style="color:var(--gray-md)" id="ft-deja">{{ total_deja|floatformat:2 }} €</span>
+    <div class="ft-sep"></div>
+    <span class="ft-lbl">Cette facture</span>
+    <span class="ft-grand" id="ft-total">—</span>
+    <span class="ft-lbl">HT</span>
+  </div>
+  {% if modifiable %}
+  <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save">
+    <i class="ti ti-device-floppy"></i> Sauvegarder
+  </button>
+  {% endif %}
+</div>
+
+{# Section acomptes versés #}
+<div id="acomptes-section" style="display:none;background:#fff;border-top:1px solid var(--gray-bd);padding:8px 14px">
+  <div style="font-size:10px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+    <i class="ti ti-receipt" style="font-size:12px"></i> Acomptes versés
+  </div>
+  <div id="acomptes-list"></div>
+  <div id="acomptes-total" style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--amber);padding-top:4px;border-top:1px solid var(--amber-lt);margin-top:4px"></div>
+</div>
+
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONFIGURATION
+// ═══════════════════════════════════════════════════════
+const FACTURE_PK    = {{ facture.pk }};
+const MODIFIABLE    = {{ modifiable|yesno:"true,false" }};
+const URL_LIGNES    = "{% url 'core:lignes-facture-get' facture.pk %}";
+const URL_SAVE      = "{% url 'core:lignes-facture-save' facture.pk %}";
+const CSRF_TOKEN    = "{{ csrf_token }}";
+
+// ═══════════════════════════════════════════════════════
+//  ÉTAT GLOBAL
+// ═══════════════════════════════════════════════════════
+let lignes = [];           // arbre des LigneFacture
+let factures_prec = [];    // factures précédentes (pour récap par titre)
+let acomptes = [];
+let TOTAL_DEVIS = 0;
+let TOTAL_DEJA  = 0;
+let dirty = false;         // modifications non sauvegardées
+
+
+// ═══════════════════════════════════════════════════════
+//  UTILITAIRES
+// ═══════════════════════════════════════════════════════
+
+function fmtV(v) {
+  if (v === null || v === undefined || isNaN(v)) return '—';
+  return Number(v).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
+}
+
+function findNode(nodes, id) {
+  for (const n of nodes) {
+    if (n.id === id) return n;
+    if (n.enfants) { const f = findNode(n.enfants, id); if (f) return f; }
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════
+//  CALCULS
+// ═══════════════════════════════════════════════════════
+
+/**
+ * Prix unitaire "devis" d'un nœud (basé sur quantite_originale et cout_unitaire).
+ * Pour les composites, c'est le total devis / quantite devis.
+ */
+function getPU(n) {
+  if (!n.enfants || !n.enfants.length) return n.cout_unitaire;
+  const totalDev = calcDevisNode(n);
+  return n.quantite_originale > 0 ? totalDev / n.quantite_originale : 0;
+}
+
+/**
+ * Total devis du nœud (basé sur quantite_originale = snapshot).
+ */
+function calcDevisNode(n) {
+  if (!n.enfants || !n.enfants.length) {
+    return (n.quantite_originale || 0) * (n.cout_unitaire || 0);
+  }
+  const mult = n.type_ligne === 'TITRE' ? 1 : (n.quantite_originale || 1);
+  return mult * n.enfants.reduce((s, c) => s + calcDevisNode(c), 0);
+}
+
+/**
+ * Total facturé du nœud (basé sur quantite = qté saisie pour CETTE facture).
+ * Si titre à 0 → 0 (enfants bloqués).
+ * Si composite → quantite × PU_devis (le PU reste celui du devis).
+ */
+function calcFactureNode(n) {
+  const qf = parseFloat(n.quantite || 0);
+  if (n.type_ligne === 'TITRE') {
+    if (qf === 0) return 0;
+    // Même logique que devis : quantite titre × somme enfants
+    return qf * (n.enfants || []).reduce((s, c) => s + calcFactureNode(c), 0);
+  }
+  if (!n.enfants || !n.enfants.length) {
+    return qf * (n.cout_unitaire || 0);
+  }
+  // Composite : quantite × PU devis
+  const pu = getPU(n);
+  return qf * (pu || 0);
+}
+
+/**
+ * Total "déjà facturé" pour un titre = somme des deja_facture de ses enfants
+ * (champ venant du serveur, calculé sur les factures précédentes validées).
+ */
+function calcDejaNode(n) {
+  if (n.type_ligne === 'TITRE') {
+    return (n.enfants || []).reduce((s, c) => s + calcDejaNode(c), 0);
+  }
+  return parseFloat(n.deja_facture || 0);
+}
+
+function totalCetteFacture() {
+  return lignes.reduce((s, n) => s + calcFactureNode(n), 0);
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDU
+// ═══════════════════════════════════════════════════════
+
+const BADGE_LABELS = {
+  TITRE:'titre', S:'simple', C:'composite', MO:'MO', MAT:'mat.',
+  FMO:'forf. MO', FMAT:'forf. MTX', FIN:'financement', OUV:'sous-ouv.', F:'forfait'
+};
+
+function renderNode(n, parentZero) {
+  const qf       = parseFloat(n.quantite || 0);
+  const qd       = parseFloat(n.quantite_originale || 0);
+  const isTitre  = n.type_ligne === 'TITRE';
+  const isFin    = n.type_ligne === 'FIN';
+  const isZero   = qf === 0 || parentZero;
+  const disabled = (parentZero || !MODIFIABLE) ? 'disabled' : '';
+  const totalFact = isZero && !isTitre ? 0 : calcFactureNode(n);
+  const pu        = getPU(n);
+
+  // ── Barre de progression pour les titres ──
+  let progHtml = '';
+  if (isTitre && !parentZero) {
+    const totalDev  = calcDevisNode(n);
+    const totalDeja = calcDejaNode(n);
+    const pctDeja   = totalDev > 0 ? Math.min(100, Math.round((totalDeja / totalDev) * 100)) : 0;
+    const pctThis   = totalDev > 0 ? Math.min(100, Math.round((totalFact / totalDev) * 100)) : 0;
+    // Les deux segments ne dépassent pas 100% ensemble
+    const pctDejaShow = Math.min(pctDeja, 100);
+    const pctThisShow = Math.min(pctThis, 100 - pctDejaShow);
+
+    // Récapitulatif des factures précédentes pour ce titre
+    // On affiche les factures_prec qui ont un montant > 0 sur ce titre (approximation : on
+    // utilise le montant global de chaque facture — PROTO, affinage possible)
+    let precRows = '';
+    let totalPrecTitre = 0;
+    if (factures_prec.length > 0 && totalDeja > 0) {
+      // PROTO : on affiche toutes les factures précédentes avec leur montant global.
+      // Une version plus fine calculerait le montant par titre.
+      factures_prec.forEach(fp => {
+        totalPrecTitre += fp.montant;
+        precRows += `
+          <div class="prec-row">
+            <span class="prec-ref">${fp.reference}</span>
+            <div class="prec-libelle">
+              <div contenteditable="${MODIFIABLE ? 'true' : 'false'}"
+                   data-prec-pk="${fp.pk}"
+                   onblur="saveLibelle(this, ${fp.pk})"
+              >${escHtml(fp.libelle)}</div>
+            </div>
+            <span class="prec-montant">${fmtV(fp.montant)}</span>
+          </div>`;
+      });
+      const totalPrec = factures_prec.reduce((s, f) => s + f.montant, 0);
+      precRows += `
+        <div class="prec-total">
+          <span>Total facturé précédemment</span>
+          <span>${fmtV(totalPrec)}</span>
+        </div>`;
+    }
+
+    const precSection = precRows ? `
+      <div class="prec-wrap">
+        <div class="prec-title">Factures précédentes</div>
+        ${precRows}
+      </div>` : '';
+
+    progHtml = `
+      <div class="titre-prog">
+        <div class="prog-track">
+          ${pctDejaShow > 0 ? `<div class="prog-fill-prev" style="width:${pctDejaShow}%"></div>` : ''}
+          <div class="prog-fill" style="width:${pctThisShow}%;left:${pctDejaShow}%"></div>
+        </div>
+        <div class="prog-labels">
+          <span class="${!isZero ? 'current' : ''}">${isZero ? 'Non facturé cette fois' : fmtV(totalFact) + ' cette facture'}</span>
+          <span>/ ${fmtV(totalDev)} devis${totalDeja > 0 ? ' · <span style="color:var(--prune-bd)">' + fmtV(totalDeja) + ' déjà facturé</span>' : ''}</span>
+        </div>
+      </div>
+      ${precSection}`;
+  }
+
+  const descCe = `
+    <div contenteditable="${(!parentZero && MODIFIABLE) ? 'true' : 'false'}"
+         class="${isZero && !isTitre ? 'zero-text' : ''}"
+         data-nid-desc="${n.id}"
+         oninput="syncDesc(this, ${n.id})"
+         onfocus="document.getElementById('fmt-hint').textContent=''"
+    >${n.description || ''}</div>`;
+
+  let html = `<div class="tree-node" data-nid="${n.id}">
+    <div class="node-row${isTitre ? ' titre-row' : ''}${isZero ? ' zero' : ''}">
+      <span class="nbadge nb-${n.type_ligne}">${BADGE_LABELS[n.type_ligne] || n.type_ligne}</span>
+      <div class="nd-desc-ce">${descCe}</div>
+      <div class="nd-qty-wrap">
+        <input class="nd-qty" type="number" value="${n.quantite}" min="0" step="any"
+          ${disabled}
+          onchange="updQty(${n.id}, parseFloat(this.value) || 0)"
+          onfocus="this.select()"/>
+        <span class="nd-unit">${n.unite || ''}</span>
+      </div>
+      <div class="nd-ref">${qd > 0 ? qd : ''}</div>
+      <div class="nd-pu">${!isTitre && pu != null ? fmtV(pu) : ''}</div>
+      <div class="nd-total${isZero ? ' zero' : ''}" data-total="${n.id}">${isZero ? '—' : fmtV(totalFact)}</div>
+    </div>
+    ${progHtml}`;
+
+  if (n.enfants && n.enfants.length) {
+    const childZero = (isTitre && qf === 0) || parentZero;
+    html += `<div class="kids-wrap" style="${childZero ? 'opacity:.35' : ''}">`;
+    n.enfants.forEach(c => { html += renderNode(c, childZero); });
+    html += '</div>';
+  }
+
+  return html + '</div>';
+}
+
+function renderAll() {
+  const body = document.getElementById('editor-body');
+  body.innerHTML = lignes.map(n => renderNode(n, false)).join('');
+  refreshFooter();
+}
+
+function refreshFooter() {
+  const tot = totalCetteFacture();
+  document.getElementById('ft-total').textContent = fmtV(tot);
+  // ft-devis et ft-deja sont déjà rendus par Django (valeurs initiales)
+  // on les met à jour depuis JS si besoin
+  document.getElementById('ft-devis').textContent = fmtV(TOTAL_DEVIS);
+  document.getElementById('ft-deja').textContent = fmtV(TOTAL_DEJA);
+}
+
+// ═══════════════════════════════════════════════════════
+//  INTERACTIONS
+// ═══════════════════════════════════════════════════════
+
+function updQty(id, val) {
+  const n = findNode(lignes, id);
+  if (!n) return;
+  const wasZero = parseFloat(n.quantite || 0) === 0;
+  n.quantite = val;
+  const isNowZero = val === 0;
+  dirty = true;
+  if (wasZero !== isNowZero) {
+    // Passage zéro ↔ non-zéro : re-rendu complet pour grisage/dégrisage
+    renderAll();
+  } else {
+    updateTotalsDisplay();
+  }
+}
+
+function updateTotalsDisplay() {
+  function updateNode(n) {
+    const totalEl = document.querySelector('[data-total="' + n.id + '"]');
+    if (totalEl) {
+      const qf = parseFloat(n.quantite || 0);
+      const isZero = qf === 0;
+      const total = calcFactureNode(n);
+      totalEl.textContent = isZero ? '—' : fmtV(total);
+      totalEl.className = 'nd-total' + (isZero ? ' zero' : '');
+    }
+    if (n.enfants) n.enfants.forEach(updateNode);
+  }
+  lignes.forEach(updateNode);
+  refreshFooter();
+}
+
+function syncDesc(ce, id) {
+  const n = findNode(lignes, id);
+  if (n) { n.description = ce.innerHTML; dirty = true; }
+}
+
+function fmtCmd(event, cmd) {
+  event.preventDefault();
+  document.execCommand(cmd, false, null);
+}
+
+function escHtml(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Sauvegarde libellé facture précédente (blur) ──
+async function saveLibelle(el, pk) {
+  const libelle = el.textContent.trim();
+  // Met à jour l'objet local
+  const fp = factures_prec.find(f => f.pk === pk);
+  if (fp) fp.libelle = libelle;
+  // Envoi serveur
+  try {
+    await fetch(`/factures/${pk}/libelle/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify({libelle}),
+    });
+  } catch(e) { console.warn('Erreur sauvegarde libellé', e); }
+}
+
+// ═══════════════════════════════════════════════════════
+//  SAUVEGARDE
+// ═══════════════════════════════════════════════════════
+
+function buildPayload(nodes) {
+  return nodes.map(n => ({
+    id: n.id,
+    type_ligne: n.type_ligne,
+    description: n.description,
+    quantite: n.quantite,
+    quantite_originale: n.quantite_originale,
+    unite: n.unite,
+    cout_unitaire: n.cout_unitaire,
+    ordre: n.ordre,
+    ouvert: n.ouvert,
+    ligne_devis_source_id: n.ligne_devis_source_id || null,
+    enfants: buildPayload(n.enfants || []),
+  }));
+}
+
+async function saveFacture() {
+  if (!MODIFIABLE) return;
+  const btn = document.getElementById('btn-save');
+  if (btn) btn.disabled = true;
+
+  // Sauvegarder aussi les notes
+  const notes = document.getElementById('facture-notes').value;
+
+  const payload = {
+    lignes: buildPayload(lignes),
+    notes: notes,
+  };
+
+  try {
+    const resp = await fetch(URL_SAVE, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      dirty = false;
+      showToast('Sauvegardé', 'ok');
+      // Mettre à jour le montant dans le footer
+      document.getElementById('ft-total').textContent = fmtV(data.montant);
+    } else {
+      showToast(data.error || 'Erreur', 'err');
+    }
+  } catch(e) {
+    showToast('Erreur réseau', 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════════════
+
+let toastTimer;
+function showToast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════
+//  RACCOURCIS CLAVIER
+// ═══════════════════════════════════════════════════════
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveFacture();
+  }
+});
+
+// Avertissement si on quitte sans sauvegarder
+window.addEventListener('beforeunload', e => {
+  if (dirty && MODIFIABLE) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+
+// ═══════════════════════════════════════════════════════
+//  VUE ACOMPTE
+// ═══════════════════════════════════════════════════════
+
+
+function renderAcomptes() {
+  if (!acomptes.length) return;
+  const section = document.getElementById('acomptes-section');
+  const list    = document.getElementById('acomptes-list');
+  const totEl   = document.getElementById('acomptes-total');
+  section.style.display = '';
+
+  let total = 0;
+  list.innerHTML = acomptes.map(a => {
+    total += a.montant;
+    return `
+      <div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid var(--gray-bd);font-size:11px">
+        <span style="font-family:var(--fm);font-size:10px;color:var(--amber);width:100px;flex-shrink:0">${a.reference}</span>
+        <span style="flex:1;color:var(--gray-md)">${a.notes || '—'}</span>
+        <div contenteditable="${MODIFIABLE ? 'true' : 'false'}"
+             style="width:90px;font-size:11px;color:var(--gray-md);text-align:center;border-radius:3px;padding:0 2px"
+             placeholder="jj/mm/aaaa"
+             onblur="saveDateVersement(this, ${a.pk})"
+        >${a.date_versement || ''}</div>
+        <span style="width:72px;text-align:right;font-weight:500;color:var(--amber);font-variant-numeric:tabular-nums">${fmtV(a.montant)}</span>
+      </div>`;
+  }).join('');
+
+  totEl.innerHTML = `<span>Total acomptes</span><span style="font-variant-numeric:tabular-nums">${fmtV(total)}</span>`;
+}
+
+async function saveDateVersement(el, pk) {
+  const date_versement = el.textContent.trim();
+  try {
+    await fetch(`/factures/${pk}/date-versement/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify({date_versement}),
+    });
+  } catch(e) { console.warn('Erreur sauvegarde date versement', e); }
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  CHARGEMENT INITIAL
+// ═══════════════════════════════════════════════════════
+
+async function init() {
+  try {
+    const resp = await fetch(URL_LIGNES);
+    const data = await resp.json();
+    lignes        = data.lignes || [];
+    factures_prec = data.factures_prec || [];
+    acomptes      = data.acomptes || [];
+    TOTAL_DEVIS   = data.total_devis || 0;
+    TOTAL_DEJA    = data.total_deja  || 0;
+    renderAll();
+    renderAcomptes();
+  } catch(e) {
+    document.getElementById('editor-body').innerHTML =
+      '<div style="color:var(--red);padding:1rem;font-size:12px">Erreur de chargement.</div>';
+  }
+}
+
+init();
+</script>
+{% endblock %}
