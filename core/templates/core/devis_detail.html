@@ -667,7 +667,7 @@
 
           {# Marquer envoyé(e) — validé seulement #}
           {% if f.status == 'validated' %}
-          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">
+          <form method="post" action="{% url 'core:facture-statut' f.pk %}" style="display:inline">
             {% csrf_token %}
             <input type="hidden" name="status" value="sent">
             <button type="submit" class="ico-btn" title="Marquer envoyé(e)"><i class="ti ti-send"></i></button>
@@ -2149,17 +2149,17 @@ async function confirmerPaye() {
     const formData = new FormData();
     formData.append('status', 'paid');
     formData.append('csrfmiddlewaretoken', CSRF);
-    const r1 = await fetch(`/factures/${_payeFk}/status/`, {
+    const r1 = await fetch(`/factures/${_payeFk}/statut/`, {
       method: 'POST',
       headers: { 'X-Requested-With': 'XMLHttpRequest' },
       body: formData,
     });
-    if (!r1.ok) throw new Error('Erreur status');
+    if (!r1.ok) throw new Error('Erreur statut');
 
     // 2. Si acompte, enregistrer la date de versement
     if (_payeType === 'acompte' && dateVal) {
       const [y, m, d] = dateVal.split('-');
-      const r2 = await fetch(`/factures/${_payeFk}/versement/`, {
+      const r2 = await fetch(`/factures/${_payeFk}/date-versement/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
