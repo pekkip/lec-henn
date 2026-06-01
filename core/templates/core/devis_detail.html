@@ -446,6 +446,10 @@
           <label>Conditions de vente</label>
           <textarea class="input" id="eh-conditions" rows="5" placeholder="Conditions applicables à ce devis…">{{ devis.conditions_devis }}</textarea>
         </div>
+        <div class="field">
+          <label>Coordonnées CB Bretagne</label>
+          <textarea class="input" id="eh-coordonnees-cb" rows="4" placeholder="Adresse, téléphone, email, SIRET…">{{ devis.coordonnees_cb }}</textarea>
+        </div>
       </div>
     </div>
 
@@ -1054,6 +1058,7 @@ async function saveEntete() {
     taux_mo:           nouveauTauxMO,
     notes:             document.getElementById('eh-notes').value,
     conditions_devis:  document.getElementById('eh-conditions').value,
+    coordonnees_cb:    document.getElementById('eh-coordonnees-cb').value,
   };
 
   try {

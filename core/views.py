@@ -210,6 +210,7 @@ def profil_view(request):
         profil.saisie_ht = request.POST.get('saisie_ht') == 'on'
         profil.conditions_devis = request.POST.get('conditions_devis', '').strip()
         profil.conditions_facture = request.POST.get('conditions_facture', '').strip()
+        profil.coordonnees_cb = request.POST.get('coordonnees_cb', '').strip()
         profil.save()
         messages.success(request, 'Profil mis à jour.')
         return redirect('core:profil')
@@ -599,6 +600,7 @@ def devis_pdf(request, pk):
         'lignes_fin': lignes_fin,
         'params': params,
         'expiry': expiry,
+        'coordonnees_cb': devis.coordonnees_cb,
     })
 
 @login_required
@@ -639,6 +641,7 @@ def devis_entete_save(request, pk):
     # Notes et conditions
     devis.notes            = data.get('notes', '').strip()
     devis.conditions_devis = data.get('conditions_devis', '').strip()
+    devis.coordonnees_cb   = data.get('coordonnees_cb', '').strip()
 
     # Date de validité
     date_validite_str = data.get('date_validite', '')
