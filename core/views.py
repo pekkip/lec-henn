@@ -19,7 +19,8 @@ from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 from .models import (
     Client, Devis, LigneDevis,
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
-    Territoire, Service, Equipe, ParametresAssociation, Bibliotheque
+    Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
+    BibliothèqueAides,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -94,6 +95,7 @@ def ligne_to_dict(ligne):
         'ordre': ligne.ordre,
         'ouvert': ligne.ouvert,
         'parent_id': ligne.parent_id,
+        'aide_id': ligne.aide_id,
         'enfants': [ligne_to_dict(e) for e in ligne.enfants.all()],
     }
 
@@ -414,6 +416,72 @@ def biblio_api_save(request):
         return JsonResponse({'ok': True})
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+
+# ══════════════════════════════════════════
+#  BIBLIOTHÈQUE AIDES (partagée)
+# ══════════════════════════════════════════
+
+@login_required
+def aides_api_get(request):
+    aides = BibliothèqueAides.objects.select_related('created_by').all()
+    return JsonResponse({
+        'aides': [
+            {
+                'id': a.pk,
+                'description': a.description,
+                'type_ligne': a.type_ligne,
+                'montant_defaut': float(a.montant_defaut) if a.montant_defaut is not None else None,
+                'unite': a.unite,
+                'organisme': a.organisme,
+            }
+            for a in aides
+        ]
+    })
+
+
+@login_required
+@require_POST
+def aides_api_save(request):
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    description = data.get('description', '').strip()
+    if not description:
+        return JsonResponse({'error': 'Description requise'}, status=400)
+    type_ligne = data.get('type_ligne', 'FIN')
+    if type_ligne not in ('FMO', 'FMAT', 'FIN'):
+        return JsonResponse({'error': 'Type invalide'}, status=400)
+    montant_raw = data.get('montant_defaut')
+    montant = Decimal(str(montant_raw)) if montant_raw is not None else None
+    aide = BibliothèqueAides.objects.create(
+        description=description,
+        type_ligne=type_ligne,
+        montant_defaut=montant,
+        unite=data.get('unite', 'forfait'),
+        organisme=data.get('organisme', ''),
+        created_by=request.user,
+    )
+    return JsonResponse({
+        'ok': True,
+        'aide': {
+            'id': aide.pk,
+            'description': aide.description,
+            'type_ligne': aide.type_ligne,
+            'montant_defaut': float(aide.montant_defaut) if aide.montant_defaut is not None else None,
+            'unite': aide.unite,
+            'organisme': aide.organisme,
+        }
+    })
+
+
+@login_required
+@require_POST
+def aide_delete(request, pk):
+    aide = get_object_or_404(BibliothèqueAides, pk=pk)
+    aide.delete()
+    return JsonResponse({'ok': True})
 
 
 # ══════════════════════════════════════════
@@ -783,6 +851,7 @@ def lignes_get(request, pk):
         'lignes': data,
         'taux_mo': float(devis.taux_mo),
         'fin_group_title': devis.fin_group_title or 'Financements',
+        'zone_financement': devis.zone_financement,
     })
 
 
@@ -796,6 +865,7 @@ def lignes_save(request, pk):
         data = json.loads(request.body)
         lignes = data.get('lignes', [])
         fin_group_title = data.get('fin_group_title', 'Financements')
+        zone_financement = data.get('zone_financement', False)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
 
@@ -804,6 +874,13 @@ def lignes_save(request, pk):
     def create_lignes(items, parent=None, ordre=0):
         for item in items:
             cout = item.get('cout_unitaire')
+            aide_id = item.get('aide_id')
+            aide = None
+            if aide_id:
+                try:
+                    aide = BibliothèqueAides.objects.get(pk=aide_id)
+                except BibliothèqueAides.DoesNotExist:
+                    pass
             ligne = LigneDevis.objects.create(
                 devis=devis, parent=parent,
                 type_ligne=item.get('type_ligne', 'F'),
@@ -813,12 +890,14 @@ def lignes_save(request, pk):
                 cout_unitaire=Decimal(str(cout)) if cout is not None else None,
                 ordre=ordre,
                 ouvert=item.get('ouvert', True),
+                aide=aide,
             )
             create_lignes(item.get('enfants', []), parent=ligne)
             ordre += 1
 
     create_lignes(lignes)
     devis.fin_group_title = fin_group_title
+    devis.zone_financement = zone_financement
     devis.updated_at = timezone.now()
     devis.save()
 

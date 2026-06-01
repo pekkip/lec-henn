@@ -162,8 +162,23 @@
 .add-kid-btn:hover{background:#fff;color:var(--teal-dk);border-color:var(--teal-bd)}
 .dz{height:28px;border:1.5px dashed var(--teal-bd);border-radius:var(--r);background:var(--teal-lt);display:none;align-items:center;justify-content:center;font-size:11px;color:var(--teal-dk);margin-bottom:4px}
 .dz.on{display:flex}
-.fin-sep{height:1px;background:var(--red-lt);margin:12px 0 6px;position:relative}
-.fin-sep::before{content:'Financements & subventions';position:absolute;left:0;top:-9px;font-size:10px;color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:.05em;background:var(--bg);padding-right:8px}
+/* ZONE FINANCEMENT */
+.fin-zone-hd{display:flex;align-items:center;gap:4px;background:var(--red-lt);border:1px solid #F5C6C2;border-radius:var(--r);padding:5px 8px;min-height:34px;margin-bottom:3px}
+.fin-zone-body{margin-left:22px;border-left:2px solid #F5C6C2;padding-left:4px;margin-top:3px;display:flex;flex-direction:column;gap:3px}
+.fin-zone-dz{height:32px;border:1.5px dashed #F5C6C2;border-radius:var(--r);display:none;align-items:center;justify-content:center;font-size:11px;color:var(--red);margin-bottom:4px;transition:all .15s}
+.fin-zone-dz.on{display:flex}
+.fin-zone-dz.active{border-color:var(--red);background:var(--red-lt)}
+.aide-tag{font-size:10px;color:var(--red);opacity:.6;margin-left:3px;flex-shrink:0}
+/* SECTION AIDES (biblio partagée) */
+.aides-section{border-top:2px solid var(--red-lt)}
+.aides-hd{padding:8px 10px;border-bottom:1px solid var(--gray-bd);font-size:10px;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.aides-hd:hover{background:var(--red-lt)}
+.aides-toggle{width:18px;height:18px;border-radius:3px;border:1px solid #F5C6C2;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--red);line-height:1;flex-shrink:0}
+.aide-item{padding:6px 10px;border-bottom:1px solid var(--gray-bd);cursor:pointer;display:flex;align-items:flex-start;gap:6px;user-select:none}
+.aide-item:hover{background:var(--red-lt)}
+.aide-form{padding:6px 8px;border-top:1px solid var(--gray-bd);display:flex;flex-direction:column;gap:4px}
+.aide-form input,.aide-form select{font-size:11px;padding:4px 6px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;background:#fff;width:100%}
+.aide-form input:focus,.aide-form select:focus{border-color:var(--teal)}
 
 /* FACTURES */
 .fact-row{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid var(--gray-bd);border-radius:var(--r);margin-bottom:5px;background:#fff}
@@ -503,6 +518,40 @@
         ondrop="onBiblioDrop(event)">
         ↓ Ajouter à ma biblio
       </div>
+
+      <!-- SECTION AIDES (partagée) -->
+      <div class="aides-section" id="aides-section" style="display:none">
+        <div class="aides-hd" onclick="toggleAidesCollapse()">
+          <span>Aides</span>
+          <div class="aides-toggle" id="aides-toggle-btn">−</div>
+        </div>
+        <div id="aides-body">
+          <div id="aides-list">
+            <div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center">Chargement…</div>
+          </div>
+          {% if peut_modifier %}
+          <div style="padding:5px 8px;border-top:1px solid var(--gray-bd)">
+            <button onclick="showAddAideForm()" class="btn btn-sm" style="width:100%;font-size:11px">
+              <i class="ti ti-plus"></i> Nouvelle aide
+            </button>
+          </div>
+          <div id="add-aide-form" class="aide-form" style="display:none">
+            <input id="new-aide-desc" placeholder="Description…">
+            <select id="new-aide-type">
+              <option value="FIN">Financement</option>
+              <option value="FMO">Forfait MO</option>
+              <option value="FMAT">Forfait matériaux</option>
+            </select>
+            <input id="new-aide-organisme" placeholder="Organisme (ex: ANAH)">
+            <input id="new-aide-montant" type="number" step="0.01" placeholder="Montant défaut (€)">
+            <div style="display:flex;gap:4px">
+              <button onclick="saveNewAide()" class="btn btn-sm btn-prune" style="flex:1;font-size:11px">Créer</button>
+              <button onclick="document.getElementById('add-aide-form').style.display='none'" class="btn btn-sm" style="font-size:11px">✕</button>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
     </div>
     
 
@@ -601,8 +650,8 @@
           <button class="btn btn-sm" onclick="addRootNode('S')"><i class="ti ti-plus"></i> Ouvrage simple</button>
           <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
           <div style="flex:1"></div>
-          <button class="btn btn-sm" onclick="addFinancement()" style="border-color:var(--red);color:var(--red);background:var(--red-lt)">
-            <i class="ti ti-minus"></i> Financement / subvention
+          <button class="btn btn-sm" id="btn-zone-fin" onclick="activerZoneFinancement()" style="border-color:var(--red);color:var(--red);background:var(--red-lt)">
+            <i class="ti ti-building-bank"></i> Zone financement
           </button>
         </div>
         {% endif %}
@@ -1080,7 +1129,10 @@ async function ehSubmitQuick(){
 }
 
 let tree = [];
+let zoneFinancement = false;
+let aides = [];
 let draggingLib = null;
+let draggingAide = null;
 let draggingNodeNid = null;
 let bypassFactId = null;
 let _nidCounter = 0;
@@ -1560,69 +1612,79 @@ function renderTree() {
   assignNumbers(posLines, '', null);
   const t = document.getElementById('tree');
   t.innerHTML = posLines.map(n => renderNode(n, 0)).join('');
-  if (finLines.length) {
-    t.innerHTML += `<div style="margin-top:8px">${renderFinGroup(finLines)}</div>`;
+  if (zoneFinancement || finLines.length) {
+    t.innerHTML += `<div style="margin-top:10px">${renderFinZone(finLines)}</div>`;
   }
   refreshFooter();
+  // Mise à jour bouton barre d'outils
+  const btnZone = document.getElementById('btn-zone-fin');
+  if (btnZone) btnZone.style.display = (zoneFinancement || finLines.length) ? 'none' : '';
 }
 
-function renderFinGroup(finLines) {
+function renderFinZone(finLines) {
   const total = finLines.reduce((s, n) => s + calcTotal(n), 0);
-  let h = `<div class="tree-node">
-    <div class="node-row" style="background:var(--red-lt);border-color:#F5C6C2;font-weight:500">
-      <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;flex-shrink:0"></i>
-      <div class="toggler" onclick="this.closest('.tree-node').querySelector('.kids-wrap').classList.toggle('hidden')">▾</div>
-      <span class="nbadge nb-FIN">financements</span>
-      <div class="nd-desc-ce">
-        <div style="font-size:12px;color:var(--red)">Financements &amp; subventions</div>
+  return `<div id="fin-zone">
+    <div class="fin-zone-hd">
+      <span class="nbadge nb-FIN">Aides &amp; financements</span>
+      <div style="flex:1;padding:0 6px;font-size:12px;font-weight:500;color:var(--red)">Zone financement</div>
+      <div style="width:68px;text-align:right;font-size:12px;font-weight:500;color:var(--red);font-variant-numeric:tabular-nums">
+        ${total > 0 ? '−' + fmtV(total) : '—'}
       </div>
-      <div class="nd-qty" style="visibility:hidden"><input disabled/></div>
-      <div class="nd-unit"></div>
-      <div class="nd-cost"><input disabled/></div>
-      <div class="nd-mo"></div>
-      <div class="nd-mat"></div>
-      <div class="nd-total neg">−${fmtV(total)}</div>
-      <div class="nd-acts"></div>
+      ${CAN_EDIT ? `<div class="nd-acts">
+        <button class="ico-btn danger" onclick="supprimerZoneFinancement()" title="Supprimer la zone"><i class="ti ti-trash"></i></button>
+      </div>` : '<div style="width:44px"></div>'}
     </div>
-    <div class="kids-wrap d0">
-      ${finLines.map((n,i) => {
-        const t = calcTotal(n);
-        return `<div class="tree-node" data-nid="${n._nid}">
-          <div class="node-row is-neg"
-               draggable="true"
-               ondragstart="onNodeRowDragStart(event,'${n._nid}')"
-               ondragend="onNodeRowDragEnd(event)"
-               ondragover="onNodeRowDragOver2(event,'${n._nid}')"
-               ondrop="onNodeRowDrop2(event,'${n._nid}')"
-               ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
-            <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
-            <div class="toggler leaf" style="visibility:hidden"></div>
-            <span class="nbadge nb-FIN">F.${i+1}</span>
-            <div class="nd-desc-ce">
-              <div contenteditable="true"
-                  data-placeholder="Financement…"
-                  data-nid-desc="${n._nid}"
-                  class="neg-inp"
-                  onfocus="if(this.textContent.trim() && !this.dataset.wasFocused){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}this.dataset.wasFocused='1';"
-                  onblur="delete this.dataset.wasFocused"
-                  oninput="syncDescInline(this,'${n._nid}')"
-              >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
-            </div>
-            <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right" oninput="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"/></div>
-            <div class="nd-unit"><input value="${n.unite||'forfait'}" oninput="updNode('${n._nid}','unite',this.value)"/></div>
-            <div class="nd-cost"><input type="number" value="${n.cout_unitaire||0}" class="neg-inp" style="text-align:right" oninput="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"/></div>
-            <div class="nd-mo"></div>
-            <div class="nd-mat"></div>
-            <div class="nd-total neg">−${fmtV(t)}</div>
-            <div class="nd-acts">
-              <button class="ico-btn danger" onclick="delNode('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
+    <div class="fin-zone-body">
+      ${finLines.map((n, i) => renderFinLine(n, i)).join('')}
+      <div id="fin-zone-dz" class="fin-zone-dz"
+           ondragover="onFinZoneDzOver(event)"
+           ondragleave="onFinZoneDzLeave(event)"
+           ondrop="onFinZoneDrop(event)">
+        ↓ Déposer une aide ici
+      </div>
+      ${CAN_EDIT ? `<div style="padding:3px 0 0">
+        <button class="add-kid-btn" onclick="addFinancementLibre()"><i class="ti ti-plus"></i> Ajouter une ligne</button>
+      </div>` : ''}
     </div>
   </div>`;
-  return h;
+}
+
+function renderFinLine(n, i) {
+  const t = calcTotal(n);
+  const isFromAide = !!n.aide_id;
+  return `<div class="tree-node" data-nid="${n._nid}">
+    <div class="node-row is-neg"
+         draggable="${CAN_EDIT ? 'true' : 'false'}"
+         ondragstart="onNodeRowDragStart(event,'${n._nid}')"
+         ondragend="onNodeRowDragEnd(event)"
+         ondragover="onNodeRowDragOver2(event,'${n._nid}')"
+         ondrop="onNodeRowDrop2(event,'${n._nid}')"
+         ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
+      <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
+      <div class="toggler leaf"></div>
+      <span class="nbadge nb-FIN">F.${i+1}</span>
+      <div class="nd-desc" style="display:flex;align-items:center;gap:3px">
+        <input type="text"
+               value="${(n.description||'').replace(/"/g,'&quot;')}"
+               placeholder="Financement…"
+               class="neg-inp"
+               style="flex:1;min-width:0;width:auto"
+               ${CAN_EDIT ? '' : 'disabled'}
+               oninput="updNode('${n._nid}','description',this.value)"
+        />
+        ${isFromAide ? `<span class="aide-tag" title="Item bibliothèque Aides"><i class="ti ti-link"></i></span>` : ''}
+      </div>
+      <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right" ${CAN_EDIT ? '' : 'disabled'} oninput="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"/></div>
+      <div class="nd-unit"><input value="${n.unite||'forfait'}" ${CAN_EDIT ? '' : 'disabled'} oninput="updNode('${n._nid}','unite',this.value)"/></div>
+      <div class="nd-cost"><input type="number" value="${n.cout_unitaire||0}" class="neg-inp" style="text-align:right" ${CAN_EDIT ? '' : 'disabled'} oninput="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"/></div>
+      <div class="nd-mo"></div>
+      <div class="nd-mat"></div>
+      <div class="nd-total neg">−${fmtV(t)}</div>
+      ${CAN_EDIT ? `<div class="nd-acts">
+        <button class="ico-btn danger" onclick="delFinLine('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
+      </div>` : '<div class="nd-acts"></div>'}
+    </div>
+  </div>`;
 }
 
 function refreshFooter() {
@@ -1758,12 +1820,188 @@ function addOuvrageEnfant(parentNid, type) {
   renderTree();
 }
 
-function addFinancement() {
+function activerZoneFinancement() {
+  if (!CAN_EDIT) return;
+  historySnapshot();
+  zoneFinancement = true;
+  renderTree();
+  updateAidesSectionVisibility();
+}
+
+function supprimerZoneFinancement() {
+  if (!CAN_EDIT) return;
+  if (!confirm('Supprimer la zone financement et toutes ses lignes ?')) return;
+  historySnapshot();
+  zoneFinancement = false;
+  tree = tree.filter(n => n.type_ligne !== 'FIN');
+  renderTree();
+  updateAidesSectionVisibility();
+}
+
+function addFinancementLibre() {
+  if (!CAN_EDIT) return;
   historySnapshot();
   const n = {type_ligne:'FIN', description:'Subvention / financement', quantite:1, unite:'forfait', cout_unitaire:0, enfants:[], ouvert:true};
   n._nid = '_' + (_nidCounter++);
   tree.push(n);
   renderTree();
+}
+
+function addFinancementFromAide(aide) {
+  if (!CAN_EDIT) return;
+  historySnapshot();
+  const n = {
+    type_ligne: 'FIN',
+    aide_id: aide.id,
+    description: aide.description,
+    quantite: 1,
+    unite: aide.unite || 'forfait',
+    cout_unitaire: aide.montant_defaut || 0,
+    enfants: [],
+    ouvert: true
+  };
+  n._nid = '_' + (_nidCounter++);
+  tree.push(n);
+  renderTree();
+}
+
+function delFinLine(nid) {
+  historySnapshot();
+  tree = tree.filter(n => n._nid !== nid);
+  if (!tree.some(n => n.type_ligne === 'FIN')) {
+    // Plus de lignes FIN, mais on garde la zone active
+  }
+  renderTree();
+}
+
+function updateAidesSectionVisibility() {
+  const sec = document.getElementById('aides-section');
+  if (sec) sec.style.display = zoneFinancement ? '' : 'none';
+}
+
+// ── AIDES (bibliothèque partagée) ──
+
+function renderAidesPanel() {
+  const list = document.getElementById('aides-list');
+  if (!list) return;
+  if (!aides.length) {
+    list.innerHTML = '<div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center">Aucune aide</div>';
+    return;
+  }
+  const badges = {
+    FMO:  '<span class="lib-tag" style="background:var(--amber-lt);color:#8B5E0A">forfait MO</span>',
+    FMAT: '<span class="lib-tag" style="background:#EAF3DE;color:#27500A">forfait mat.</span>',
+    FIN:  '<span class="lib-tag" style="background:var(--red-lt);color:var(--red)">financement</span>',
+  };
+  list.innerHTML = aides.map(a => {
+    const badge = badges[a.type_ligne] || '';
+    const desc = (a.description||'').substring(0, 38);
+    const det = [a.organisme, a.montant_defaut != null ? a.montant_defaut + ' €' : ''].filter(Boolean).join(' · ');
+    const aideJson = JSON.stringify(a).replace(/'/g, '&#39;');
+    return `<div class="aide-item" draggable="true"
+      data-aide='${aideJson}'
+      ondragstart="onAideItemDragStart(event,this)"
+      ondragend="onAideItemDragEnd()"
+      onclick="addFinancementFromAide(${aideJson})">
+      ${badge}
+      <div style="flex:1;min-width:0">
+        <div class="lib-name">${desc}</div>
+        ${det ? `<div class="lib-det">${det}</div>` : ''}
+      </div>
+      ${CAN_EDIT ? `<button class="ico-btn danger" style="flex-shrink:0"
+        onclick="event.stopPropagation();deleteAide(${a.id})"
+        title="Supprimer"><i class="ti ti-trash"></i></button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleAidesCollapse() {
+  const body = document.getElementById('aides-body');
+  const btn  = document.getElementById('aides-toggle-btn');
+  if (!body) return;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : '';
+  btn.textContent = open ? '+' : '−';
+}
+
+function showAddAideForm() {
+  const f = document.getElementById('add-aide-form');
+  if (f) f.style.display = f.style.display === 'none' ? '' : 'none';
+}
+
+async function saveNewAide() {
+  const desc = document.getElementById('new-aide-desc')?.value.trim();
+  if (!desc) return;
+  const type_ligne = document.getElementById('new-aide-type')?.value || 'FIN';
+  const organisme  = document.getElementById('new-aide-organisme')?.value.trim() || '';
+  const montantRaw = document.getElementById('new-aide-montant')?.value;
+  const montant_defaut = montantRaw ? parseFloat(montantRaw) : null;
+  try {
+    const resp = await fetch('/aides/sauvegarder/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({description: desc, type_ligne, organisme, montant_defaut}),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      aides.push(data.aide);
+      renderAidesPanel();
+      document.getElementById('add-aide-form').style.display = 'none';
+      document.getElementById('new-aide-desc').value = '';
+      document.getElementById('new-aide-montant').value = '';
+      document.getElementById('new-aide-organisme').value = '';
+    }
+  } catch(err) { console.error(err); }
+}
+
+async function deleteAide(id) {
+  if (!confirm('Supprimer cette aide de la bibliothèque ?')) return;
+  try {
+    await fetch(`/aides/${id}/supprimer/`, {
+      method: 'POST', headers: {'X-CSRFToken': CSRF}
+    });
+    aides = aides.filter(a => a.id !== id);
+    renderAidesPanel();
+  } catch(err) { console.error(err); }
+}
+
+// ── DRAG AIDES → ZONE FINANCEMENT ──
+
+function onAideItemDragStart(e, el) {
+  if (!CAN_EDIT || !zoneFinancement) { e.preventDefault(); return; }
+  draggingAide = el;
+  e.dataTransfer.effectAllowed = 'copy';
+  const dz = document.getElementById('fin-zone-dz');
+  if (dz) dz.classList.add('on');
+}
+
+function onAideItemDragEnd() {
+  draggingAide = null;
+  const dz = document.getElementById('fin-zone-dz');
+  if (dz) { dz.classList.remove('on'); dz.classList.remove('active'); }
+}
+
+function onFinZoneDzOver(e) {
+  if (!draggingAide) return;
+  e.preventDefault();
+  e.currentTarget.classList.add('active');
+}
+
+function onFinZoneDzLeave(e) {
+  e.currentTarget.classList.remove('active');
+}
+
+function onFinZoneDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('active');
+  if (!draggingAide) return;
+  try {
+    const aide = JSON.parse(draggingAide.dataset.aide);
+    draggingAide = null;
+    const dz = document.getElementById('fin-zone-dz');
+    if (dz) { dz.classList.remove('on'); dz.classList.remove('active'); }
+    addFinancementFromAide(aide);
+  } catch(err) { console.error(err); }
 }
 
 function addChild(pnid, type) {
@@ -2152,7 +2390,8 @@ async function saveTree() {
       headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
       body: JSON.stringify({
         lignes: stripNids(tree),
-        fin_group_title: window._finGroupTitle || 'Financements'
+        fin_group_title: window._finGroupTitle || 'Financements',
+        zone_financement: zoneFinancement,
       }),
     });
     const data = await resp.json();
@@ -2335,10 +2574,21 @@ fetch(`/devis/${DEVIS_ID}/lignes/`)
     tree = data.lignes || [];
     window._finGroupTitle = data.fin_group_title || 'Financements';
     window._tauxMOCourant = data.taux_mo || TAUX_MO;
+    zoneFinancement = data.zone_financement || false;
     assignNids(tree);
     renderTree();
+    updateAidesSectionVisibility();
     _history = []; _future = []; // état propre au chargement
-    refreshUndoRedoBtns();       
+    refreshUndoRedoBtns();
+  });
+
+// Charger les aides partagées
+fetch('/aides/')
+  .then(r => r.json())
+  .then(data => {
+    aides = data.aides || [];
+    document.getElementById('aides-list')?.querySelector('[style]')?.remove();
+    renderAidesPanel();
   });
 
 

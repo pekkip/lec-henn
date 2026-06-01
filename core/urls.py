@@ -20,10 +20,15 @@ urlpatterns = [
     path('clients/<int:pk>/modifier/', views.client_edit, name='client-edit'),
     path('clients/<int:pk>/supprimer/', views.client_delete, name='client-delete'),
 
-    # Bibliothèque
+    # Bibliothèque personnelle
     path('bibliotheque/',                 views.bibliotheque,    name='biblio'),
     path('bibliotheque/api/',             views.biblio_api_get,  name='biblio-get'),
     path('bibliotheque/api/sauvegarder/', views.biblio_api_save, name='biblio-save'),
+
+    # Bibliothèque Aides (partagée)
+    path('aides/',                        views.aides_api_get,   name='aides-get'),
+    path('aides/sauvegarder/',            views.aides_api_save,  name='aides-save'),
+    path('aides/<int:pk>/supprimer/',     views.aide_delete,     name='aide-delete'),
 
     # Devis
     path('devis/', views.devis_list, name='devis-list'),

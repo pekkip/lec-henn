@@ -145,6 +145,37 @@ class Bibliotheque(models.Model):
     def __str__(self):
         return f"Bibliothèque de {self.user}"
 
+
+# ══════════════════════════════════════════
+#  BIBLIOTHÈQUE AIDES (partagée)
+# ══════════════════════════════════════════
+
+class BibliothèqueAides(models.Model):
+    TYPE_CHOICES = [
+        ('FMO',  "Forfait main d'œuvre"),
+        ('FMAT', 'Forfait matériaux'),
+        ('FIN',  'Financement'),
+    ]
+    description = models.CharField(max_length=300)
+    type_ligne = models.CharField(max_length=5, choices=TYPE_CHOICES, default='FIN')
+    montant_defaut = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+    unite = models.CharField(max_length=50, default='forfait', blank=True)
+    organisme = models.CharField(max_length=200, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name='aides_creees'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['description']
+        verbose_name = 'Aide / financement'
+        verbose_name_plural = 'Aides / financements'
+
+    def __str__(self):
+        return self.description
+
 # ══════════════════════════════════════════
 #  PARAMÈTRES ASSOCIATION
 # ══════════════════════════════════════════
@@ -323,6 +354,7 @@ class Devis(models.Model):
         max_length=100, default='Financements',
         help_text="Titre du groupe de financements"
     )
+    zone_financement = models.BooleanField(default=False)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, related_name='devis_crees'
@@ -400,6 +432,10 @@ class LigneDevis(models.Model):
     )
     ordre = models.IntegerField(default=0)
     ouvert = models.BooleanField(default=True)
+    aide = models.ForeignKey(
+        'BibliothèqueAides', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='utilisations'
+    )
 
     class Meta:
         ordering = ['ordre']
