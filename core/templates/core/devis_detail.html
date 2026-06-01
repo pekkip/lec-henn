@@ -10,6 +10,7 @@
 {% endblock %}
 
 {% block topbar_actions %}
+  {% if peut_modifier %}
   <form method="post" action="{% url 'core:devis-status' devis.pk %}" style="display:flex;gap:6px;align-items:center">
     {% csrf_token %}
     <select name="status" class="btn btn-ghost btn-sm" onchange="this.form.submit()">
@@ -18,8 +19,11 @@
       {% endfor %}
     </select>
   </form>
+  {% endif %}
   <a href="{% url 'core:devis-duplicate' devis.pk %}" class="btn btn-ghost btn-sm"><i class="ti ti-copy"></i> Dupliquer</a>
+  {% if peut_modifier %}
   <button onclick="document.getElementById('modal-facture').classList.remove('hidden')" class="btn btn-ghost btn-sm"><i class="ti ti-receipt"></i> Nouvelle facture</button>
+  {% endif %}
 {% endblock %}
 
 {% block extra_css %}
@@ -340,6 +344,11 @@
   <a href="#" class="tab" onclick="switchTab(event,'factures')">Factures <span id="fcount" style="background:var(--prune-lt);color:var(--prune);border-radius:99px;padding:1px 7px;font-size:11px;margin-left:3px">{{ factures|length }}</span></a>
   <a href="#" class="tab" onclick="switchTab(event,'audit')">Journal</a>
   <a href="{% url 'core:devis-pdf' devis.pk %}" target="_blank" class="tab"><i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Vue client</a>
+  {% if not peut_modifier %}
+  <span style="margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-md);padding-right:4px" title="Vous ne faites pas partie de l'équipe de ce devis : consultation seule. Vous pouvez toujours glisser des lignes vers votre bibliothèque.">
+    <i class="ti ti-lock" style="font-size:13px"></i> Consultation seule
+  </span>
+  {% endif %}
 </div>
 
 <!-- ═══════════════════════════════════════════
@@ -441,12 +450,14 @@
     </div>
 
     <!-- Bouton sauvegarde -->
+    {% if peut_modifier %}
     <div class="eh-save-bar">
       <button class="btn btn-prune" id="eh-save-btn" onclick="saveEntete()">
         <i class="ti ti-device-floppy"></i> Sauvegarder l'en-tête
       </button>
       <span class="eh-status" id="eh-status"></span>
     </div>
+    {% endif %}
 
   </div>
 </div>
@@ -488,13 +499,16 @@
         <div class="meta-f"><span class="meta-lbl">Date</span><span class="meta-val">{{ devis.date_creation|date:"d/m/Y" }}</span></div>
         <div class="meta-sep"></div>
         <div class="meta-f"><span class="meta-lbl">Taux MO</span><span class="meta-val" id="meta-taux">{{ devis.taux_mo }} €/h</span></div>
+        {% if peut_modifier %}
         <div style="margin-left:auto">
           <a href="#" class="btn btn-sm btn-ghost" onclick="switchTab(event,'entete');return false" style="font-size:11px">
             <i class="ti ti-edit"></i> Modifier l'en-tête
           </a>
         </div>
+        {% endif %}
       </div>
 
+      {% if peut_modifier %}
       <div class="fmt-bar" id="fmt-bar">
         <!-- Gras / Italique / Souligné -->
         <button class="fmt-btn" id="fmt-bold"   title="Gras (Ctrl+B)"       onmousedown="fmtCmd(event,'bold')"><b>G</b></button>
@@ -557,8 +571,10 @@
         <!-- Indicateur champ actif -->
         <span id="fmt-hint" style="margin-left:auto;font-size:10px;color:var(--gray-md)">Cliquez dans une description</span>
       </div>
+      {% endif %}
 
       <div class="editor-body" id="editor-body">
+        {% if peut_modifier %}
         <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Titre</button>
           <div style="width:1px;background:var(--gray-bd);height:20px"></div>
@@ -571,6 +587,7 @@
             <i class="ti ti-minus"></i> Financement / subvention
           </button>
         </div>
+        {% endif %}
         <!-- EN-TÊTES COLONNES -->
         <div style="display:flex;align-items:center;padding:0 8px 4px 4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;gap:4px;margin-bottom:3px">
           <div style="flex:1">Description</div>
@@ -580,7 +597,7 @@
           <div style="width:68px;text-align:right;color:var(--prune)">Total</div>
           <div style="width:44px"></div>
         </div>
-        <div class="dz" id="root-dz">↓ Déposer ici pour ajouter au devis</div>
+        {% if peut_modifier %}<div class="dz" id="root-dz">↓ Déposer ici pour ajouter au devis</div>{% endif %}
         <div id="tree"></div>
       </div>
 
@@ -590,7 +607,7 @@
         <div style="width:1px;background:var(--gray-bd);height:16px"></div>
         <span class="ft-lbl">Total brut HT</span><span class="ft-grand" id="ft-grand">—</span>
         <span class="ft-lbl">Net client</span><span class="ft-net" id="ft-net">—</span>
-        <button class="btn btn-sm btn-prune" onclick="saveTree()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>
+        {% if peut_modifier %}<button class="btn btn-sm btn-prune" onclick="saveTree()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>{% endif %}
       </div>
     </div>
   </div>
@@ -608,7 +625,7 @@
           Reste : <strong style="color:var(--amber)" id="reste-facturer">{{ devis.reste_a_facturer|floatformat:2 }} €</strong>
         </div>
       </div>
-      <button onclick="document.getElementById('modal-facture').classList.remove('hidden')" class="btn btn-teal btn-sm"><i class="ti ti-plus"></i> Nouvelle facture</button>
+      {% if peut_modifier %}<button onclick="document.getElementById('modal-facture').classList.remove('hidden')" class="btn btn-teal btn-sm"><i class="ti ti-plus"></i> Nouvelle facture</button>{% endif %}
     </div>
 
     <div id="factures-list">
@@ -865,6 +882,7 @@
 const DEVIS_ID = {{ devis.pk }};
 const TAUX_MO = {{ taux_mo_js }};
 const SAISIE_HT = {{ saisie_ht|yesno:"true,false" }};
+const CAN_EDIT = {{ peut_modifier|yesno:"true,false" }};  // false = consultation seule (hors équipe)
 const CSRF = '{{ csrf_token }}';
 let tree = [];
 let draggingLib = null;
@@ -1156,6 +1174,7 @@ const NBADGE = {
 
 // ── CTRL+SHIFT+K — Dupliquer la ligne ──
 document.addEventListener('keydown', function(e) {
+  if (!CAN_EDIT) return;        // consultation seule : raccourcis d'édition désactivés
   if (e.ctrlKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
     const inCE = e.target.closest('[contenteditable="true"]');
     if (inCE) return;
@@ -1220,6 +1239,7 @@ function renderNode(n, depth) {
         : '')
     : (puCalc || '');
   const costDisabled = (!isLeaf || isNeg || isTitre) ? 'disabled' : '';
+  const roDis = CAN_EDIT ? '' : 'disabled';  // consultation seule → champs verrouillés
 
   const isZero = parseFloat(n.quantite || 0) === 0 && !isTitre && !isNeg;
   const totCls = 'nd-total'
@@ -1248,7 +1268,7 @@ function renderNode(n, depth) {
       ${isZero ? '<i class="ti ti-eye-off" style="font-size:12px;color:var(--gray-md);flex-shrink:0" title="Quantité à 0"></i>' : ''}
       ${numDisplay}
       <div class="nd-desc-ce">
-        <div contenteditable="true"
+        <div contenteditable="${CAN_EDIT}"
             data-placeholder="${isTitre ? 'Titre…' : 'Description…'}"
             data-nid-desc="${n._nid}"
             class="${isNeg ? 'neg-inp' : ''}"
@@ -1258,7 +1278,7 @@ function renderNode(n, depth) {
         >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
       </div>
       ${isTitre ? `
-        <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right"
+        <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right" ${roDis}
           onfocus="this.select()"
           onchange="updNode('${n._nid}','quantite',parseFloat(this.value)||1)"
           onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
@@ -1267,17 +1287,17 @@ function renderNode(n, depth) {
         <div class="nd-mo">${mo > 0 ? fmtV(mo) : '—'}</div>
         <div class="nd-mat">${mat > 0 ? fmtV(mat) : '—'}</div>
       ` : `
-        <div class="nd-qty"><input type="number" value="${n.quantite||''}" min="0" step="any" style="text-align:right"
+        <div class="nd-qty"><input type="number" value="${n.quantite||''}" min="0" step="any" style="text-align:right" ${roDis}
           onfocus="this.select()"
           onchange="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"
           onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
 
-        <div class="nd-unit"><input value="${n.unite||''}" placeholder="u."
+        <div class="nd-unit"><input value="${n.unite||''}" placeholder="u." ${roDis}
           onfocus="this.select()"
           onchange="updNode('${n._nid}','unite',this.value)"
           onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
 
-        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf&&!isNeg ? (SAISIE_HT && isMat ? '0 HT' : '0') : '—'}" ${costDisabled} ${isNeg?'class="neg-inp"':''} style="text-align:right"
+        <div class="nd-cost"><input type="number" value="${costVal}" placeholder="${isLeaf&&!isNeg ? (SAISIE_HT && isMat ? '0 HT' : '0') : '—'}" ${costDisabled || roDis} ${isNeg?'class="neg-inp"':''} style="text-align:right"
           onfocus="this.select()"
           onchange="(function(inp){let v=parseFloat(inp.value)||0;if(SAISIE_HT&&${isMat})v=parseFloat((v*1.20).toFixed(4));updNode('${n._nid}','cout_unitaire',v);})(this)"
           onkeydown="if(event.key==='Enter'){this.blur()}"/></div>
@@ -1285,10 +1305,10 @@ function renderNode(n, depth) {
         <div class="nd-mat">${matDisplay}</div>
       `}
       <div class="${totCls}" data-total="${n._nid}">${isNeg ? '−'+fmtV(Math.abs(total)) : fmtV(total)}</div>
-      <div class="nd-acts">
+      ${CAN_EDIT ? `<div class="nd-acts">
         <button class="ico-btn" onclick="copyNode('${n._nid}')" title="Copier (Ctrl+Shift+K)"><i class="ti ti-copy"></i></button>
         <button class="ico-btn danger" onclick="delNode('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
-      </div>
+      </div>` : '<div class="nd-acts"></div>'}
     </div>`;
 
   if (n.ouvert !== false) {
@@ -1297,7 +1317,7 @@ function renderNode(n, depth) {
       h += `<div class="kids-wrap d${Math.min(depth,2)}">`;
       if (hasK) {
         n.enfants.forEach(c => { h += renderNode(c, depth + 1); });
-      } else {
+      } else if (CAN_EDIT) {
         h += `<div class="empty-drop-zone"
           ondragover="onEmptyZoneDragOver(event,'${n._nid}')"
           ondrop="onEmptyZoneDrop(event,'${n._nid}')"
@@ -1305,8 +1325,8 @@ function renderNode(n, depth) {
           Glisser un élément ici
         </div>`;
       }
-      if (!isNeg && !isTitre && n.type_ligne !== 'F') h += kidBtns(n._nid, n.type_ligne);
-      if (isTitre) h += titreBtns(n._nid);
+      if (CAN_EDIT && !isNeg && !isTitre && n.type_ligne !== 'F') h += kidBtns(n._nid, n.type_ligne);
+      if (CAN_EDIT && isTitre) h += titreBtns(n._nid);
       h += `</div>`;
     }
   }
@@ -1610,6 +1630,7 @@ function onNodeRowDragEnd(e) {
   document.getElementById('biblio-dz').style.display = 'none';
 }
 function onNodeRowDragOver2(e, nid) {
+  if (!CAN_EDIT) return;        // consultation seule : pas d'indicateur de réorganisation
   if (draggingLib) return;
   if (!draggingNodeNid || draggingNodeNid === nid) return;
   e.preventDefault();
@@ -1620,6 +1641,7 @@ function onNodeRowDragOver2(e, nid) {
 function onNodeRowDrop2(e, targetNid) {
   e.preventDefault();
   e.stopPropagation();
+  if (!CAN_EDIT) return;        // consultation seule : pas de réorganisation
   if (draggingLib) return;
   if (!draggingNodeNid || draggingNodeNid === targetNid) return;
   document.querySelectorAll('.drop-above').forEach(el => el.classList.remove('drop-above'));
@@ -1660,11 +1682,13 @@ function onNodeRowDrop2(e, targetNid) {
 }
 
 function onEmptyZoneDragOver(e, parentNid) {
+  if (!CAN_EDIT) return;
   e.preventDefault(); e.stopPropagation();
   e.currentTarget.classList.add('empty-drop-active');
 }
 function onEmptyZoneDrop(e, parentNid) {
   e.preventDefault(); e.stopPropagation();
+  if (!CAN_EDIT) return;        // consultation seule
   e.currentTarget.classList.remove('empty-drop-active');
   const parent = findNode(tree, parentNid); if (!parent) return;
   if (!parent.enfants) parent.enfants = [];
@@ -1805,16 +1829,18 @@ function addFromLibNode(el) {
 }
 
 function onLibItemDragStart(e, el) {
+  if (!CAN_EDIT) { e.preventDefault(); return; }  // consultation seule : pas d'ajout au devis
   draggingLib = el;
   e.dataTransfer.effectAllowed = 'copy';
-  document.getElementById('root-dz').classList.add('on');
+  document.getElementById('root-dz')?.classList.add('on');
 }
 function onLibItemDragEnd() {
   draggingLib = null;
-  document.getElementById('root-dz').classList.remove('on');
+  document.getElementById('root-dz')?.classList.remove('on');
 }
 
 function insertLibNode(src) {
+  if (!CAN_EDIT) return;        // consultation seule : pas d'ajout au devis
   historySnapshot();
   // Remplace les lignes MO par le taux MO du devis
   function cloneNode(n) {
@@ -1838,6 +1864,13 @@ fetch('/bibliotheque/api/')
     document.getElementById('lib-loading')?.remove();
     renderLibPanel();
   });
+
+// Consultation seule (hors équipe) : verrouille les champs de l'onglet En-tête.
+// La lecture et le glisser-vers-biblio restent possibles.
+if (!CAN_EDIT) {
+  document.querySelectorAll('#pane-entete input, #pane-entete select, #pane-entete textarea')
+    .forEach(el => { el.disabled = true; });
+}
 
 
 document.addEventListener('dragover', e => { if (draggingLib) e.preventDefault(); });

@@ -88,6 +88,41 @@ peut_gerer_cet_utilisateur()
 
 ---
 
+## Session 11 — 01/06/2026 — Mode consultation seule (hors équipe)
+
+### Contexte
+Règle métier confirmée : **tout utilisateur connecté peut consulter** n'importe
+quel devis/facture, mais seuls les membres de l'équipe (créateur / équipe /
+responsable / admin) peuvent **modifier**. La session 10 avait trop restreint la
+lecture ; corrigé ici. Côté UI, l'éditeur de devis paraissait modifiable pour
+tout le monde (échec seulement à l'enregistrement, 403). On verrouille désormais
+visuellement l'éditeur pour les non-membres, tout en gardant le glisser-vers-biblio.
+
+### Fichiers modifiés
+- `permissions.py` — `peut_voir_devis` relâché : tout utilisateur connecté peut
+  consulter (la restriction équipe ne porte que sur la modification)
+- `views.py` — `devis_detail` passe le flag `peut_modifier` au template
+- `devis_detail.html` — mode consultation seule piloté par `CAN_EDIT` :
+  - lignes non éditables (contenteditable off, inputs désactivés, boutons
+    copier/supprimer + ajout masqués), réorganisation et raccourcis clavier bloqués
+  - boutons Sauvegarder (lignes + en-tête), sélecteur de statut, « Nouvelle
+    facture » masqués ; champs En-tête désactivés
+  - bandeau « 🔒 Consultation seule »
+  - **glisser une ligne → « Ajouter à ma biblio » conservé** (les lignes restent
+    draggable ; seules les cibles de réorganisation sont bloquées). Endpoints
+    biblio par utilisateur, jamais bloqués par l'équipe.
+- `tests.py` — tests mis à jour (lecture autorisée hors équipe) + 2 tests mode
+  consultation seule / éditable. 12/12 OK.
+
+### Décisions actées
+- Lecture = tout utilisateur connecté ; modification = équipe (inchangé côté serveur)
+- Le comptable obtient aussi l'éditeur en lecture seule (il ne saisit pas les
+  lignes) mais garde ses actions sur les factures (validation/statut) via leurs
+  propres permissions
+- Le glisser-vers-bibliothèque fonctionne pour tous, y compris en consultation seule
+
+---
+
 ## Session 10 — 01/06/2026 — Audit sécurité & contrôle d'accès
 
 ### Contexte

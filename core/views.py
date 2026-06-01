@@ -465,6 +465,7 @@ def devis_detail(request, pk):
         'profil': profil,
         'taux_mo_js': taux_mo_js,
         'saisie_ht': profil.saisie_ht,  # ← ajouté
+        'peut_modifier': peut_modifier_devis(request.user, devis),  # éditeur verrouillé si hors équipe
         'clients': Client.objects.all(),
         'equipes': Equipe.objects.select_related('service__territoire').all(),
     })

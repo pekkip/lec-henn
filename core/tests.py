@@ -49,12 +49,13 @@ class AccesDevisFactureTests(TestCase):
             status='validated', created_by=cls.user_a,
         )
 
-    # ── Lecture devis ────────────────────────────────────────────────
+    # ── Lecture devis (visible par tout utilisateur connecté) ────────
 
-    def test_lignes_get_refuse_autre_equipe(self):
+    def test_lignes_get_autorise_autre_equipe(self):
+        # Règle métier : lecture partagée entre équipes.
         self.client.login(username='bob', password='pw')
         resp = self.client.get(reverse('core:lignes-get', args=[self.devis.pk]))
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 200)
 
     def test_lignes_get_autorise_createur(self):
         self.client.login(username='alice', password='pw')
@@ -66,10 +67,36 @@ class AccesDevisFactureTests(TestCase):
         resp = self.client.get(reverse('core:lignes-get', args=[self.devis.pk]))
         self.assertEqual(resp.status_code, 200)
 
-    def test_devis_detail_refuse_autre_equipe(self):
+    def test_lignes_get_refuse_anonyme(self):
+        # Non connecté → @login_required redirige vers la connexion.
+        resp = self.client.get(reverse('core:lignes-get', args=[self.devis.pk]))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_devis_detail_autorise_autre_equipe(self):
         self.client.login(username='bob', password='pw')
         resp = self.client.get(reverse('core:devis-detail', args=[self.devis.pk]))
-        self.assertEqual(resp.status_code, 302)  # redirigé, pas affiché
+        self.assertEqual(resp.status_code, 200)  # consultable par tous
+
+    def test_devis_detail_lecture_seule_hors_equipe(self):
+        # Hors équipe : éditeur verrouillé (CAN_EDIT=false), bandeau consultation,
+        # et le bouton Sauvegarder des lignes n'est pas rendu.
+        self.client.login(username='bob', password='pw')
+        resp = self.client.get(reverse('core:devis-detail', args=[self.devis.pk]))
+        html = resp.content.decode()
+        self.assertIn('const CAN_EDIT = false', html)
+        # Phrase propre au bandeau de consultation (évite de matcher un commentaire JS).
+        self.assertIn("ne faites pas partie de l'équipe", html)
+        # Le <button ... onclick="saveTree()"> est masqué (la fonction JS, elle,
+        # reste définie — on cible donc le markup du bouton).
+        self.assertNotIn('btn-prune" onclick="saveTree()"', html)
+
+    def test_devis_detail_editable_pour_createur(self):
+        self.client.login(username='alice', password='pw')
+        resp = self.client.get(reverse('core:devis-detail', args=[self.devis.pk]))
+        html = resp.content.decode()
+        self.assertIn('const CAN_EDIT = true', html)
+        self.assertIn('btn-prune" onclick="saveTree()"', html)
+        self.assertNotIn("ne faites pas partie de l'équipe", html)
 
     # ── Modification facture (statut) ────────────────────────────────
 

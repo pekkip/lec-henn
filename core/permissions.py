@@ -107,28 +107,15 @@ def peut_voir_devis(user, devis):
     """
     Peut consulter un devis (lecture seule) ?
 
-    Comme peut_modifier_devis mais autorise aussi le comptable, qui a besoin
-    de consulter devis et factures pour la validation.
+    Règle métier : tout utilisateur connecté peut consulter n'importe quel devis
+    et ses factures (outil interne, visibilité partagée entre équipes). La
+    restriction par équipe s'applique uniquement à la *modification*
+    (peut_modifier_devis / peut_modifier_facture).
+
+    Le paramètre `devis` est conservé pour permettre une restriction future
+    sans changer les appels.
     """
-    if not user.is_authenticated:
-        return False
-    profil = get_profil_or_none(user)
-    if not profil:
-        return False
-
-    # Admin et comptable → lecture totale
-    if profil.role in ('admin', 'comptable'):
-        return True
-
-    # Créateur du devis
-    if devis.created_by == user:
-        return True
-
-    # Équipe ou responsable hiérarchique
-    if _partage_equipe_devis(profil, devis):
-        return True
-
-    return False
+    return user.is_authenticated
 
 
 def peut_envoyer_facture(user, facture):
