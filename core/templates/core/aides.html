@@ -1,0 +1,172 @@
+{% extends 'core/base.html' %}
+{% block title %}Bibliothèque Aides{% endblock %}
+{% block nav_aides %}active{% endblock %}
+
+{% block topbar_title %}
+  <span style="color:rgba(255,255,255,.4);font-size:11px">Configuration /</span>
+  <span style="color:#fff;font-weight:500">Bibliothèque Aides</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.aides-shell{max-width:820px;margin:0 auto;padding:1.5rem 1rem;display:flex;flex-direction:column;gap:1.25rem}
+.aides-card{background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r)}
+.aides-card-hd{padding:12px 16px;border-bottom:1px solid var(--gray-bd);display:flex;align-items:center;justify-content:space-between}
+.aides-card-title{font-size:13px;font-weight:600;color:var(--gray)}
+.aide-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--gray-bd)}
+.aide-row:last-child{border-bottom:none}
+.aide-row:hover{background:var(--red-lt)}
+.aide-badge{font-size:10px;padding:2px 6px;border-radius:3px;font-weight:500;flex-shrink:0;width:80px;text-align:center}
+.aide-desc{flex:1;font-size:12px;font-weight:500}
+.aide-org{font-size:11px;color:var(--gray-md);width:150px;flex-shrink:0}
+.aide-amt{font-size:12px;width:90px;text-align:right;font-variant-numeric:tabular-nums;flex-shrink:0}
+.aide-add-form{padding:14px 16px;border-top:2px solid var(--gray-lt);background:var(--bg);display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.aide-add-form .field{display:flex;flex-direction:column;gap:4px}
+.aide-add-form label{font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.aide-add-form input,.aide-add-form select{padding:6px 8px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;background:#fff}
+.aide-add-form input:focus,.aide-add-form select:focus{border-color:var(--teal)}
+.empty-msg{padding:24px 16px;font-size:12px;color:var(--gray-md);text-align:center}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="flex:1;overflow-y:auto">
+<div class="aides-shell">
+
+  <div style="font-size:12px;color:var(--gray-md);padding:2px 0">
+    La bibliothèque Aides est <strong>partagée par tous les utilisateurs</strong>.
+    Ces articles peuvent être glissés dans la zone financement d'un devis.
+    Leur utilisation sera visible dans les statistiques du tableau de bord (à venir).
+  </div>
+
+  <div class="aides-card">
+    <div class="aides-card-hd">
+      <span class="aides-card-title">Aides &amp; financements <span id="count-badge" style="font-size:11px;color:var(--gray-md);font-weight:400"></span></span>
+    </div>
+
+    <!-- EN-TÊTES -->
+    <div style="display:flex;align-items:center;padding:5px 16px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--gray-bd);background:var(--gray-lt)">
+      <div style="width:88px;flex-shrink:0">Type</div>
+      <div style="flex:1">Description</div>
+      <div style="width:150px;flex-shrink:0">Organisme</div>
+      <div style="width:90px;text-align:right;flex-shrink:0">Montant déf.</div>
+      <div style="width:44px"></div>
+    </div>
+
+    <div id="aides-list">
+      <div class="empty-msg">Chargement…</div>
+    </div>
+
+    <!-- FORMULAIRE AJOUT -->
+    <div class="aide-add-form">
+      <div class="field">
+        <label>Description *</label>
+        <input id="ab-desc" placeholder="Ex: Subvention ANAH travaux…" style="width:220px">
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select id="ab-type">
+          <option value="FIN">Financement</option>
+          <option value="FMO">Forfait MO</option>
+          <option value="FMAT">Forfait matériaux</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Organisme</label>
+        <input id="ab-org" placeholder="Ex: ANAH, Région Bretagne…" style="width:160px">
+      </div>
+      <div class="field">
+        <label>Montant défaut (€)</label>
+        <input id="ab-montant" type="number" step="0.01" min="0" placeholder="Optionnel" style="width:120px">
+      </div>
+      <button class="btn btn-prune" onclick="saveNewAide()" style="align-self:flex-end">
+        <i class="ti ti-plus"></i> Ajouter
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+let aides = [];
+
+const BADGES = {
+  FMO:  '<span class="aide-badge" style="background:var(--amber-lt);color:#8B5E0A">forfait MO</span>',
+  FMAT: '<span class="aide-badge" style="background:#EAF3DE;color:#27500A">forfait mat.</span>',
+  FIN:  '<span class="aide-badge" style="background:var(--red-lt);color:var(--red)">financement</span>',
+};
+
+function renderAides() {
+  const list = document.getElementById('aides-list');
+  const cnt  = document.getElementById('count-badge');
+  if (cnt) cnt.textContent = aides.length ? `— ${aides.length} article${aides.length > 1 ? 's' : ''}` : '';
+  if (!aides.length) {
+    list.innerHTML = '<div class="empty-msg">Aucune aide — ajoutez-en une via le formulaire ci-dessous.</div>';
+    return;
+  }
+  list.innerHTML = aides.map(a => `
+    <div class="aide-row">
+      <div style="width:88px;flex-shrink:0">${BADGES[a.type_ligne] || ''}</div>
+      <div class="aide-desc">${a.description}</div>
+      <div class="aide-org">${a.organisme || '—'}</div>
+      <div class="aide-amt">${a.montant_defaut != null ? Number(a.montant_defaut).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €' : '—'}</div>
+      <div style="width:44px;display:flex;justify-content:flex-end">
+        <button class="ico-btn danger" onclick="deleteAide(${a.id})" title="Supprimer"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveNewAide() {
+  const desc = document.getElementById('ab-desc').value.trim();
+  if (!desc) { document.getElementById('ab-desc').focus(); return; }
+  const type_ligne     = document.getElementById('ab-type').value;
+  const organisme      = document.getElementById('ab-org').value.trim();
+  const montantRaw     = document.getElementById('ab-montant').value;
+  const montant_defaut = montantRaw ? parseFloat(montantRaw) : null;
+  try {
+    const resp = await fetch('/aides/sauvegarder/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({description: desc, type_ligne, organisme, montant_defaut}),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      aides.push(data.aide);
+      renderAides();
+      document.getElementById('ab-desc').value    = '';
+      document.getElementById('ab-org').value     = '';
+      document.getElementById('ab-montant').value = '';
+      document.getElementById('ab-desc').focus();
+    }
+  } catch(err) { console.error(err); }
+}
+
+async function deleteAide(id) {
+  if (!confirm('Supprimer cette aide ?')) return;
+  try {
+    await fetch(`/aides/${id}/supprimer/`, {
+      method: 'POST', headers: {'X-CSRFToken': CSRF}
+    });
+    aides = aides.filter(a => a.id !== id);
+    renderAides();
+  } catch(err) { console.error(err); }
+}
+
+// Enter sur le formulaire
+document.getElementById('ab-desc').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveNewAide();
+});
+
+fetch('/aides/')
+  .then(r => r.json())
+  .then(data => {
+    aides = data.aides || [];
+    renderAides();
+  });
+</script>
+{% endblock %}

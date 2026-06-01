@@ -26,6 +26,7 @@ urlpatterns = [
     path('bibliotheque/api/sauvegarder/', views.biblio_api_save, name='biblio-save'),
 
     # Bibliothèque Aides (partagée)
+    path('bibliotheque/aides/',           views.aides_page,      name='aides-page'),
     path('aides/',                        views.aides_api_get,   name='aides-get'),
     path('aides/sauvegarder/',            views.aides_api_save,  name='aides-save'),
     path('aides/<int:pk>/supprimer/',     views.aide_delete,     name='aide-delete'),

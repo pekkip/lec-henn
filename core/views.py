@@ -423,6 +423,12 @@ def biblio_api_save(request):
 # ══════════════════════════════════════════
 
 @login_required
+def aides_page(request):
+    profil = get_profil(request.user)
+    return render(request, 'core/aides.html', {'profil': profil})
+
+
+@login_required
 def aides_api_get(request):
     aides = BibliothèqueAides.objects.select_related('created_by').all()
     return JsonResponse({
