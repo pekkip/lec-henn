@@ -2,7 +2,7 @@ import json
 import random
 import string
 import re
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from decimal import Decimal
 
 from django.contrib.auth import authenticate, login, logout
@@ -818,7 +818,7 @@ def facture_date_versement(request, pk):
         data = json.loads(request.body)
         date_str = data.get('date_versement', '').strip()
         if date_str:
-            facture.date_versement = datetime.strptime(date_str, '%d/%m/%Y').date()
+            facture.date_versement = dt.strptime(date_str, '%d/%m/%Y').date()
         else:
             facture.date_versement = None
         facture.save(update_fields=['date_versement'])
