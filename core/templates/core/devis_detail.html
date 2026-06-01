@@ -870,7 +870,6 @@ let tree = [];
 let draggingLib = null;
 let draggingNodeNid = null;
 let bypassFactId = null;
-let savedCode = null;
 let _nidCounter = 0;
 
 // ── HISTORIQUE CTRL+Z / CTRL+Y ──
@@ -1946,15 +1945,17 @@ function openBypass(factId) {
   document.getElementById('bypass-err').style.display = 'none';
   document.getElementById('bypass-ok').style.display = 'none';
   document.getElementById('bypass-confirm-btn').disabled = true;
-  fetch(`/factures/${factId}/bypass/send/`, {headers:{'X-CSRFToken':CSRF}})
-    .then(r => r.json()).then(data => { if(data.code) savedCode = data.code; });
+  // Déclenche la génération du code côté serveur (envoyé par e-mail).
+  // Le code n'est plus renvoyé ici : la vérification se fait côté serveur.
+  fetch(`/factures/${factId}/bypass/send/`, {headers:{'X-CSRFToken':CSRF}});
   document.getElementById('modal-bypass').classList.remove('hidden');
 }
 function checkBypassCode(inp) {
-  const ok = savedCode && inp.value === savedCode;
-  document.getElementById('bypass-confirm-btn').disabled = !ok;
-  document.getElementById('bypass-err').style.display = (inp.value.length === 6 && !ok) ? 'block' : 'none';
-  document.getElementById('bypass-ok').style.display = ok ? 'block' : 'none';
+  // Le code n'est pas connu côté client : on active le bouton dès 6 chiffres
+  // saisis et c'est le serveur qui valide (confirmBypass).
+  document.getElementById('bypass-confirm-btn').disabled = inp.value.length !== 6;
+  document.getElementById('bypass-err').style.display = 'none';
+  document.getElementById('bypass-ok').style.display = 'none';
 }
 async function confirmBypass() {
   const code = document.getElementById('bypass-code-input').value;

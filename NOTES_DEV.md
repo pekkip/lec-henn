@@ -1,0 +1,221 @@
+# CB Bretagne — Notes de développement
+
+## Stack
+- Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
+- Python 3.12 (prod) · Python 3.14 (dev Windows)
+- Railway (prod actuel) → OVH VPS (Phase 4)
+- Gunicorn · WhiteNoise · Django Admin
+
+## Architecture
+```
+cb-bretagne/
+├── cbretagne/
+│   ├── settings.py
+│   └── urls.py (inclut core.urls)
+└── core/
+    ├── models.py
+    ├── views.py
+    ├── urls.py
+    ├── permissions.py
+    ├── migrations/
+    └── templates/core/
+        ├── base.html
+        ├── dashboard.html
+        ├── devis_detail.html      — éditeur JS + onglet factures
+        ├── devis_pdf.html         — vue client imprimable
+        ├── facture_apercu.html    — aperçu facture imprimable
+        ├── profil.html            — préférences utilisateur
+        ├── utilisateurs_list.html
+        ├── utilisateur_form.html
+        └── utilisateur_succes.html
+```
+
+## Modèles principaux
+- `ParametresAssociation` — nom, adresse, logo, SIRET, slogan
+- `Territoire` → `Service` → `Equipe` — hiérarchie organisationnelle
+- `ProfilUtilisateur` (OneToOne User) — role, taux_mo_defaut, saisie_ht, conditions_devis, conditions_facture, coordonnees_cb
+- `Client` — nom, contact, email, telephone, adresse (TextField à structurer)
+- `Devis` — reference, client, chantier, equipe, taux_mo, status, conditions_devis, coordonnees_cb, created_by
+- `LigneDevis` — arbre imbriqué (TITRE/S/C/OUV/MO/MAT/FMO/FMAT/FIN), parent FK
+- `Facture` — devis FK, type_doc (acompte/facture/avoir), status (draft/validated/sent/paid), numero (unique), montant, date_versement, conditions_facture, created_by
+- `LigneFacture` — même structure que LigneDevis, ligne_devis_source FK
+- `AuditLog` — toutes les actions tracées (devis, facture, bypass)
+- `Bibliotheque` — articles réutilisables par utilisateur
+
+## Permissions
+```python
+# core/permissions.py
+_get_profil(user)           # interne
+peut_modifier_devis()
+peut_supprimer_devis()
+peut_valider_facture()      # comptable uniquement
+peut_envoyer_facture()
+peut_supprimer_facture()
+peut_supprimer_client()
+is_admin()
+peut_gerer_utilisateurs()
+peut_gerer_cet_utilisateur()
+```
+
+## URLs importantes
+```
+/                           dashboard
+/devis/<pk>/                devis_detail (éditeur)
+/devis/<pk>/pdf/            devis_pdf (vue client)
+/devis/<pk>/entete/sauvegarder/   devis_entete_save (POST JSON)
+/devis/<pk>/lignes/         lignes_get (GET JSON)
+/devis/<pk>/lignes/sauvegarder/   lignes_save (POST JSON)
+/factures/<pk>/             facture_detail
+/factures/<pk>/apercu/      facture_apercu
+/factures/<pk>/valider/     facture_valider (POST)
+/factures/<pk>/statut/      facture_status (POST — attention: "statut" pas "status")
+/factures/<pk>/date-versement/    facture_date_versement (POST JSON)
+/factures/<pk>/bypass/      facture_bypass (POST)
+/factures/<pk>/bypass/send/ facture_bypass_send_code
+/profil/                    profil_view
+/utilisateurs/              utilisateurs_list
+```
+
+⚠️ Les noms d'URLs sont un mélange français/anglais à homogénéiser (statut/status, supprimer/delete).
+
+## Charte graphique CB Bretagne
+- Prune : #67123A (couleur principale)
+- Teal : #00AA8D (accent)
+- Amber : #F7A600 (accent secondaire — usage limité)
+- Police : Montserrat (Google Fonts)
+- Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
+- Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 10 — 01/06/2026 — Audit sécurité & contrôle d'accès
+
+### Contexte
+Audit du code : l'autorisation était appliquée de façon incohérente. Plusieurs
+vues `@login_required` agissaient sur un objet récupéré par `pk` **sans vérifier
+que l'utilisateur y a droit** (IDOR). Plusieurs corrections annoncées en session 9
+n'étaient en réalité **pas** présentes dans le code (notes/code divergés) — elles
+sont maintenant réellement faites.
+
+### Fichiers modifiés
+- `permissions.py` — `_get_profil` → `get_profil_or_none` (exception resserrée sur
+  `ProfilUtilisateur.DoesNotExist`) ; ajout `peut_voir_devis`, `peut_voir_facture`,
+  `peut_modifier_facture` (source unique des règles d'accès)
+- `views.py` — gates d'accès sur toutes les vues devis/facture non protégées,
+  correctifs critiques, nettoyage doublons + casts numériques
+- `models.py` — suppression de `ProfilUtilisateur.peut_acceder_devis` (logique
+  déplacée dans permissions.py)
+- `devis_detail.html` — modale bypass : vérification du code côté serveur
+  (plus de comparaison client), variable morte `savedCode` retirée
+- `tests.py` — 9 tests de régression sur le contrôle d'accès (9/9 OK)
+
+### Décisions actées
+- **Critique — `facture_status`** : ajout de `peut_modifier_facture` (était
+  totalement ouvert : n'importe quel utilisateur pouvait passer une facture à payé)
+- **Critique — bypass OTP** : `code` retiré de la réponse JSON + vérification
+  déplacée côté serveur. ⚠️ Le bypass est donc **dormant** tant que SMTP n'est pas
+  branché (le code n'est jamais délivré). Politique de rôle (admin/responsable
+  uniquement vs suppression de la fonctionnalité) **à décider**.
+- **Critique — `facture_create`** : `@login_required` réellement ajouté + routé via
+  `peut_modifier_devis`
+- **IDOR** : gates ajoutés sur `devis_detail`, `devis_pdf`, `devis_duplicate`,
+  `lignes_get`, `devis_status`, `facture_apercu`, `facture_detail` (laisse
+  désormais entrer le comptable), `facture_date_versement`, `facture_libelle_save`,
+  `lignes_facture_get`, `lignes_facture_save` (403 JSON pour l'API, redirect pour
+  le HTML)
+- **Réconciliation des permissions** : `permissions.py` est désormais la source
+  unique ; le doublon `ProfilUtilisateur.peut_acceder_devis` est supprimé
+- **Doublon `clients_list`/`client_create`** réellement supprimé
+- **Casts numériques** (`validite_jours`, `echeance_jours`, `taux_mo`) protégés par
+  try/except (plus de 500 sur saisie invalide)
+- **Format de date** `facture_date_versement` (`%d/%m/%Y`) confirmé correct — le JS
+  envoie bien jj/mm/aaaa ; rien à changer
+
+### Hors scope (reporté)
+- Durcissement config : `DEBUG` par défaut, `SECRET_KEY` qui échoue fort en prod,
+  race condition de `gen_reference`
+- Double comptage potentiel `acompte` + `facture` dans `total_facture()`
+- Décision sur la politique de rôle du bypass OTP
+
+---
+
+## Session 9 — 01/06/2026
+
+### Fichiers modifiés
+- `models.py` — ajout `coordonnees_cb` sur ProfilUtilisateur et Devis
+- `views.py` — 10 corrections (voir décisions)
+- `devis_detail.html` — saisie_ht + bugs JS + refonte liste factures + modale paiement
+- `devis_pdf.html` — refonte complète charte CB Bretagne
+- `facture_apercu.html` — refonte complète charte CB Bretagne + acomptes + solde
+- `migrations/0010_devis_coordonnees_cb_and_more.py` — migration coordonnees_cb
+
+### Décisions actées
+- `saisie_ht` branché dans l'éditeur JS — conversion HT→TTC ×1.20 avant stockage
+- 5 bugs JS corrigés dans devis_detail (historySnapshot double, _tauxMOCourant, saveTree icône, doublons biblio, console.log)
+- Comportement focus/clic corrigé sur les zones de texte contenteditable
+- `coordonnees_cb` — snapshot à la création du devis depuis le profil, modifiable dans l'en-tête, transmis à devis_pdf et facture_apercu
+- Logique conditions service → utilisateur → devis/facture implémentée dans devis_create et facture_create
+- Charte CB Bretagne appliquée sur devis_pdf et facture_apercu
+- Facture proforma — brouillon affiché "Facture proforma" dans l'aperçu client uniquement
+- Cycle facture complet — draft → validé → envoyé → payé, boutons matriciels par statut, journal d'audit tracé
+- Acomptes — déduction visuelle dans la facture finale (montant brut − acomptes payés = solde), non modifié en DB
+- `gen_reference('FAC')` corrigé — cherche dans tous les types de factures (évite collision champ unique)
+- `ligne_devis_source_id` préservé dans `lignes_facture_save`
+- `@login_required` ajouté sur `facture_create`
+- `conditions_facture` copié à la création de facture
+- OTP bypass — code retiré de la réponse JSON (commentaire WARNING ajouté, à sécuriser dès SMTP)
+- Doublon `clients_list`/`client_create` supprimé
+- `datetime.strptime` corrigé dans `facture_date_versement`
+
+---
+
+## Session 8 — session précédente
+
+### Fichiers modifiés
+- `permissions.py` — renommage `_get_profil` + ajout `peut_gerer_utilisateurs` / `peut_gerer_cet_utilisateur`
+- `views.py` — suppression doublon clients_list, OTP bypass retiré, 5 vues utilisateurs
+- `urls.py` — regroupement devis-entete-save + 4 routes utilisateurs + succès création
+- `dashboard.html` — f.reference → f.get_reference
+- `base.html` — lien Utilisateurs sidebar (admin + responsable)
+- `utilisateurs_list.html` — liste avec désactivation/réactivation inline
+- `utilisateur_form.html` — formulaire création / édition
+- `utilisateur_succes.html` — mot de passe temporaire affiché une fois
+- `settings.py` — whitenoise middleware + STATICFILES_STORAGE
+- Railway — collectstatic --noinput avant migrate
+
+### Décisions actées
+- Pas de suppression d'utilisateur — désactivation uniquement (is_active = False)
+- Responsable voit uniquement ses propres équipes dans le formulaire de création
+- Seul un admin peut créer ou attribuer le rôle admin
+- Mot de passe temporaire affiché une seule fois — invitation email dès SMTP M365 dispo
+- Copie de bibliothèque optionnelle — tous les utilisateurs actifs, sans filtre équipe
+
+---
+
+## Prochaines étapes
+
+1. **Ajouter `coordonnees_cb` dans `profil.html`** (textarea, 3 lignes min) + dans l'onglet En-tête de `devis_detail.html` + brancher dans `saveEntete()`
+2. **Valider l'éditeur de facture avec Frédérick et Yann** — colonnes MO/MTx séparées ou prix unique
+3. **Valider la logique conditions** devis/facture (niveau service vs utilisateur) avec l'équipe
+4. **Champ Client** — ajouter adresse structurée (rue / CP / ville) au lieu d'un seul textarea
+5. **Changement de mot de passe depuis le profil** (attendre SMTP M365)
+6. **Statut devis "envoyé au client"**
+7. **PDF WeasyPrint — Phase 3**
+
+---
+
+## Notes techniques à ne pas oublier
+
+- **URLs à homogénéiser** — mélange français/anglais dans urls.py (statut/status, supprimer/delete). Choisir une convention et corriger partout
+- **Context processor** — ajouter pour injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue)
+- **Auditer les templates** — chercher `f.reference` parasites (→ doit être `f.get_reference`)
+- **Dashboard** — remplacer boucles Python par `aggregate(Sum(...))` — Phase 3
+- **OTP bypass** — ✅ `code` retiré de la réponse JSON (session 10). Reste à : envoyer le code par e-mail à `request.user.email` dans `facture_bypass_send_code` dès SMTP M365 branché. ⚠️ Bypass dormant d'ici là. Décider aussi la politique de rôle.
+- **Snapshot PDF** — prévoir case "marquer comme envoyé" + mécanisme de dégel
+- **Barre de progression par titre** — affiche total factures précédentes, pas montant par titre
+- **TVA** — "non applicable art. 293B CGI" à adapter selon régime fiscal réel
+- **DEFAULT_AUTO_FIELD** — ✅ déjà présent dans settings.py (`BigAutoField`)
+- **Service.conditions_facture** — ✅ vérifié : le champ existe bien sur le modèle Service (models.py)
+- **SMTP Microsoft 365** — créer boîte partagée `noreply@domaine.fr`, activer SMTP AUTH dans Exchange admin, configurer Django EMAIL_BACKEND
+- **Migration Railway** → OVH Phase 4 — volume persistent pour les fichiers uploadés (logo, etc.)
+- **Dossier Corrections*** — ajouter `core/Corrections*/` dans `.gitignore`

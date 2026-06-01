@@ -1,38 +1,39 @@
 # core/permissions.py
 
-def _get_profil(user):
+from .models import ProfilUtilisateur
+
+
+def get_profil_or_none(user):
     """
     Retourne le profil ou None si inexistant.
-    Usage interne au module permissions uniquement.
-    Différent du get_profil de views.py qui fait un get_or_create —
-    celui-ci ne crée jamais de profil vide.
-    Note : à renommer get_profil → _get_profil partout dans ce fichier
-    lors d'un prochain refacto pour éviter la confusion avec views.get_profil.
+    Ne crée jamais de profil — contrairement à views.get_profil qui fait un
+    get_or_create. À utiliser dans tout contexte en lecture seule (permissions)
+    où un effet de bord en écriture serait incorrect.
     """
     try:
         return user.profil
-    except Exception:
+    except ProfilUtilisateur.DoesNotExist:
         return None
 
 
 def is_admin(user):
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     return profil and profil.role == 'admin'
 
 
 def is_responsable(user):
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     return profil and profil.role in ('admin', 'responsable')
 
 
 def is_comptable(user):
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     return profil and profil.role == 'comptable'
 
 
 def get_techniciens(user):
     """Retourne les profils des techniciens sous ce responsable."""
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     if not profil:
         return []
     return list(profil.techniciens.all())
@@ -53,7 +54,7 @@ def _partage_equipe_devis(profil, devis):
 
     # Cas 2 — responsable hiérarchique du créateur
     if devis.created_by:
-        createur_profil = _get_profil(devis.created_by)
+        createur_profil = get_profil_or_none(devis.created_by)
         if createur_profil and createur_profil.responsable == profil:
             return True
 
@@ -72,7 +73,7 @@ def peut_modifier_devis(user, devis):
     """
     if not user.is_authenticated:
         return False
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     if not profil:
         return False
 
@@ -102,6 +103,34 @@ def peut_supprimer_devis(user, devis):
     return peut_modifier_devis(user, devis)
 
 
+def peut_voir_devis(user, devis):
+    """
+    Peut consulter un devis (lecture seule) ?
+
+    Comme peut_modifier_devis mais autorise aussi le comptable, qui a besoin
+    de consulter devis et factures pour la validation.
+    """
+    if not user.is_authenticated:
+        return False
+    profil = get_profil_or_none(user)
+    if not profil:
+        return False
+
+    # Admin et comptable → lecture totale
+    if profil.role in ('admin', 'comptable'):
+        return True
+
+    # Créateur du devis
+    if devis.created_by == user:
+        return True
+
+    # Équipe ou responsable hiérarchique
+    if _partage_equipe_devis(profil, devis):
+        return True
+
+    return False
+
+
 def peut_envoyer_facture(user, facture):
     """
     Peut envoyer une facture en validation ?
@@ -110,7 +139,7 @@ def peut_envoyer_facture(user, facture):
     """
     if not user.is_authenticated:
         return False
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     if not profil:
         return False
 
@@ -133,6 +162,39 @@ def peut_envoyer_facture(user, facture):
     return False
 
 
+def peut_voir_facture(user, facture):
+    """Peut consulter une facture (lecture seule) ? Via le devis parent."""
+    return peut_voir_devis(user, facture.devis)
+
+
+def peut_modifier_facture(user, facture):
+    """
+    Peut modifier une facture (statut, lignes, date de versement, libellé) ?
+
+    Comme peut_envoyer_facture mais autorise aussi le comptable, qui gère le
+    cycle de vie de la facture. La validation reste régie par peut_valider_facture.
+    """
+    if not user.is_authenticated:
+        return False
+    profil = get_profil_or_none(user)
+    if not profil:
+        return False
+
+    # Admin et comptable → accès total
+    if profil.role in ('admin', 'comptable'):
+        return True
+
+    # Créateur de la facture
+    if facture.created_by == user:
+        return True
+
+    # Accès via le devis parent (équipe ou responsable)
+    if _partage_equipe_devis(profil, facture.devis):
+        return True
+
+    return False
+
+
 def peut_valider_facture(user, facture):
     """
     Peut modifier/valider un brouillon de facture ?
@@ -140,7 +202,7 @@ def peut_valider_facture(user, facture):
     """
     if not user.is_authenticated:
         return False
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     if not profil:
         return False
 
@@ -163,7 +225,7 @@ def peut_supprimer_facture(user, facture):
         return False
     if not user.is_authenticated:
         return False
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     if not profil:
         return False
 
@@ -204,7 +266,7 @@ def peut_gerer_utilisateurs(user):
     """
     if not user.is_authenticated:
         return False
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     return profil and profil.role in ('admin', 'responsable')
 
 
@@ -218,7 +280,7 @@ def peut_gerer_cet_utilisateur(user, cible_profil):
     """
     if not user.is_authenticated:
         return False
-    profil = _get_profil(user)
+    profil = get_profil_or_none(user)
     if not profil:
         return False
 

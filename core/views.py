@@ -4,7 +4,7 @@ import string
 import re
 from datetime import date, timedelta, datetime
 from datetime import datetime as dt
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -22,8 +22,9 @@ from .models import (
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque
 )
 from .permissions import (
-    peut_modifier_devis, peut_supprimer_devis,
+    peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
     peut_valider_facture, peut_envoyer_facture, peut_supprimer_facture,
+    peut_voir_facture, peut_modifier_facture,
     peut_supprimer_client, is_admin,
     peut_gerer_utilisateurs, peut_gerer_cet_utilisateur
 )
@@ -322,34 +323,6 @@ def biblio_api_save(request):
 
 
 # ══════════════════════════════════════════
-#  CLIENTS
-# ══════════════════════════════════════════
-
-@login_required
-def clients_list(request):
-    clients = Client.objects.all()
-    return render(request, 'core/clients.html', {'clients': clients})
-
-
-@login_required
-@require_POST
-def client_create(request):
-    nom = request.POST.get('nom', '').strip()
-    if not nom:
-        messages.error(request, 'Le nom est obligatoire.')
-        return redirect('core:clients')
-    Client.objects.create(
-        nom=nom,
-        contact=request.POST.get('contact', ''),
-        email=request.POST.get('email', ''),
-        telephone=request.POST.get('telephone', ''),
-        adresse=request.POST.get('adresse', ''),
-    )
-    messages.success(request, f'Client "{nom}" créé.')
-    return redirect('core:clients')
-
-
-# ══════════════════════════════════════════
 #  DEVIS — LISTE
 # ══════════════════════════════════════════
 
@@ -420,14 +393,21 @@ def devis_create(request):
             return redirect('core:devis-list')
         client = get_object_or_404(Client, pk=client_id)
         equipe_id = request.POST.get('equipe') or None
-        validite_jours = int(request.POST.get('validite_jours', 30))
+        try:
+            validite_jours = int(request.POST.get('validite_jours') or 30)
+        except (TypeError, ValueError):
+            validite_jours = 30
+        try:
+            taux_mo = Decimal(str(request.POST.get('taux_mo') or profil.taux_mo_defaut))
+        except (InvalidOperation, TypeError, ValueError):
+            taux_mo = profil.taux_mo_defaut
         devis = Devis.objects.create(
             reference=gen_reference('DEV'),
             client=client,
             chantier=chantier,
             equipe_id=equipe_id,
             date_validite=date.today() + timedelta(days=validite_jours),
-            taux_mo=Decimal(request.POST.get('taux_mo') or profil.taux_mo_defaut),
+            taux_mo=taux_mo,
             notes=request.POST.get('notes', ''),
             conditions_devis=profil.conditions_devis,
             created_by=request.user,
@@ -461,6 +441,9 @@ def devis_create(request):
 @login_required
 def devis_detail(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
+    if not peut_voir_devis(request.user, devis):
+        messages.error(request, "Vous n'avez pas accès à ce devis.")
+        return redirect('core:devis-list')
     profil = get_profil(request.user)
     factures = devis.factures.all()
     audit_logs = devis.audit_logs.all()
@@ -491,6 +474,9 @@ def devis_detail(request, pk):
 @require_POST
 def devis_status(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
+    if not peut_modifier_devis(request.user, devis):
+        messages.error(request, 'Vous ne pouvez pas modifier ce devis.')
+        return redirect('core:devis-detail', pk=pk)
     old = devis.status
     devis.status = request.POST.get('status', devis.status)
     devis.save()
@@ -505,6 +491,9 @@ def devis_status(request, pk):
 @login_required
 def devis_duplicate(request, pk):
     src = get_object_or_404(Devis, pk=pk)
+    if not peut_voir_devis(request.user, src):
+        messages.error(request, "Vous n'avez pas accès à ce devis.")
+        return redirect('core:devis-list')
     profil = get_profil(request.user)
     new_devis = Devis.objects.create(
         reference=gen_reference('DEV'),
@@ -581,6 +570,9 @@ def assign_numbers_python(lignes, prefix=''):
 @login_required
 def devis_pdf(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
+    if not peut_voir_devis(request.user, devis):
+        messages.error(request, "Vous n'avez pas accès à ce devis.")
+        return redirect('core:devis-list')
     factures = devis.factures.exclude(status='cancelled')
     params = ParametresAssociation.get()
 
@@ -686,6 +678,8 @@ def devis_entete_save(request, pk):
 @login_required
 def lignes_get(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
+    if not peut_voir_devis(request.user, devis):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
     racines = devis.lignes.filter(parent=None)
     data = [ligne_to_dict(l) for l in racines]
     return JsonResponse({
@@ -750,10 +744,10 @@ def factures_list(request):
     return render(request, 'core/factures_list.html', {'factures': factures})
 
 
+@login_required
 def facture_create(request, devis_pk):
     devis = get_object_or_404(Devis, pk=devis_pk)
-    profil = get_profil(request.user)
-    if not profil.peut_acceder_devis(devis):
+    if not peut_modifier_devis(request.user, devis):
         return HttpResponseForbidden()
 
     if request.method != 'POST':
@@ -789,7 +783,10 @@ def facture_create(request, devis_pk):
 
     else:
         # -> facture normale
-        echeance_jours = int(request.POST.get('echeance_jours') or 30)
+        try:
+            echeance_jours = int(request.POST.get('echeance_jours') or 30)
+        except (TypeError, ValueError):
+            echeance_jours = 30
         date_echeance  = date.today() + timedelta(days=echeance_jours)
 
         facture = Facture.objects.create(
@@ -815,6 +812,8 @@ def facture_create(request, devis_pk):
 @require_POST
 def facture_date_versement(request, pk):
     facture = get_object_or_404(Facture, pk=pk, type_doc='acompte')
+    if not peut_modifier_facture(request.user, facture):
+        return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
     try:
         data = json.loads(request.body)
         date_str = data.get('date_versement', '').strip()
@@ -853,6 +852,12 @@ def facture_valider(request, pk):
 @require_POST
 def facture_status(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json'
+    if not peut_modifier_facture(request.user, facture):
+        if is_ajax:
+            return JsonResponse({'error': 'Permission refusée'}, status=403)
+        messages.error(request, 'Vous ne pouvez pas modifier cette facture.')
+        return redirect('core:devis-detail', pk=facture.devis.pk)
     old = facture.status
     new_status = request.POST.get('status', facture.status)
     facture.status = new_status
@@ -863,7 +868,7 @@ def facture_status(request, pk):
         devis=facture.devis, facture=facture
     )
     # Si appel AJAX (fetch depuis JS), retourner JSON
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json':
+    if is_ajax:
         return JsonResponse({'ok': True})
     # Sinon redirect normal (formulaires HTML)
     return redirect('core:devis-detail', pk=facture.devis.pk)
@@ -915,7 +920,11 @@ def facture_delete(request, pk):
 def facture_bypass_send_code(request, pk):
     code = ''.join(random.choices(string.digits, k=6))
     request.session[f'bypass_code_{pk}'] = code
-    return JsonResponse({'ok': True, 'code': code})
+    # Le code n'est PAS renvoyé dans la réponse : il doit être délivré par e-mail.
+    # Tant que SMTP (M365) n'est pas branché, le bypass est donc dormant — c'est
+    # l'état sûr voulu. La validation comptable reste la voie normale.
+    # TODO : envoyer `code` par e-mail à request.user.email dès SMTP dispo.
+    return JsonResponse({'ok': True})
 
 
 def calc_deja_facture_par_source(devis, facture_courante):
@@ -969,8 +978,8 @@ def facture_detail(request, pk):
     devis = facture.devis
     profil = get_profil(request.user)
 
-    # Vérification accès — même règle que pour le devis parent
-    if not peut_modifier_devis(request.user, devis):
+    # Vérification accès — lecture (comptable inclus pour la validation)
+    if not peut_voir_facture(request.user, facture):
         messages.error(request, "Vous n'avez pas accès à cette facture.")
         return redirect('core:devis-list')
 
@@ -1013,6 +1022,9 @@ def facture_apercu(request, pk):
     # Affiche uniquement les lignes avec quantite > 0.
     """
     facture = get_object_or_404(Facture, pk=pk)
+    if not peut_voir_facture(request.user, facture):
+        messages.error(request, "Vous n'avez pas accès à cette facture.")
+        return redirect('core:devis-list')
     devis = facture.devis
 
     from .models import ParametresAssociation
@@ -1077,6 +1089,8 @@ def facture_libelle_save(request, pk):
     # max_length=200 est géré par le modèle.
     """
     facture = get_object_or_404(Facture, pk=pk)
+    if not peut_modifier_facture(request.user, facture):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
     try:
         data = json.loads(request.body)
         libelle = data.get('libelle', '').strip()[:200]
@@ -1099,6 +1113,8 @@ def lignes_facture_get(request, pk):
     # Optimisation possible si les factures sont nombreuses.
     """
     facture = get_object_or_404(Facture, pk=pk)
+    if not peut_voir_facture(request.user, facture):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
     deja_par_source = calc_deja_facture_par_source(facture.devis, facture)
     racines = facture.lignes.filter(parent=None)
     data = [ligne_facture_to_dict(l, deja_par_source) for l in racines]
@@ -1152,6 +1168,8 @@ def lignes_facture_get(request, pk):
 @require_POST
 def lignes_facture_save(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
+    if not peut_modifier_facture(request.user, facture):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
     if facture.status != 'draft':
         return JsonResponse({'error': 'Facture non modifiable'}, status=400)
     try:
