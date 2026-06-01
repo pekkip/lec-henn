@@ -1048,17 +1048,23 @@ def facture_apercu(request, pk):
 
     lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None))
 
-    # Acomptes non-brouillon sur ce devis (exclus la facture courante)
-    # Affichés tous, déduits seulement si payés
-    acomptes = devis.factures.filter(
-        type_doc='acompte',
-    ).exclude(pk=facture.pk).exclude(status='draft').order_by('created_at')
-
-    # Calcul du solde : montant facture − total acomptes PAYÉS uniquement
+    # Acomptes déduits uniquement sur la première facture non-acompte du devis
     from decimal import Decimal
-    total_acomptes = sum(
-        a.montant for a in acomptes if a.status == 'paid'
-    ) if acomptes else Decimal('0')
+    premiere_facture = devis.factures.exclude(
+        type_doc='acompte'
+    ).exclude(status='cancelled').order_by('created_at').first()
+
+    if premiere_facture and premiere_facture.pk == facture.pk:
+        acomptes = devis.factures.filter(
+            type_doc='acompte',
+        ).exclude(status='draft').order_by('created_at')
+        total_acomptes = sum(
+            a.montant for a in acomptes if a.status == 'paid'
+        )
+    else:
+        acomptes = devis.factures.none()
+        total_acomptes = Decimal('0')
+
     solde = facture.montant - total_acomptes
 
     return render(request, 'core/facture_apercu.html', {
