@@ -4,13 +4,11 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (01/06/2026 — session 13) :** en test beta, en attente de retours
-des collègues. Refonte de la gestion & sélection des clients : adresse structurée
-(`code_postal`/`ville`), `created_by` sur `Client`, recherche autocomplétée + panneau
-filtrable + création rapide à la création/en-tête de devis, pré-remplissage ville par
-code postal (geo.api.gouv.fr), filtres liste clients (nom/CP/dépt/ville/portée) et
-édition/suppression admin. Items sécurité toujours reportés (voir Session 10 « Hors
-scope ») : durcissement config (`DEBUG`/`SECRET_KEY`), politique de rôle du bypass OTP.
+**État du projet (01/06/2026 — session 14) :** en test beta, en attente de retours
+des collègues. Zone financement dans l'éditeur de devis + bibliothèque Aides partagée
+(page dédiée + panneau dans l'éditeur). Items sécurité toujours reportés (voir Session
+10 « Hors scope ») : durcissement config (`DEBUG`/`SECRET_KEY`), politique de rôle du
+bypass OTP.
 
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
@@ -72,8 +70,9 @@ cb-bretagne/
 - `Territoire` → `Service` → `Equipe` — hiérarchie organisationnelle
 - `ProfilUtilisateur` (OneToOne User) — role, taux_mo_defaut, saisie_ht, conditions_devis, conditions_facture, coordonnees_cb
 - `Client` — nom, contact, email, telephone, adresse (rue), code_postal, ville, created_by (FK User)
-- `Devis` — reference, client, chantier, equipe, taux_mo, status, conditions_devis, coordonnees_cb, created_by
-- `LigneDevis` — arbre imbriqué (TITRE/S/C/OUV/MO/MAT/FMO/FMAT/FIN), parent FK
+- `Devis` — reference, client, chantier, equipe, taux_mo, status, conditions_devis, coordonnees_cb, **zone_financement** (bool), created_by
+- `LigneDevis` — arbre imbriqué (TITRE/S/C/OUV/MO/MAT/FMO/FMAT/FIN), parent FK, **aide FK nullable**
+- `BibliothèqueAides` — bibliothèque partagée (tous) : description, type_ligne (FMO/FMAT/FIN), montant_defaut, unite, organisme, created_by
 - `Facture` — devis FK, type_doc (acompte/facture/avoir), status (draft/validated/sent/paid), numero (unique), montant, date_versement, conditions_facture, created_by
 - `LigneFacture` — même structure que LigneDevis, ligne_devis_source FK
 - `AuditLog` — toutes les actions tracées (devis, facture, bypass)
@@ -131,6 +130,10 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 /clients/creation-rapide/   client_quick_create (POST — JSON {id, nom})
 /clients/<pk>/modifier/     client_edit (POST — admin uniquement)
 /clients/<pk>/supprimer/    client_delete (POST — admin uniquement)
+/bibliotheque/aides/        aides_page (page dédiée bibliothèque Aides)
+/aides/                     aides_api_get (GET JSON — liste des aides)
+/aides/sauvegarder/         aides_api_save (POST JSON — création aide)
+/aides/<pk>/supprimer/      aide_delete (POST — suppression aide)
 ```
 
 ⚠️ Les noms d'URLs sont un mélange français/anglais à homogénéiser (statut/status, supprimer/delete).
@@ -142,6 +145,55 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 14 — 01/06/2026 — Zone financement & bibliothèque Aides
+
+### Contexte
+L'ancien bouton "Financement / subvention" ajoutait des lignes FIN en vrac sans
+structure ni traçabilité. On a refactorisé vers une **zone financement** dédiée dans
+l'éditeur + une **bibliothèque Aides partagée** permettant le suivi futur des
+financements sur le dashboard.
+
+### Fichiers modifiés
+- `models.py` — nouveau modèle `BibliothèqueAides` (description, type_ligne
+  FMO/FMAT/FIN, montant_defaut, unite, organisme, created_by) ; `Devis.zone_financement`
+  (BooleanField, défaut False) ; `LigneDevis.aide` (FK nullable vers BibliothèqueAides)
+- `migrations/0013_…` — schéma (3 champs + nouveau modèle)
+- `migrations/0014_set_zone_financement_for_existing` — migration données : devis
+  existants avec lignes FIN → `zone_financement=True`
+- `views.py` — `ligne_to_dict` : ajout `aide_id` ; `lignes_get` : retourne
+  `zone_financement` ; `lignes_save` : sauvegarde `zone_financement` + `aide_id` sur
+  les LigneDevis ; nouvelles vues `aides_page`, `aides_api_get`, `aides_api_save`,
+  `aide_delete`
+- `urls.py` — routes `/bibliotheque/aides/`, `/aides/`, `/aides/sauvegarder/`,
+  `/aides/<pk>/supprimer/`
+- `base.html` — lien 🎁 Aides dans la sidebar (Configuration)
+- `devis_detail.html` — refonte complète de la zone financement :
+  - Bouton "Zone financement" (remplace "Financement / subvention"), disparaît quand
+    la zone est active
+  - `renderFinZone()` + `renderFinLine()` remplacent `renderFinGroup()`
+  - Section "Aides" collapsible (−/+) en bas du panneau bibliothèque, visible
+    seulement quand `zone_financement=True`
+  - Glisser-déposer depuis la section Aides → zone financement, ou clic direct
+  - Ligne liée à une aide : indicateur 🔗
+  - Bouton "Ajouter une ligne" (ligne libre sans aide)
+  - Bouton "Supprimer la zone" (supprime toutes les lignes FIN)
+  - `saveTree()` inclut `zone_financement` dans le payload
+  - Gestion inline des aides (créer / supprimer) depuis le panneau
+- `aides.html` — page dédiée à la gestion de la bibliothèque Aides
+
+### Décisions actées
+- **Zone financement** : flag `zone_financement` sur Devis (plus propre que détecter
+  la présence de lignes FIN) ; zone vide possible (activée sans lignes)
+- **Suivi dashboard futur** : `LigneDevis.aide` FK nullable — dashboard pourra
+  requêter `LigneDevis.objects.filter(aide__isnull=False, devis__status='accepted')`
+  sans nouveau modèle. Pas de `UtilisationAide` séparé (simplifié).
+- **Droits bibliothèque Aides** : tout le monde peut créer/supprimer pour l'instant
+  (à restreindre plus tard si besoin)
+- **FMO/FMAT dans la barre** : conservés tels quels pour les lignes normales
+- **Statut devis** : select dans la topbar déjà présent (session précédente) — OK
 
 ---
 
@@ -370,8 +422,9 @@ sont maintenant réellement faites.
 2. **Valider la logique conditions** devis/facture (niveau service vs utilisateur) avec l'équipe
 3. ~~**Champ Client** — adresse structurée (rue / CP / ville)~~ ✅ fait session 13
 4. **Changement de mot de passe depuis le profil** (attendre SMTP M365)
-5. **Statut devis "envoyé au client"**
-6. **PDF WeasyPrint — Phase 3**
+5. **Statut devis "envoyé au client"** ✅ select dans la topbar (session 14), mais pas encore affiché dans la liste des devis
+6. **Dashboard — section suivi financements** : `LigneDevis.objects.filter(aide__isnull=False, devis__status='accepted')` prêt à requêter
+7. **PDF WeasyPrint — Phase 3**
 
 ---
 
