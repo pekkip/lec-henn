@@ -667,7 +667,7 @@
 
           {# Marquer envoyé(e) — validé seulement #}
           {% if f.status == 'validated' %}
-          <form method="post" action="{% url 'core:facture-statut' f.pk %}" style="display:inline">
+          <form method="post" action="{% url 'core:facture-status' f.pk %}" style="display:inline">
             {% csrf_token %}
             <input type="hidden" name="status" value="sent">
             <button type="submit" class="ico-btn" title="Marquer envoyé(e)"><i class="ti ti-send"></i></button>
