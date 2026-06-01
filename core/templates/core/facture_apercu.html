@@ -254,25 +254,33 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
         {% for lf in lignes %}
           {% if lf.type_ligne == 'TITRE' %}
           <tr class="row-titre">
-            <td colspan="5">{{ lf.description|safe }}</td>
+            <td>{{ lf.description|safe }}</td>
+            <td class="td-num">1</td>
+            <td></td>
+            <td class="td-num">{{ lf.total|floatformat:2 }} €</td>
+            <td class="td-total">{{ lf.total|floatformat:2 }} €</td>
           </tr>
           {% for enfant in lf.enfants_filtres %}
+          {% with pu=enfant.prix_unitaire %}
           <tr class="row-child">
             <td class="td-desig">{{ enfant.description|safe }}</td>
             <td class="td-num">{{ enfant.quantite|floatformat:"-3" }}</td>
             <td>{{ enfant.unite }}</td>
-            <td class="td-num">{% if enfant.cout_unitaire %}{{ enfant.cout_unitaire|floatformat:2 }} €{% endif %}</td>
+            <td class="td-num">{% if pu %}{{ pu|floatformat:2 }} €{% endif %}</td>
             <td class="td-total">{{ enfant.total|floatformat:2 }} €</td>
           </tr>
+          {% endwith %}
           {% endfor %}
           {% else %}
+          {% with pu=lf.prix_unitaire %}
           <tr>
             <td class="td-desig">{{ lf.description|safe }}</td>
             <td class="td-num">{{ lf.quantite|floatformat:"-3" }}</td>
             <td>{{ lf.unite }}</td>
-            <td class="td-num">{% if lf.cout_unitaire %}{{ lf.cout_unitaire|floatformat:2 }} €{% endif %}</td>
+            <td class="td-num">{% if pu %}{{ pu|floatformat:2 }} €{% endif %}</td>
             <td class="td-total">{{ lf.total|floatformat:2 }} €</td>
           </tr>
+          {% endwith %}
           {% endif %}
         {% endfor %}
       </tbody>

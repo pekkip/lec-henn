@@ -566,6 +566,16 @@ class LigneFacture(models.Model):
             return self.quantite * self.cout_unitaire
         return Decimal('0')
 
+    def prix_unitaire(self):
+        if self.type_ligne == 'TITRE':
+            return None
+        if self.cout_unitaire is not None:
+            return self.cout_unitaire
+        t = self.total()
+        if self.quantite and self.quantite != 0:
+            return t / self.quantite
+        return None
+
 
 # ══════════════════════════════════════════
 #  JOURNAL D'AUDIT
