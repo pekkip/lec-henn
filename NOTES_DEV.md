@@ -1,10 +1,45 @@
 # CB Bretagne — Notes de développement
 
+> **Ce fichier est le journal de référence du projet.** Il doit suffire à reprendre
+> le travail à froid (nouvelle machine, nouveau collègue) après un simple
+> `git pull` + lecture. Tenir à jour à chaque session.
+
+**État du projet (01/06/2026) :** en test beta, en attente de retours des collègues.
+Items sécurité reportés (voir Session 10 « Hors scope ») : durcissement config
+(`DEBUG`/`SECRET_KEY`), politique de rôle du bypass OTP.
+
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
 - Python 3.12 (prod) · Python 3.14 (dev Windows)
 - Railway (prod actuel) → OVH VPS (Phase 4)
 - Gunicorn · WhiteNoise · Django Admin
+
+## Démarrage rapide (dev Windows)
+```powershell
+# Setup initial
+python -m venv venv
+venv\Scripts\pip install -r requirements.txt
+
+# Lancer / migrer / tester / vérifier (utiliser le python du venv)
+venv\Scripts\python manage.py migrate
+venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
+venv\Scripts\python manage.py test core      # 12 tests (core/tests.py)
+venv\Scripts\python manage.py check
+```
+- Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
+- Les tests de contrôle d'accès vivent dans `core/tests.py`.
+
+## Déploiement (Railway)
+- Remote git : GitHub `pekkip/lec-henn`. Prod : `lec-henn-production.up.railway.app`.
+- **`git push origin main` → Railway redéploie automatiquement.** Le `Procfile`
+  exécute `collectstatic --noinput && migrate && gunicorn cbretagne.wsgi`.
+  `runtime.txt` = python-3.12.
+- Variables d'env prod : `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`,
+  `DATABASE_URL` (PostgreSQL Railway).
+- ⚠️ **Pas de `.gitignore`** dans le repo → les `core/__pycache__/*.pyc` sont
+  suivis par git. Lors d'un commit, **stager explicitement les fichiers source**
+  (ne pas inclure les `.pyc`). TODO : créer un `.gitignore`
+  (`venv/`, `__pycache__/`, `*.pyc`, `db.sqlite3`, `staticfiles/`, `media/`).
 
 ## Architecture
 ```
@@ -42,19 +77,33 @@ cb-bretagne/
 - `AuditLog` — toutes les actions tracées (devis, facture, bypass)
 - `Bibliotheque` — articles réutilisables par utilisateur
 
+## Modèle d'accès (règle métier — IMPORTANT)
+- **Lecture** : **tout utilisateur connecté** peut consulter n'importe quel
+  devis/facture (outil interne, visibilité partagée entre équipes).
+- **Modification** : réservée à l'**équipe** — créateur du devis, membres de
+  l'équipe du devis, responsable hiérarchique du créateur, ou admin.
+- **Comptable** : lecture sur les devis (éditeur en consultation seule), mais
+  conserve la validation/changement de statut des factures.
+- Appliqué **côté serveur** (permissions.py) **et côté UI** : `devis_detail`
+  passe `peut_modifier` → constante JS `CAN_EDIT` qui verrouille l'éditeur
+  (bandeau « Consultation seule »). Le glisser-vers-bibliothèque reste actif pour
+  tous (endpoints biblio par utilisateur). Voir Session 11.
+
 ## Permissions
 ```python
-# core/permissions.py
-_get_profil(user)           # interne
-peut_modifier_devis()
-peut_supprimer_devis()
-peut_valider_facture()      # comptable uniquement
+# core/permissions.py  — source unique des règles d'accès
+get_profil_or_none(user)        # profil ou None (ne crée jamais ; vs views.get_profil)
+# Lecture — tout utilisateur connecté :
+peut_voir_devis() / peut_voir_facture()
+# Modification — équipe (créateur / équipe / responsable / admin) :
+peut_modifier_devis() / peut_modifier_facture()
+peut_supprimer_devis()          # brouillons uniquement
 peut_envoyer_facture()
-peut_supprimer_facture()
-peut_supprimer_client()
-is_admin()
-peut_gerer_utilisateurs()
-peut_gerer_cet_utilisateur()
+peut_valider_facture()          # comptable + admin
+peut_supprimer_facture()        # jamais si validée / envoyée / payée
+peut_supprimer_client()         # admin
+is_admin() / is_responsable() / is_comptable()
+peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 ```
 
 ## URLs importantes
