@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY =  os.environ.get('SECRET_KEY', 'django-insecure-i__ygeb%x7vyjq1%oyn1#=r_yq#tlr@^$4cj-ty*403@r!6(gv')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost 127.0.0.1').split(' ')
 
@@ -82,7 +82,7 @@ WSGI_APPLICATION = 'cbretagne.wsgi.application'
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    DATABASES = {'default': dj_database_url.parse(DATABASE_URL)}
+    DATABASES = {'default': dj_database_url.parse(DATABASE_URL, conn_max_age=60)}
 else:
     DATABASES = {
         'default': {
@@ -147,18 +147,6 @@ LOGGING = {
     'root': {
         'handlers': ['console'],
         'level': 'WARNING',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-        'django.request': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
     },
 }
 
