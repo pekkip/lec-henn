@@ -206,6 +206,42 @@ tbody tr:hover td{background:#FAFAF8}
 </div>
 
 {% block modals %}{% endblock %}
+
+<script>
+/* Helper partagé : pré-remplissage de la ville depuis le code postal via l'API
+   officielle geo.api.gouv.fr (gratuite, sans clé). Dégrade gracieusement si
+   l'API est injoignable (la ville reste saisissable à la main). */
+async function remplirVilleDepuisCP(cpInput, villeInput) {
+  const cp = (cpInput.value || '').trim();
+  if (!/^\d{5}$/.test(cp)) return;
+  try {
+    const resp = await fetch(
+      `https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=nom&format=json`
+    );
+    if (!resp.ok) return;
+    const communes = await resp.json();
+    if (!communes.length) return;
+    if (communes.length === 1) {
+      villeInput.value = communes[0].nom;
+      return;
+    }
+    // Plusieurs communes : liste de choix via datalist, l'utilisateur sélectionne.
+    let listId = villeInput.getAttribute('list');
+    if (!listId) {
+      listId = 'villes-' + Math.random().toString(36).slice(2);
+      villeInput.setAttribute('list', listId);
+      const dl = document.createElement('datalist');
+      dl.id = listId;
+      villeInput.parentNode.appendChild(dl);
+    }
+    document.getElementById(listId).innerHTML =
+      communes.map(c => `<option value="${c.nom}"></option>`).join('');
+    villeInput.focus();
+  } catch (e) {
+    /* hors-ligne / API injoignable : saisie manuelle conservée */
+  }
+}
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

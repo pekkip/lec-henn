@@ -71,8 +71,8 @@ class ParametresAssociationAdmin(admin.ModelAdmin):
 
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ['nom', 'contact', 'email', 'telephone']
-    search_fields = ['nom', 'contact', 'email']
+    list_display = ['nom', 'contact', 'email', 'telephone', 'code_postal', 'ville', 'created_by']
+    search_fields = ['nom', 'contact', 'email', 'ville', 'code_postal']
 
 
 

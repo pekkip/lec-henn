@@ -39,6 +39,35 @@ def get_techniciens(user):
     return list(profil.techniciens.all())
 
 
+def get_collegues_ids(user):
+    """
+    Retourne l'ensemble des IDs utilisateurs « de mon équipe » :
+      - soi-même,
+      - les membres partageant une de mes équipes (M2M),
+      - mes subordonnés hiérarchiques directs (techniciens).
+
+    Sert à filtrer les objets par créateur dans une portée « équipe »
+    (cf. clients_list). Suit la même logique de partage que _partage_equipe_devis.
+    """
+    ids = {user.pk}
+    profil = get_profil_or_none(user)
+    if not profil:
+        return ids
+
+    equipes = profil.equipes.all()
+    if equipes:
+        ids.update(
+            ProfilUtilisateur.objects
+            .filter(equipes__in=equipes)
+            .values_list('user_id', flat=True)
+        )
+
+    ids.update(
+        profil.techniciens.values_list('user_id', flat=True)
+    )
+    return ids
+
+
 def _partage_equipe_devis(profil, devis):
     """
     Vérifie si l'utilisateur a accès au devis via l'équipe.

@@ -28,6 +28,13 @@
 
 {% block extra_css %}
 <style>
+.ac-wrap{position:relative}
+.ac-list{position:absolute;left:0;right:0;top:calc(100% + 2px);background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:50;max-height:240px;overflow-y:auto}
+.ac-item{padding:7px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--gray-lt)}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover{background:var(--teal-lt)}
+.ac-item .sub{font-size:11px;color:var(--gray-md)}
+.ac-empty{padding:8px 10px;font-size:11px;color:var(--gray-md)}
 .tabs{background:#fff;border-bottom:1px solid var(--gray-bd);display:flex;padding:0 1.25rem;flex-shrink:0}
 .tab{padding:10px 14px;font-size:13px;color:var(--gray-md);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
 .tab.on{color:var(--prune);border-bottom-color:var(--prune);font-weight:500}
@@ -366,11 +373,18 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div class="field">
             <label>Client *</label>
-            <select class="input" id="eh-client">
-              {% for c in clients %}
-              <option value="{{ c.pk }}" {% if c.pk == devis.client.pk %}selected{% endif %}>{{ c.nom }}</option>
-              {% endfor %}
-            </select>
+            <div class="ac-wrap">
+              <input class="input" id="eh-client-search" autocomplete="off"
+                     value="{{ devis.client.nom }}" placeholder="Rechercher un client…"/>
+              <input type="hidden" id="eh-client" value="{{ devis.client.pk }}"/>
+              <div id="eh-client-ac" class="ac-list hidden"></div>
+            </div>
+            {% if peut_modifier %}
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button type="button" class="btn btn-sm" onclick="ehOpenBrowse()"><i class="ti ti-list-search"></i> Parcourir</button>
+              <button type="button" class="btn btn-sm" onclick="ehOpenQuick()"><i class="ti ti-user-plus"></i> Nouveau client</button>
+            </div>
+            {% endif %}
           </div>
           <div class="field">
             <label>Équipe</label>
@@ -879,6 +893,44 @@
     </div>
   </div>
 </div>
+
+<!-- Panneau « Parcourir » (sélection client en-tête) -->
+<div id="eh-modal-browse" class="modal-bg hidden">
+  <div class="modal" style="width:640px">
+    <div class="modal-title">Choisir un client</div>
+    <div class="search-wrap" style="margin-bottom:10px">
+      <i class="ti ti-search"></i>
+      <input class="search-inp" id="eh-browse-filter" placeholder="Filtrer par nom…" autocomplete="off"/>
+    </div>
+    <div style="max-height:50vh;overflow-y:auto;border:1px solid var(--gray-bd);border-radius:var(--r)">
+      <table>
+        <thead><tr><th>Nom</th><th>Ville</th><th>CP</th><th></th></tr></thead>
+        <tbody id="eh-browse-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-acts">
+      <button type="button" class="btn" onclick="ehCloseModal('eh-modal-browse')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Création rapide d'un client (en-tête) -->
+<div id="eh-modal-quick" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title">Nouveau client</div>
+    <div id="eh-quick-error" class="msg msg-error hidden" style="margin-bottom:.75rem"></div>
+    <div class="field"><label>Nom / Organisation *</label><input class="input" id="eh-q-nom"/></div>
+    <div class="field"><label>Adresse (rue)</label><input class="input" id="eh-q-adresse"/></div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">
+      <div class="field"><label>Code postal</label><input class="input" id="eh-q-cp" inputmode="numeric"/></div>
+      <div class="field"><label>Ville</label><input class="input" id="eh-q-ville"/></div>
+    </div>
+    <div class="modal-acts">
+      <button type="button" class="btn" onclick="ehCloseModal('eh-modal-quick')">Annuler</button>
+      <button type="button" class="btn btn-prune" id="eh-q-submit" onclick="ehSubmitQuick()">Créer</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -888,6 +940,145 @@ const TAUX_MO = {{ taux_mo_js }};
 const SAISIE_HT = {{ saisie_ht|yesno:"true,false" }};
 const CAN_EDIT = {{ peut_modifier|yesno:"true,false" }};  // false = consultation seule (hors équipe)
 const CSRF = '{{ csrf_token }}';
+
+// ── AUTOCOMPLÉTION CLIENT (en-tête) ──
+const ehSearchInp = document.getElementById('eh-client-search');
+const ehHiddenId  = document.getElementById('eh-client');
+const ehAcBox     = document.getElementById('eh-client-ac');
+
+function ehCloseModal(id){ document.getElementById(id).classList.add('hidden'); }
+function ehSelectClient(id, nom){
+  ehHiddenId.value = id;
+  ehSearchInp.value = nom;
+  ehAcBox.classList.add('hidden');
+}
+
+let ehAcTimer = null;
+if (ehSearchInp && CAN_EDIT) {
+  ehSearchInp.addEventListener('input', () => {
+    ehHiddenId.value = '';
+    clearTimeout(ehAcTimer);
+    const q = ehSearchInp.value.trim();
+    ehAcTimer = setTimeout(() => ehRunSearch(q, ehAcBox, true), 200);
+  });
+  ehSearchInp.addEventListener('blur', () => setTimeout(() => ehAcBox.classList.add('hidden'), 150));
+}
+
+async function ehRunSearch(q, box, asDropdown){
+  try {
+    const resp = await fetch(`{% url 'core:client-search' %}?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if (asDropdown) ehRenderDropdown(data.results);
+    else ehRenderBrowse(data.results);
+  } catch(e){ /* silencieux */ }
+}
+
+function ehRenderDropdown(results){
+  if (!results.length){
+    ehAcBox.innerHTML = '<div class="ac-empty">Aucun client. Utilisez « Nouveau client ».</div>';
+    ehAcBox.classList.remove('hidden');
+    return;
+  }
+  ehAcBox.innerHTML = results.map(c => {
+    const lieu = [c.code_postal, c.ville].filter(Boolean).join(' ');
+    return `<div class="ac-item" data-id="${c.id}" data-nom="${c.nom.replace(/"/g,'&quot;')}">
+      ${c.nom}${lieu ? ` <span class="sub">— ${lieu}</span>` : ''}</div>`;
+  }).join('');
+  ehAcBox.querySelectorAll('.ac-item').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      ehSelectClient(el.dataset.id, el.dataset.nom);
+    });
+  });
+  ehAcBox.classList.remove('hidden');
+}
+
+const ehBrowseFilter = document.getElementById('eh-browse-filter');
+const ehBrowseBody   = document.getElementById('eh-browse-body');
+let ehBrowseTimer = null;
+
+function ehOpenBrowse(){
+  document.getElementById('eh-modal-browse').classList.remove('hidden');
+  ehBrowseFilter.value = '';
+  ehRunSearch('', ehBrowseBody, false);
+  ehBrowseFilter.focus();
+}
+if (ehBrowseFilter) {
+  ehBrowseFilter.addEventListener('input', () => {
+    clearTimeout(ehBrowseTimer);
+    ehBrowseTimer = setTimeout(() => ehRunSearch(ehBrowseFilter.value.trim(), ehBrowseBody, false), 200);
+  });
+}
+
+function ehRenderBrowse(results){
+  if (!results.length){
+    ehBrowseBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--gray-md)">Aucun client.</td></tr>';
+    return;
+  }
+  ehBrowseBody.innerHTML = results.map(c =>
+    `<tr>
+      <td style="font-weight:500">${c.nom}</td>
+      <td>${c.ville || '—'}</td>
+      <td class="mono">${c.code_postal || '—'}</td>
+      <td style="text-align:right"><button type="button" class="btn btn-sm btn-teal" data-id="${c.id}" data-nom="${c.nom.replace(/"/g,'&quot;')}">Choisir</button></td>
+    </tr>`).join('');
+  ehBrowseBody.querySelectorAll('button[data-id]').forEach(b => {
+    b.addEventListener('click', () => {
+      ehSelectClient(b.dataset.id, b.dataset.nom);
+      ehCloseModal('eh-modal-browse');
+    });
+  });
+}
+
+const ehQCp = document.getElementById('eh-q-cp');
+const ehQVille = document.getElementById('eh-q-ville');
+if (ehQCp) ehQCp.addEventListener('blur', () => remplirVilleDepuisCP(ehQCp, ehQVille));
+
+function ehOpenQuick(){
+  document.getElementById('eh-quick-error').classList.add('hidden');
+  ['eh-q-nom','eh-q-adresse','eh-q-cp','eh-q-ville'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('eh-modal-quick').classList.remove('hidden');
+  document.getElementById('eh-q-nom').focus();
+}
+
+async function ehSubmitQuick(){
+  const nom = document.getElementById('eh-q-nom').value.trim();
+  const errBox = document.getElementById('eh-quick-error');
+  if (!nom){
+    errBox.textContent = 'Le nom est obligatoire.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+  const body = new URLSearchParams({
+    nom,
+    adresse: document.getElementById('eh-q-adresse').value,
+    code_postal: ehQCp.value,
+    ville: ehQVille.value,
+  });
+  const btn = document.getElementById('eh-q-submit');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`{% url 'core:client-quick-create' %}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const data = await resp.json();
+    if (!resp.ok){
+      errBox.textContent = data.error || 'Erreur lors de la création.';
+      errBox.classList.remove('hidden');
+      return;
+    }
+    ehSelectClient(data.id, data.nom);
+    ehCloseModal('eh-modal-quick');
+  } catch(e){
+    errBox.textContent = 'Erreur réseau.';
+    errBox.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 let tree = [];
 let draggingLib = null;
 let draggingNodeNid = null;

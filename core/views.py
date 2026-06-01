@@ -26,7 +26,8 @@ from .permissions import (
     peut_valider_facture, peut_envoyer_facture, peut_supprimer_facture,
     peut_voir_facture, peut_modifier_facture,
     peut_supprimer_client, is_admin,
-    peut_gerer_utilisateurs, peut_gerer_cet_utilisateur
+    peut_gerer_utilisateurs, peut_gerer_cet_utilisateur,
+    get_collegues_ids
 )
 # ══════════════════════════════════════════
 #  HELPERS
@@ -255,8 +256,74 @@ def dashboard(request):
 
 @login_required
 def clients_list(request):
+    nom = request.GET.get('nom', '').strip()
+    code_postal = request.GET.get('code_postal', '').strip()
+    departement = request.GET.get('departement', '').strip()
+    ville = request.GET.get('ville', '').strip()
+    portee = request.GET.get('portee', 'tous')
+
     clients = Client.objects.all()
-    return render(request, 'core/clients.html', {'clients': clients})
+    if nom:
+        clients = clients.filter(nom__icontains=nom)
+    if code_postal:
+        clients = clients.filter(code_postal__startswith=code_postal)
+    if departement:
+        clients = clients.filter(code_postal__startswith=departement)
+    if ville:
+        clients = clients.filter(ville__icontains=ville)
+    if portee == 'moi':
+        clients = clients.filter(created_by=request.user)
+    elif portee == 'equipe':
+        clients = clients.filter(created_by__in=get_collegues_ids(request.user))
+
+    return render(request, 'core/clients.html', {
+        'clients': clients,
+        'is_admin': is_admin(request.user),
+        'f_nom': nom,
+        'f_code_postal': code_postal,
+        'f_departement': departement,
+        'f_ville': ville,
+        'f_portee': portee,
+    })
+
+
+@login_required
+def client_search(request):
+    """Recherche client (autocomplétion + filtre du panneau). Renvoie du JSON."""
+    q = request.GET.get('q', '').strip()
+    clients = Client.objects.all()
+    if q:
+        clients = clients.filter(nom__icontains=q)
+    results = [
+        {
+            'id': c.pk,
+            'nom': c.nom,
+            'ville': c.ville,
+            'code_postal': c.code_postal,
+        }
+        for c in clients[:20]
+    ]
+    return JsonResponse({'results': results})
+
+
+@login_required
+@require_POST
+def client_quick_create(request):
+    """Création rapide depuis l'écran de devis. Renvoie le client créé en JSON."""
+    nom = request.POST.get('nom', '').strip()
+    if not nom:
+        return JsonResponse({'error': 'Le nom est obligatoire.'}, status=400)
+    client = Client.objects.create(
+        nom=nom,
+        contact=request.POST.get('contact', ''),
+        email=request.POST.get('email', ''),
+        telephone=request.POST.get('telephone', ''),
+        adresse=request.POST.get('adresse', ''),
+        code_postal=request.POST.get('code_postal', ''),
+        ville=request.POST.get('ville', ''),
+        created_by=request.user,
+    )
+    return JsonResponse({'id': client.pk, 'nom': client.nom})
 
 
 @login_required
@@ -272,8 +339,34 @@ def client_create(request):
         email=request.POST.get('email', ''),
         telephone=request.POST.get('telephone', ''),
         adresse=request.POST.get('adresse', ''),
+        code_postal=request.POST.get('code_postal', ''),
+        ville=request.POST.get('ville', ''),
+        created_by=request.user,
     )
     messages.success(request, f'Client "{nom}" créé.')
+    return redirect('core:clients')
+
+
+@login_required
+@require_POST
+def client_edit(request, pk):
+    if not is_admin(request.user):
+        messages.error(request, 'Action réservée à l\'administrateur.')
+        return redirect('core:clients')
+    client = get_object_or_404(Client, pk=pk)
+    nom = request.POST.get('nom', '').strip()
+    if not nom:
+        messages.error(request, 'Le nom est obligatoire.')
+        return redirect('core:clients')
+    client.nom = nom
+    client.contact = request.POST.get('contact', '')
+    client.email = request.POST.get('email', '')
+    client.telephone = request.POST.get('telephone', '')
+    client.adresse = request.POST.get('adresse', '')
+    client.code_postal = request.POST.get('code_postal', '')
+    client.ville = request.POST.get('ville', '')
+    client.save()
+    messages.success(request, f'Client "{nom}" modifié.')
     return redirect('core:clients')
 
 

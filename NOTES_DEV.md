@@ -4,9 +4,13 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (01/06/2026) :** en test beta, en attente de retours des collègues.
-Items sécurité reportés (voir Session 10 « Hors scope ») : durcissement config
-(`DEBUG`/`SECRET_KEY`), politique de rôle du bypass OTP.
+**État du projet (01/06/2026 — session 13) :** en test beta, en attente de retours
+des collègues. Refonte de la gestion & sélection des clients : adresse structurée
+(`code_postal`/`ville`), `created_by` sur `Client`, recherche autocomplétée + panneau
+filtrable + création rapide à la création/en-tête de devis, pré-remplissage ville par
+code postal (geo.api.gouv.fr), filtres liste clients (nom/CP/dépt/ville/portée) et
+édition/suppression admin. Items sécurité toujours reportés (voir Session 10 « Hors
+scope ») : durcissement config (`DEBUG`/`SECRET_KEY`), politique de rôle du bypass OTP.
 
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
@@ -36,10 +40,8 @@ venv\Scripts\python manage.py check
   `runtime.txt` = python-3.12.
 - Variables d'env prod : `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`,
   `DATABASE_URL` (PostgreSQL Railway).
-- ⚠️ **Pas de `.gitignore`** dans le repo → les `core/__pycache__/*.pyc` sont
-  suivis par git. Lors d'un commit, **stager explicitement les fichiers source**
-  (ne pas inclure les `.pyc`). TODO : créer un `.gitignore`
-  (`venv/`, `__pycache__/`, `*.pyc`, `db.sqlite3`, `staticfiles/`, `media/`).
+- `.gitignore` présent à la racine : `venv/`, `__pycache__/`, `*.pyc`,
+  `db.sqlite3`, `staticfiles/`, `media/`, `.env`, `core/Corrections*/`.
 
 ## Architecture
 ```
@@ -69,7 +71,7 @@ cb-bretagne/
 - `ParametresAssociation` — nom, adresse, logo, SIRET, slogan
 - `Territoire` → `Service` → `Equipe` — hiérarchie organisationnelle
 - `ProfilUtilisateur` (OneToOne User) — role, taux_mo_defaut, saisie_ht, conditions_devis, conditions_facture, coordonnees_cb
-- `Client` — nom, contact, email, telephone, adresse (TextField à structurer)
+- `Client` — nom, contact, email, telephone, adresse (rue), code_postal, ville, created_by (FK User)
 - `Devis` — reference, client, chantier, equipe, taux_mo, status, conditions_devis, coordonnees_cb, created_by
 - `LigneDevis` — arbre imbriqué (TITRE/S/C/OUV/MO/MAT/FMO/FMAT/FIN), parent FK
 - `Facture` — devis FK, type_doc (acompte/facture/avoir), status (draft/validated/sent/paid), numero (unique), montant, date_versement, conditions_facture, created_by
@@ -102,6 +104,7 @@ peut_envoyer_facture()
 peut_valider_facture()          # comptable + admin
 peut_supprimer_facture()        # jamais si validée / envoyée / payée
 peut_supprimer_client()         # admin
+get_collegues_ids(user)         # IDs « mon équipe » (moi + équipes M2M + techniciens)
 is_admin() / is_responsable() / is_comptable()
 peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 ```
@@ -123,6 +126,11 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 /factures/<pk>/bypass/send/ facture_bypass_send_code
 /profil/                    profil_view
 /utilisateurs/              utilisateurs_list
+/clients/                   clients_list (filtres GET : nom/code_postal/departement/ville/portee)
+/clients/recherche/         client_search (GET JSON — autocomplétion + panneau)
+/clients/creation-rapide/   client_quick_create (POST — JSON {id, nom})
+/clients/<pk>/modifier/     client_edit (POST — admin uniquement)
+/clients/<pk>/supprimer/    client_delete (POST — admin uniquement)
 ```
 
 ⚠️ Les noms d'URLs sont un mélange français/anglais à homogénéiser (statut/status, supprimer/delete).
@@ -134,6 +142,86 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 13 — 01/06/2026 — Refonte gestion & sélection des clients
+
+### Contexte
+La sélection du client à la création d'un devis se faisait via un `<select>` listant
+tous les clients (`Client.objects.all()`) — ingérable à mesure que le volume monte.
+La page liste clients n'avait aucun filtre et le modèle `Client` n'avait ni adresse
+structurée ni traçabilité du créateur.
+
+### Fichiers modifiés
+- `models.py` — `Client` : ajout `code_postal`, `ville`, `created_by` (FK User,
+  SET_NULL) ; `adresse` représente désormais la **rue**
+- `migrations/0011_…` — schéma (3 champs) ; `migrations/0012_assign_clients_to_admin`
+  — **migration de données** : clients existants attribués au 1er admin (role=='admin',
+  fallback 1er superuser)
+- `permissions.py` — ajout `get_collegues_ids(user)` (moi + membres partageant une
+  équipe M2M + techniciens subordonnés), même logique de partage que `_partage_equipe_devis`
+- `views.py` (section CLIENTS) :
+  - `clients_list` — filtrage serveur GET : `nom` (icontains), `code_postal`
+    (startswith), `departement` (startswith), `ville` (icontains), `portee`
+    (tous/moi/equipe via `get_collegues_ids`) ; passe `is_admin` + valeurs de filtres
+  - `client_search` (GET JSON) — `nom__icontains`, 20 résultats max ; sert
+    l'autocomplétion **et** le panneau filtrable
+  - `client_quick_create` (POST JSON) — création depuis l'écran de devis, renvoie
+    `{id, nom}`, set `created_by`
+  - `client_create` — lit `code_postal`/`ville` + set `created_by`
+  - `client_edit` (POST, **admin only**) — édition complète (la suppression existait déjà)
+- `urls.py` — routes `client-search`, `client-quick-create`, `client-edit`
+- `base.html` — helper JS global `remplirVilleDepuisCP(cpInput, villeInput)` :
+  interroge **geo.api.gouv.fr** (gratuit, sans clé) ; 1 commune → auto, plusieurs →
+  datalist de choix, API injoignable → saisie manuelle conservée
+- `devis_form.html` — `<select>` remplacé par widget autocomplétion (input texte +
+  hidden `name="client"`) + panneau « Parcourir » + modal « Nouveau client » (CP→ville) ;
+  garde-fou JS bloquant l'envoi sans client. **Vue `devis_create` inchangée.**
+- `devis_detail.html` (en-tête) — même widget (préfixes `eh*`), hidden `#eh-client`
+  conserve le pk → `saveEntete()` **inchangée** ; boutons masqués en consultation seule
+- `clients.html` — barre de filtres GET, colonnes Ville/CP, modal création (CP→ville),
+  modal édition pré-rempli via `data-*` + boutons Éditer/Supprimer **admin only**
+- `admin.py` — `ClientAdmin` : ajout `code_postal`, `ville`, `created_by`
+- `tests.py` — classe `ClientsTests` (9 tests) : recherche, création rapide
+  (created_by + nom vide→400), filtres portée moi/équipe + département, édition admin
+  vs refus non-admin. **21/21 OK.**
+
+### Décisions actées
+- **Adresse structurée** : `code_postal` + `ville` ajoutés (étape 3 NOTES_DEV faite) ;
+  `adresse` = rue
+- **CP → ville** via geo.api.gouv.fr côté navigateur ; multi-communes → liste de choix
+- **Portée liste clients** = sélecteur 3 choix (Tous / Mes clients / Mon équipe)
+- **Clients orphelins** (sans créateur) → migration de données vers le 1er admin
+- **Édition/suppression client** réservées à l'**admin** (pour l'instant)
+- Compat ascendante : `devis_create` et `devis_entete_save` lisent toujours
+  `client`/`client_id` ; seuls les widgets de saisie changent
+
+---
+
+## Session 12 — 01/06/2026 — Correctifs aperçu facture, acompte, coordonnées CB
+
+### Fichiers modifiés
+- `.gitignore` — créé (n'existait pas) : `venv/`, `__pycache__/`, `*.pyc`, `db.sqlite3`, `staticfiles/`, `media/`, `.env`, `core/Corrections*/`. 157 fichiers parasites retirés du suivi git (25 `.pyc`, 130 `staticfiles/`, `db.sqlite3`, logo media).
+- `models.py` — ajout `prix_unitaire()` sur `LigneFacture` (fallback `total()/quantite` si `cout_unitaire` est `None`)
+- `views.py`
+  - `facture_apercu` : correction déduction acompte — ne s'applique plus qu'à la **première** facture non-acompte non-annulée (par `created_at`) ; les autres factures affichent solde = montant brut
+  - `devis_pdf` : ajout `coordonnees_cb` au contexte (le template avait déjà le bloc HTML/CSS mais la variable n'était pas transmise)
+  - `profil_view` : sauvegarde de `coordonnees_cb` depuis le POST
+  - `devis_entete_save` : sauvegarde de `coordonnees_cb` depuis le JSON
+- `facture_apercu.html` — lignes TITRE affichent désormais : description | Qté 1 | unité vide | P.U. HT = total section | Total HT = total section. Les lignes enfants utilisent `prix_unitaire()` (méthode modèle) à la place de `cout_unitaire` brut.
+- `profil.html` — nouvelle carte « Coordonnées CB Bretagne » (textarea avant « Conditions par défaut »)
+- `devis_detail.html` — textarea `coordonnees_cb` dans l'onglet En-tête (Paramètres) + inclus dans le payload `saveEntete()`
+
+### Décisions actées
+- **Acompte** : règle métier — déduction uniquement sur la 1ʳᵉ facture non-acompte du devis ; les suivantes n'en tiennent pas compte
+- **Lignes TITRE** dans l'aperçu facture : traitées comme un forfait (Qté 1, pas d'unité, P.U. = total de la section)
+- **`coordonnees_cb`** : champ texte libre sur `ProfilUtilisateur` et `Devis` (snapshot à la création), éditable dans l'en-tête du devis, affiché dans `devis_pdf` et `facture_apercu` au-dessus de la désignation
+- **Media/** entièrement exclus du git (logo prod non servi jusqu'à Phase 4 volume persistant OVH)
+
+### Incidents Railway
+- Trial Railway expiré brièvement en cours de session (faux positif, résolu seul)
+- Railway a redéployé un ancien commit (`817ae84`) → commit vide `043280e` pour forcer un redéclenchement du webhook
 
 ---
 
@@ -278,13 +366,12 @@ sont maintenant réellement faites.
 
 ## Prochaines étapes
 
-1. **Ajouter `coordonnees_cb` dans `profil.html`** (textarea, 3 lignes min) + dans l'onglet En-tête de `devis_detail.html` + brancher dans `saveEntete()`
-2. **Valider l'éditeur de facture avec Frédérick et Yann** — colonnes MO/MTx séparées ou prix unique
-3. **Valider la logique conditions** devis/facture (niveau service vs utilisateur) avec l'équipe
-4. **Champ Client** — ajouter adresse structurée (rue / CP / ville) au lieu d'un seul textarea
-5. **Changement de mot de passe depuis le profil** (attendre SMTP M365)
-6. **Statut devis "envoyé au client"**
-7. **PDF WeasyPrint — Phase 3**
+1. **Valider l'éditeur de facture avec Frédérick et Yann** — colonnes MO/MTx séparées ou prix unique
+2. **Valider la logique conditions** devis/facture (niveau service vs utilisateur) avec l'équipe
+3. ~~**Champ Client** — adresse structurée (rue / CP / ville)~~ ✅ fait session 13
+4. **Changement de mot de passe depuis le profil** (attendre SMTP M365)
+5. **Statut devis "envoyé au client"**
+6. **PDF WeasyPrint — Phase 3**
 
 ---
 

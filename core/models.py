@@ -206,7 +206,13 @@ class Client(models.Model):
     contact = models.CharField(max_length=200, blank=True)
     email = models.EmailField(blank=True)
     telephone = models.CharField(max_length=50, blank=True)
-    adresse = models.TextField(blank=True)
+    adresse = models.TextField(blank=True, help_text="Rue / voie")
+    code_postal = models.CharField(max_length=10, blank=True)
+    ville = models.CharField(max_length=100, blank=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='clients_crees'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

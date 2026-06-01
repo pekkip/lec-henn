@@ -150,3 +150,120 @@ class AccesDevisFactureTests(TestCase):
         data = resp.json()
         self.assertTrue(data.get('ok'))
         self.assertNotIn('code', data)
+
+
+class ClientsTests(TestCase):
+    """Recherche, création rapide, filtres de portée et édition des clients."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr = Territoire.objects.create(nom='Bretagne')
+        service = Service.objects.create(territoire=terr, nom='Habitat')
+        cls.equipe = Equipe.objects.create(service=service, nom='Équipe A')
+
+        # Alice et Bob partagent la même équipe ; Carol est dans une autre.
+        cls.alice = User.objects.create_user('alice', password='pw')
+        pa = ProfilUtilisateur.objects.create(user=cls.alice, role='technicien')
+        pa.equipes.set([cls.equipe])
+
+        cls.bob = User.objects.create_user('bob', password='pw')
+        pb = ProfilUtilisateur.objects.create(user=cls.bob, role='technicien')
+        pb.equipes.set([cls.equipe])
+
+        equipe_autre = Equipe.objects.create(service=service, nom='Équipe B')
+        cls.carol = User.objects.create_user('carol', password='pw')
+        pc = ProfilUtilisateur.objects.create(user=cls.carol, role='technicien')
+        pc.equipes.set([equipe_autre])
+
+        cls.admin = User.objects.create_user('admin', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+
+        # Clients : un par utilisateur, avec ville/CP pour les filtres.
+        cls.cli_alice = Client.objects.create(
+            nom='Mairie de Quimper', code_postal='29000', ville='Quimper',
+            created_by=cls.alice,
+        )
+        cls.cli_bob = Client.objects.create(
+            nom='Brest Métropole', code_postal='29200', ville='Brest',
+            created_by=cls.bob,
+        )
+        cls.cli_carol = Client.objects.create(
+            nom='Ville de Rennes', code_postal='35000', ville='Rennes',
+            created_by=cls.carol,
+        )
+
+    # ── Recherche (autocomplétion / panneau) ─────────────────────────
+
+    def test_client_search_correspondances(self):
+        self.client.login(username='alice', password='pw')
+        resp = self.client.get(reverse('core:client-search'), {'q': 'quimper'})
+        self.assertEqual(resp.status_code, 200)
+        noms = [r['nom'] for r in resp.json()['results']]
+        self.assertEqual(noms, ['Mairie de Quimper'])
+
+    def test_client_search_refuse_anonyme(self):
+        resp = self.client.get(reverse('core:client-search'), {'q': 'a'})
+        self.assertEqual(resp.status_code, 302)
+
+    # ── Création rapide ──────────────────────────────────────────────
+
+    def test_client_quick_create_ok(self):
+        self.client.login(username='alice', password='pw')
+        resp = self.client.post(reverse('core:client-quick-create'), {
+            'nom': 'Nouveau Client', 'code_postal': '29100', 'ville': 'Douarnenez',
+        })
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['nom'], 'Nouveau Client')
+        cli = Client.objects.get(pk=data['id'])
+        self.assertEqual(cli.created_by, self.alice)
+        self.assertEqual(cli.ville, 'Douarnenez')
+
+    def test_client_quick_create_nom_vide(self):
+        self.client.login(username='alice', password='pw')
+        resp = self.client.post(reverse('core:client-quick-create'), {'nom': '  '})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('error', resp.json())
+
+    # ── Filtres de portée et géographiques ───────────────────────────
+
+    def test_clients_list_portee_moi(self):
+        self.client.login(username='alice', password='pw')
+        resp = self.client.get(reverse('core:clients'), {'portee': 'moi'})
+        clients = list(resp.context['clients'])
+        self.assertEqual(clients, [self.cli_alice])
+
+    def test_clients_list_portee_equipe(self):
+        # Alice voit ses clients ET ceux de Bob (même équipe), pas ceux de Carol.
+        self.client.login(username='alice', password='pw')
+        resp = self.client.get(reverse('core:clients'), {'portee': 'equipe'})
+        clients = set(resp.context['clients'])
+        self.assertEqual(clients, {self.cli_alice, self.cli_bob})
+
+    def test_clients_list_filtre_departement(self):
+        self.client.login(username='alice', password='pw')
+        resp = self.client.get(reverse('core:clients'), {'departement': '29'})
+        clients = set(resp.context['clients'])
+        self.assertEqual(clients, {self.cli_alice, self.cli_bob})
+
+    # ── Édition (admin uniquement) ───────────────────────────────────
+
+    def test_client_edit_admin_ok(self):
+        self.client.login(username='admin', password='pw')
+        resp = self.client.post(
+            reverse('core:client-edit', args=[self.cli_alice.pk]),
+            {'nom': 'Mairie de Quimper', 'ville': 'Quimper Centre', 'code_postal': '29000'},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.cli_alice.refresh_from_db()
+        self.assertEqual(self.cli_alice.ville, 'Quimper Centre')
+
+    def test_client_edit_refuse_non_admin(self):
+        self.client.login(username='alice', password='pw')
+        resp = self.client.post(
+            reverse('core:client-edit', args=[self.cli_alice.pk]),
+            {'nom': 'Piraté', 'ville': 'Nulle Part'},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.cli_alice.refresh_from_db()
+        self.assertEqual(self.cli_alice.nom, 'Mairie de Quimper')  # inchangé

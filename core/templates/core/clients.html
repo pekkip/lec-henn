@@ -5,13 +5,31 @@
 
 {% block content %}
 <div class="page-hd">
-  <div><div class="page-title">Clients</div><div class="page-sub">{{ clients|length }} clients</div></div>
-  <button onclick="document.getElementById('modal-client').classList.remove('hidden')" class="btn btn-prune"><i class="ti ti-plus"></i> Nouveau client</button>
+  <div><div class="page-title">Clients</div><div class="page-sub">{{ clients|length }} client{{ clients|length|pluralize }}</div></div>
+  <button onclick="openCreate()" class="btn btn-prune"><i class="ti ti-plus"></i> Nouveau client</button>
 </div>
+
+<form method="get" class="toolbar">
+  <div class="search-wrap" style="max-width:240px">
+    <i class="ti ti-search"></i>
+    <input class="search-inp" name="nom" value="{{ f_nom }}" placeholder="Nom…" autocomplete="off"/>
+  </div>
+  <input class="sel" name="ville" value="{{ f_ville }}" placeholder="Ville" style="max-width:140px"/>
+  <input class="sel" name="code_postal" value="{{ f_code_postal }}" placeholder="Code postal" style="max-width:120px" inputmode="numeric"/>
+  <input class="sel" name="departement" value="{{ f_departement }}" placeholder="Dépt (29)" style="max-width:90px" inputmode="numeric"/>
+  <select class="sel" name="portee">
+    <option value="tous"   {% if f_portee == 'tous' %}selected{% endif %}>Tous les clients</option>
+    <option value="moi"    {% if f_portee == 'moi' %}selected{% endif %}>Mes clients</option>
+    <option value="equipe" {% if f_portee == 'equipe' %}selected{% endif %}>Mon équipe</option>
+  </select>
+  <button type="submit" class="btn btn-sm"><i class="ti ti-filter"></i> Filtrer</button>
+  <a href="{% url 'core:clients' %}" class="btn btn-sm">Réinitialiser</a>
+</form>
+
 <div style="flex:1;overflow-y:auto">
   <table>
     <thead><tr>
-      <th>Nom</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Adresse</th><th class="num">Devis</th><th></th>
+      <th>Nom</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Adresse</th><th>Ville</th><th>CP</th><th class="num">Devis</th>{% if is_admin %}<th></th>{% endif %}
     </tr></thead>
     <tbody>
       {% for c in clients %}
@@ -21,16 +39,26 @@
         <td>{{ c.email|default:"—" }}</td>
         <td>{{ c.telephone|default:"—" }}</td>
         <td style="color:var(--gray-md);font-size:11px">{{ c.adresse|default:"—" }}</td>
+        <td>{{ c.ville|default:"—" }}</td>
+        <td class="mono">{{ c.code_postal|default:"—" }}</td>
         <td class="num">{{ c.devis.count }}</td>
-        <td style="text-align:right">
+        {% if is_admin %}
+        <td style="text-align:right;white-space:nowrap">
+          <button type="button" class="ico-btn"
+            data-action="{% url 'core:client-edit' c.pk %}"
+            data-nom="{{ c.nom }}" data-contact="{{ c.contact }}" data-email="{{ c.email }}"
+            data-telephone="{{ c.telephone }}" data-adresse="{{ c.adresse }}"
+            data-cp="{{ c.code_postal }}" data-ville="{{ c.ville }}"
+            onclick="openEdit(this)" title="Modifier"><i class="ti ti-pencil"></i></button>
           <form method="post" action="{% url 'core:client-delete' c.pk %}" style="display:inline" onsubmit="return confirm('Supprimer {{ c.nom }} ?')">
             {% csrf_token %}
-            <button type="submit" class="ico-btn danger"><i class="ti ti-trash"></i></button>
+            <button type="submit" class="ico-btn danger" title="Supprimer"><i class="ti ti-trash"></i></button>
           </form>
         </td>
+        {% endif %}
       </tr>
       {% empty %}
-      <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray-md)">
+      <tr><td colspan="{% if is_admin %}9{% else %}8{% endif %}" style="text-align:center;padding:2rem;color:var(--gray-md)">
         Aucun client.
       </td></tr>
       {% endfor %}
@@ -40,6 +68,7 @@
 {% endblock %}
 
 {% block modals %}
+<!-- Création -->
 <div id="modal-client" class="modal-bg hidden">
   <div class="modal">
     <div class="modal-title">Nouveau client</div>
@@ -51,7 +80,11 @@
         <div class="field"><label>Email</label><input class="input" type="email" name="email"/></div>
         <div class="field"><label>Téléphone</label><input class="input" name="telephone"/></div>
       </div>
-      <div class="field"><label>Adresse</label><textarea class="input" name="adresse" rows="2"></textarea></div>
+      <div class="field"><label>Adresse (rue)</label><input class="input" name="adresse"/></div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">
+        <div class="field"><label>Code postal</label><input class="input" id="c-cp" name="code_postal" inputmode="numeric"/></div>
+        <div class="field"><label>Ville</label><input class="input" id="c-ville" name="ville"/></div>
+      </div>
       <div class="modal-acts">
         <button type="button" class="btn" onclick="document.getElementById('modal-client').classList.add('hidden')">Annuler</button>
         <button type="submit" class="btn btn-prune">Créer</button>
@@ -59,4 +92,61 @@
     </form>
   </div>
 </div>
+
+{% if is_admin %}
+<!-- Édition -->
+<div id="modal-edit" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title">Modifier le client</div>
+    <form method="post" id="edit-form">
+      {% csrf_token %}
+      <div class="field"><label>Nom / Organisation *</label><input class="input" id="e-nom" name="nom" required/></div>
+      <div class="field"><label>Contact</label><input class="input" id="e-contact" name="contact"/></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Email</label><input class="input" id="e-email" type="email" name="email"/></div>
+        <div class="field"><label>Téléphone</label><input class="input" id="e-telephone" name="telephone"/></div>
+      </div>
+      <div class="field"><label>Adresse (rue)</label><input class="input" id="e-adresse" name="adresse"/></div>
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">
+        <div class="field"><label>Code postal</label><input class="input" id="e-cp" name="code_postal" inputmode="numeric"/></div>
+        <div class="field"><label>Ville</label><input class="input" id="e-ville" name="ville"/></div>
+      </div>
+      <div class="modal-acts">
+        <button type="button" class="btn" onclick="document.getElementById('modal-edit').classList.add('hidden')">Annuler</button>
+        <button type="submit" class="btn btn-prune">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openCreate(){ document.getElementById('modal-client').classList.remove('hidden'); }
+
+// Pré-remplissage ville depuis le CP (helper global défini dans base.html)
+const cCp = document.getElementById('c-cp');
+const cVille = document.getElementById('c-ville');
+if (cCp) cCp.addEventListener('blur', () => remplirVilleDepuisCP(cCp, cVille));
+
+{% if is_admin %}
+const eCp = document.getElementById('e-cp');
+const eVille = document.getElementById('e-ville');
+if (eCp) eCp.addEventListener('blur', () => remplirVilleDepuisCP(eCp, eVille));
+
+function openEdit(btn){
+  const d = btn.dataset;
+  document.getElementById('edit-form').action = d.action;
+  document.getElementById('e-nom').value       = d.nom || '';
+  document.getElementById('e-contact').value   = d.contact || '';
+  document.getElementById('e-email').value     = d.email || '';
+  document.getElementById('e-telephone').value = d.telephone || '';
+  document.getElementById('e-adresse').value   = d.adresse || '';
+  document.getElementById('e-cp').value        = d.cp || '';
+  document.getElementById('e-ville').value     = d.ville || '';
+  document.getElementById('modal-edit').classList.remove('hidden');
+}
+{% endif %}
+</script>
 {% endblock %}

@@ -15,6 +15,9 @@ urlpatterns = [
     # Clients
     path('clients/', views.clients_list, name='clients'),
     path('clients/nouveau/', views.client_create, name='client-create'),
+    path('clients/recherche/', views.client_search, name='client-search'),
+    path('clients/creation-rapide/', views.client_quick_create, name='client-quick-create'),
+    path('clients/<int:pk>/modifier/', views.client_edit, name='client-edit'),
     path('clients/<int:pk>/supprimer/', views.client_delete, name='client-delete'),
 
     # Bibliothèque
