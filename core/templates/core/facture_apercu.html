@@ -299,7 +299,7 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
           {% endif %}
         {% endfor %}
 
-        {% if lignes_fin %}
+        {% if lignes_fin and facture.type_doc != 'acompte' %}
         <tr class="sep-fin"><td colspan="5">Financements &amp; subventions</td></tr>
         {% for l in lignes_fin %}
         <tr class="row-fin">
