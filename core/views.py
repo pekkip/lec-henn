@@ -1227,7 +1227,7 @@ def facture_apercu(request, pk):
                     result.append(lf)
         return result
 
-    lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None))
+    lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None).exclude(type_ligne='FIN'))
 
     # Lignes financement du devis (FIN, niveau racine) — section informative
     lignes_fin = list(devis.lignes.filter(parent=None, type_ligne='FIN'))
