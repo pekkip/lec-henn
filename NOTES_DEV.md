@@ -25,7 +25,7 @@ venv\Scripts\pip install -r requirements.txt
 # Lancer / migrer / tester / vérifier (utiliser le python du venv)
 venv\Scripts\python manage.py migrate
 venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
-venv\Scripts\python manage.py test core      # 12 tests (core/tests.py)
+venv\Scripts\python manage.py test core      # 21 tests (core/tests.py)
 venv\Scripts\python manage.py check
 ```
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
@@ -52,13 +52,24 @@ cb-bretagne/
     ├── views.py
     ├── urls.py
     ├── permissions.py
+    ├── admin.py
+    ├── tests.py               — 21 tests (contrôle d'accès, clients)
     ├── migrations/
     └── templates/core/
         ├── base.html
+        ├── login.html
         ├── dashboard.html
-        ├── devis_detail.html      — éditeur JS + onglet factures
+        ├── devis_list.html
+        ├── devis_form.html        — création devis (widget client autocomplété)
+        ├── devis_detail.html      — éditeur JS + onglet factures + zone financement
         ├── devis_pdf.html         — vue client imprimable
+        ├── factures_list.html
+        ├── facture_detail.html
         ├── facture_apercu.html    — aperçu facture imprimable
+        ├── _apercu_ligne.html     — partial (ligne d'aperçu)
+        ├── clients.html           — liste + filtres + modales création/édition
+        ├── bibliotheque.html      — bibliothèque perso (éditeur arbre)
+        ├── aides.html             — bibliothèque Aides partagée (page dédiée)
         ├── profil.html            — préférences utilisateur
         ├── utilisateurs_list.html
         ├── utilisateur_form.html
@@ -190,10 +201,15 @@ financements sur le dashboard.
 - **Suivi dashboard futur** : `LigneDevis.aide` FK nullable — dashboard pourra
   requêter `LigneDevis.objects.filter(aide__isnull=False, devis__status='accepted')`
   sans nouveau modèle. Pas de `UtilisationAide` séparé (simplifié).
-- **Droits bibliothèque Aides** : tout le monde peut créer/supprimer pour l'instant
-  (à restreindre plus tard si besoin)
+- **Droits bibliothèque Aides** : tout le monde peut créer/supprimer — **choix assumé
+  en BETA**. `aide_delete`/`aides_api_save` n'ont que `@login_required` (pas de rôle).
+  À restreindre lors du passage à l'hébergement/stockage définitif (voir Phase 4).
 - **FMO/FMAT dans la barre** : conservés tels quels pour les lignes normales
 - **Statut devis** : select dans la topbar déjà présent (session précédente) — OK
+
+### Dette introduite cette session
+→ Reportée dans **§ Dette technique** (source unique) : tests manquants
+(zone_financement / aides), nom de modèle `BibliothèqueAides` avec accent.
 
 ---
 
@@ -356,10 +372,9 @@ sont maintenant réellement faites.
   envoie bien jj/mm/aaaa ; rien à changer
 
 ### Hors scope (reporté)
-- Durcissement config : `DEBUG` par défaut, `SECRET_KEY` qui échoue fort en prod,
-  race condition de `gen_reference`
-- Double comptage potentiel `acompte` + `facture` dans `total_facture()`
-- Décision sur la politique de rôle du bypass OTP
+→ Items consolidés dans **§ Dette technique** (bas du fichier, source unique) :
+durcissement config, race `gen_reference`, double comptage `total_facture()`,
+politique de rôle du bypass OTP.
 
 ---
 
@@ -428,18 +443,43 @@ sont maintenant réellement faites.
 
 ---
 
-## Notes techniques à ne pas oublier
+## Dette technique (SOURCE UNIQUE)
 
-- **URLs à homogénéiser** — mélange français/anglais dans urls.py (statut/status, supprimer/delete). Choisir une convention et corriger partout
-- **Context processor** — ajouter pour injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue)
-- **Auditer les templates** — chercher `f.reference` parasites (→ doit être `f.get_reference`)
-- **Dashboard** — remplacer boucles Python par `aggregate(Sum(...))` — Phase 3
-- **OTP bypass** — ✅ `code` retiré de la réponse JSON (session 10). Reste à : envoyer le code par e-mail à `request.user.email` dans `facture_bypass_send_code` dès SMTP M365 branché. ⚠️ Bypass dormant d'ici là. Décider aussi la politique de rôle.
-- **Snapshot PDF** — prévoir case "marquer comme envoyé" + mécanisme de dégel
-- **Barre de progression par titre** — affiche total factures précédentes, pas montant par titre
-- **TVA** — "non applicable art. 293B CGI" à adapter selon régime fiscal réel
-- **DEFAULT_AUTO_FIELD** — ✅ déjà présent dans settings.py (`BigAutoField`)
-- **Service.conditions_facture** — ✅ vérifié : le champ existe bien sur le modèle Service (models.py)
-- **SMTP Microsoft 365** — créer boîte partagée `noreply@domaine.fr`, activer SMTP AUTH dans Exchange admin, configurer Django EMAIL_BACKEND
-- **Migration Railway** → OVH Phase 4 — volume persistent pour les fichiers uploadés (logo, etc.)
-- **Dossier Corrections*** — ajouter `core/Corrections*/` dans `.gitignore`
+> Liste **vivante** de la dette ouverte. Les logs de session (au-dessus) sont
+> figés — ne pas y dupliquer de TODO : tout item à reprendre vit **ici**.
+
+### Sécurité / config
+- **Durcissement config** — `DEBUG` défaut True + `SECRET_KEY` retombe sur une clé dev
+  si les variables d'env manquent (settings.py). Cible : `DEBUG=False` par défaut, échec
+  fort si `SECRET_KEY` absente en prod.
+- **OTP bypass** — ✅ `code` retiré du JSON + vérif côté serveur (session 10). Reste :
+  envoyer le code par e-mail à `request.user.email` dans `facture_bypass_send_code` dès
+  SMTP M365 branché ; décider la politique de rôle. ⚠️ Bypass **dormant** d'ici là.
+- **Bibliothèque Aides — droits** — `aide_delete`/`aides_api_save` ouverts à tout
+  utilisateur connecté (**BETA assumé**). Restreindre (admin/responsable ?) au passage
+  hébergement définitif — Phase 4.
+
+### Données / logique métier
+- **`gen_reference`** — calcule max+1 en Python → race condition sur la numérotation concurrente.
+- **`total_facture()`** (models.py) — double comptage potentiel acompte + facture, à confirmer vs compta.
+- **TVA** — "non applicable art. 293B CGI" à adapter selon le régime fiscal réel.
+
+### Code / archi
+- **URLs à homogénéiser** — mélange français/anglais (statut/status, supprimer/delete). Choisir une convention et corriger partout.
+- **Context processor** — injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue).
+- **Modèle `BibliothèqueAides`** — nom de classe avec accent (non-ASCII), fragile pour imports/outils. Renommer en ASCII (`BibliothequeAides`) si on retouche le modèle.
+- **Auditer les templates** — chercher `f.reference` parasites (→ doit être `f.get_reference`).
+
+### Tests
+- **Couverture session 14 manquante** — zone_financement (persistance), `aides_api_save` (nom vide → 400, type invalide), `aide_delete`. **21 tests** au total aujourd'hui.
+
+### Performance
+- **Dashboard** — remplacer les boucles Python par `aggregate(Sum(...))` — Phase 3.
+
+### Fonctionnel (à prévoir)
+- **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
+- **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
+
+### Infra
+- **SMTP Microsoft 365** — boîte partagée `noreply@domaine.fr`, SMTP AUTH dans Exchange admin, `EMAIL_BACKEND` Django.
+- **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés (logo, etc.).
