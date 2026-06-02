@@ -869,7 +869,7 @@
         <input class="input" type="number" name="echeance_jours" value="30" min="1"/>
       </div>
 
-      <div class="field"><label>Notes / description</label><textarea class="input" name="notes" rows="2"></textarea></div>
+      <div class="field"><label>Notes / description</label><textarea class="input" id="modal-notes" name="notes" rows="2"></textarea></div>
 
       <div class="ib ib-teal" style="font-size:11px">
         <i class="ti ti-info-circle" style="font-size:13px;flex-shrink:0"></i>
@@ -2555,6 +2555,8 @@ function syncDescInline(ce, nid) {
   if (n) n.description = ce.innerHTML;
 }
 
+const ACOMPTE_NOTES_DEFAULT = 'Montant à régler avant le démarrage des travaux';
+
 function setModalType(type) {
   document.getElementById('modal-type-doc').value = type;
   const isAcompte = type === 'acompte';
@@ -2565,6 +2567,10 @@ function setModalType(type) {
   document.getElementById('btn-type-acompte').style.cssText = isAcompte
     ? 'background:var(--amber);color:#fff;border-color:var(--amber)'
     : 'border-color:var(--amber);color:var(--amber)';
+  // Description par défaut selon le type
+  const notes = document.getElementById('modal-notes');
+  if (isAcompte && notes.value === '') notes.value = ACOMPTE_NOTES_DEFAULT;
+  if (!isAcompte && notes.value === ACOMPTE_NOTES_DEFAULT) notes.value = '';
 }
 
 // ── CHARGEMENT INITIAL ──
