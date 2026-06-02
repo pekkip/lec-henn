@@ -4,11 +4,11 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (01/06/2026 — session 14) :** en test beta, en attente de retours
-des collègues. Zone financement dans l'éditeur de devis + bibliothèque Aides partagée
-(page dédiée + panneau dans l'éditeur). Items sécurité toujours reportés (voir Session
-10 « Hors scope ») : durcissement config (`DEBUG`/`SECRET_KEY`), politique de rôle du
-bypass OTP.
+**État du projet (02/06/2026 — session 15) :** en test beta, en attente de retours
+des collègues. Correctifs UX : onglet Factures persisté après changement de statut ;
+section financement plus visible sur le PDF devis et présente sur l'aperçu facture.
+Items sécurité toujours reportés (voir Session 10 « Hors scope ») : durcissement
+config (`DEBUG`/`SECRET_KEY`), politique de rôle du bypass OTP.
 
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
@@ -156,6 +156,33 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 15 — 02/06/2026 — Correctifs UX onglet Factures & section financement
+
+### Fichiers modifiés
+- `devis_detail.html` — persistance de l'onglet Factures après tout rechargement
+  déclenché par une action facture (changement de statut, validation, bypass, paiement).
+  Mécanisme : `sessionStorage` (`devis-next-tab-<pk>`) posé avant le rechargement,
+  lu et effacé au chargement suivant. Couvre : forms POST dans `#pane-factures`,
+  `#delete-facture-form` (modal hors pane), `confirmBypass()`, `confirmerPaye()`.
+- `devis_pdf.html` — CSS `.sep-fin td` : titre "Financements & subventions" passe de
+  gris discret (fond `--gray-lt`, couleur `--gray-md`, 9px) à rouge clair (fond
+  `--red-lt`, couleur `--red`, 10px, bordure `#F5C6C2`) — cohérent avec les lignes FIN.
+- `views.py` — `facture_apercu` : ajout de `lignes_fin` au contexte (lignes FIN
+  racines du devis, sans `assign_numbers_python` — affichage informatif uniquement).
+- `facture_apercu.html` — CSS `.sep-fin` et `.row-fin` (même style que devis_pdf) ;
+  section financement ajoutée en fin de tableau après les lignes normales ; les totaux
+  de la facture restent inchangés (le montant facturé est indépendant du financement
+  devis).
+
+### Décisions actées
+- **Onglet Factures** : `sessionStorage` plutôt que hash URL ou param serveur —
+  aucun changement côté Django, clé scoped par devis pk, effacée après usage.
+- **Section financement sur la facture** : informatif uniquement (lignes FIN du devis
+  dans le tableau) ; les totaux de la facture ne sont pas recalculés (le montant
+  facturé reste la référence comptable).
 
 ---
 
