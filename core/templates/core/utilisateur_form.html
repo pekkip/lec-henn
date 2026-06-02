@@ -87,16 +87,21 @@
     <div class="form-group">
       <label>Équipes</label>
       <small class="form-hint">Sélection multiple possible. Laisser vide pour les profils transverses (ex : comptable).</small>
-      <div class="checkboxes-grid">
-        {% for eq in equipes %}
-        <label class="checkbox-label">
-          <input type="checkbox" name="equipes" value="{{ eq.pk }}"
-            {% if mode == 'edition' and eq in cible.equipes.all %}checked{% endif %}>
-          <span>
-            {{ eq.nom }}
-            <small class="text-muted">{{ eq.service.territoire }}</small>
-          </span>
-        </label>
+      {% regroup equipes by service as equipes_par_service %}
+      <div class="equipes-groupees">
+        {% for groupe in equipes_par_service %}
+        <div class="equipe-groupe">
+          <div class="equipe-service-label">{{ groupe.grouper.nom }}</div>
+          <div class="equipe-checkboxes">
+            {% for eq in groupe.list %}
+            <label class="checkbox-compact">
+              <input type="checkbox" name="equipes" value="{{ eq.pk }}"
+                {% if mode == 'edition' and eq in cible.equipes.all %}checked{% endif %}>
+              {{ eq.nom }}
+            </label>
+            {% endfor %}
+          </div>
+        </div>
         {% endfor %}
       </div>
     </div>
@@ -164,11 +169,13 @@
   .form-group label { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); }
   .form-hint { font-size: 12px; color: var(--color-text-tertiary); margin-top: 2px; }
   .required { color: var(--color-text-danger); }
-  .checkboxes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 8px; }
-  .checkbox-label { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); cursor: pointer; font-size: 13px; }
-  .checkbox-label:hover { background: var(--color-background-secondary); }
-  .checkbox-label input { margin-top: 2px; flex-shrink: 0; }
-  .checkbox-label small { display: block; font-size: 11px; }
+  .equipes-groupees { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); overflow: hidden; margin-top: 8px; }
+  .equipe-groupe { padding: 8px 12px 10px; }
+  .equipe-groupe + .equipe-groupe { border-top: 0.5px solid var(--color-border-tertiary); }
+  .equipe-service-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-tertiary); margin-bottom: 6px; }
+  .equipe-checkboxes { display: flex; flex-wrap: wrap; gap: 2px 20px; }
+  .checkbox-compact { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; padding: 2px 0; color: var(--color-text-primary); }
+  .checkbox-compact:hover { color: var(--color-text-accent); }
   .card-info { background: var(--color-background-info); border-color: var(--color-border-info); }
   .mdp-info { display: flex; gap: 12px; align-items: flex-start; color: var(--color-text-info); }
   .mdp-info p { margin: 4px 0 0; font-size: 13px; }

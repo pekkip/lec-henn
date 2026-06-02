@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 import string
 import re
@@ -6,15 +7,19 @@ from datetime import date, timedelta, datetime
 from datetime import datetime as dt
 from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     Client, Devis, LigneDevis,
@@ -1100,13 +1105,31 @@ def facture_delete(request, pk):
 
 @login_required
 def facture_bypass_send_code(request, pk):
+    if not request.user.email:
+        return JsonResponse({'ok': False, 'error': 'Aucune adresse email sur votre compte. Contactez un administrateur.'})
+
+    facture = get_object_or_404(Facture, pk=pk)
     code = ''.join(random.choices(string.digits, k=6))
     request.session[f'bypass_code_{pk}'] = code
-    # Le code n'est PAS renvoyé dans la réponse : il doit être délivré par e-mail.
-    # Tant que SMTP (M365) n'est pas branché, le bypass est donc dormant — c'est
-    # l'état sûr voulu. La validation comptable reste la voie normale.
-    # TODO : envoyer `code` par e-mail à request.user.email dès SMTP dispo.
-    return JsonResponse({'ok': True})
+
+    try:
+        send_mail(
+            subject=f'Code bypass — {facture.get_reference()}',
+            message=(
+                f'Bonjour {request.user.first_name or request.user.username},\n\n'
+                f'Votre code de bypass pour la facture {facture.get_reference()} est :\n\n'
+                f'    {code}\n\n'
+                f'Ce code est valable 10 minutes.\n\n'
+                f'CB Bretagne'
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[request.user.email],
+            fail_silently=False,
+        )
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        logger.error('Bypass email error (facture %s): %s', pk, e)
+        return JsonResponse({'ok': False, 'error': "Impossible d’envoyer le code par email. Contactez un administrateur."})
 
 
 def calc_deja_facture_par_source(devis, facture_courante):
@@ -1520,20 +1543,53 @@ def utilisateur_create(request):
         else:
             Bibliotheque.objects.create(user=user, lignes=[])
 
-        # Afficher le mot de passe temporaire une seule fois via la page de succès
+        # Envoi de l'email d'invitation si une adresse est renseignée
+        nom_affiche = f'{first_name} {last_name}'.strip() or username
+        email_envoye = False
+        email_erreur = None
+
+        if email:
+            try:
+                send_mail(
+                    subject='Votre compte CB Bretagne',
+                    message=(
+                        f'Bonjour {first_name or username},\n\n'
+                        f'Votre compte CB Bretagne a été créé.\n\n'
+                        f'Identifiant : {username}\n'
+                        f'Mot de passe temporaire : {mdp_temp}\n\n'
+                        f'Merci de changer votre mot de passe dès votre première connexion.\n\n'
+                        f'CB Bretagne'
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[email],
+                    fail_silently=False,
+                )
+                email_envoye = True
+            except Exception as e:
+                logger.error('Invitation email error (user %s): %s', username, e)
+                email_erreur = "L'email d'invitation n'a pas pu être envoyé (erreur SMTP)."
+        else:
+            email_erreur = 'Aucune adresse email renseignée — communiquez le mot de passe manuellement.'
+
+        if email_envoye:
+            messages.success(request, f'Utilisateur {username} créé. Email d\'invitation envoyé à {email}.')
+            return redirect('core:utilisateurs-list')
+
+        # Fallback : email non envoyé → afficher le mot de passe une seule fois
         request.session['nouveau_user_mdp'] = {
             'username': username,
             'mdp': mdp_temp,
-            'nom': f'{first_name} {last_name}'.strip() or username,
+            'nom': nom_affiche,
+            'email_erreur': email_erreur,
         }
         return redirect('core:utilisateur-create-succes')
 
     # GET — construction du formulaire
     if profil_courant.role == 'admin':
-        equipes_disponibles = Equipe.objects.select_related('service__territoire').all()
+        equipes_disponibles = Equipe.objects.select_related('service__territoire').all().order_by('service__nom', 'nom')
         roles_disponibles = ProfilUtilisateur.ROLE_CHOICES
     else:
-        equipes_disponibles = profil_courant.equipes.select_related('service__territoire').all()
+        equipes_disponibles = profil_courant.equipes.select_related('service__territoire').all().order_by('service__nom', 'nom')
         # Responsable ne peut pas créer d'admin
         roles_disponibles = [
             (k, v) for k, v in ProfilUtilisateur.ROLE_CHOICES if k != 'admin'
@@ -1617,10 +1673,10 @@ def utilisateur_edit(request, pk):
 
     # GET
     if profil_courant.role == 'admin':
-        equipes_disponibles = Equipe.objects.select_related('service__territoire').all()
+        equipes_disponibles = Equipe.objects.select_related('service__territoire').all().order_by('service__nom', 'nom')
         roles_disponibles = ProfilUtilisateur.ROLE_CHOICES
     else:
-        equipes_disponibles = profil_courant.equipes.select_related('service__territoire').all()
+        equipes_disponibles = profil_courant.equipes.select_related('service__territoire').all().order_by('service__nom', 'nom')
         roles_disponibles = [
             (k, v) for k, v in ProfilUtilisateur.ROLE_CHOICES if k != 'admin'
         ]

@@ -17,6 +17,13 @@
     </div>
   </div>
 
+  {% if infos.email_erreur %}
+  <div class="mdp-warning" style="margin-bottom:1rem">
+    <i class="ti ti-alert-triangle"></i>
+    {{ infos.email_erreur }}
+  </div>
+  {% endif %}
+
   <div class="mdp-block">
     <p class="mdp-label">Mot de passe temporaire</p>
     <div class="mdp-value">

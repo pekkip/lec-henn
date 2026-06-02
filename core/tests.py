@@ -142,6 +142,9 @@ class AccesDevisFactureTests(TestCase):
         self.assertIn('/login/', resp['Location'])
 
     def test_bypass_send_ne_renvoie_pas_le_code(self):
+        # alice doit avoir un email pour que la vue tente l'envoi
+        self.user_a.email = 'alice@example.com'
+        self.user_a.save()
         self.client.login(username='alice', password='pw')
         resp = self.client.get(
             reverse('core:facture-bypass-send', args=[self.facture.pk])

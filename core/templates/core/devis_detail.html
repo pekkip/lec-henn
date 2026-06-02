@@ -2407,16 +2407,27 @@ async function saveTree() {
 }
 
 // ── BYPASS ──
-function openBypass(factId) {
+async function openBypass(factId) {
   bypassFactId = factId;
   document.getElementById('bypass-code-input').value = '';
   document.getElementById('bypass-err').style.display = 'none';
   document.getElementById('bypass-ok').style.display = 'none';
   document.getElementById('bypass-confirm-btn').disabled = true;
-  // Déclenche la génération du code côté serveur (envoyé par e-mail).
-  // Le code n'est plus renvoyé ici : la vérification se fait côté serveur.
-  fetch(`/factures/${factId}/bypass/send/`, {headers:{'X-CSRFToken':CSRF}});
   document.getElementById('modal-bypass').classList.remove('hidden');
+  // Génère le code côté serveur et l'envoie par email.
+  try {
+    const resp = await fetch(`/factures/${factId}/bypass/send/`, {headers:{'X-CSRFToken':CSRF}});
+    const data = await resp.json();
+    if (!data.ok) {
+      const errEl = document.getElementById('bypass-err');
+      errEl.innerHTML = '<i class="ti ti-alert-circle"></i> ' + (data.error || "Impossible d'envoyer le code.");
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    const errEl = document.getElementById('bypass-err');
+    errEl.innerHTML = "<i class=\"ti ti-alert-circle\"></i> Erreur réseau, impossible d'envoyer le code.";
+    errEl.style.display = 'block';
+  }
 }
 function checkBypassCode(inp) {
   // Le code n'est pas connu côté client : on active le bouton dès 6 chiffres
