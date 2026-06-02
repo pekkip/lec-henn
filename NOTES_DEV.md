@@ -205,9 +205,11 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
   des phases build/start.
 
 ### Décisions actées
-- **SMTP M365** : mot de passe classique (pas d'app password), SMTP AUTH activé sur la
-  boîte `noreply@compagnonsbatisseurs.eu`. Variables d'env Railway :
-  `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`.
+- **Email — Brevo** : Railway bloque les ports SMTP sortants (587/465) sur les comptes
+  hobby. Migration vers Brevo (HTTP API via `django-anymail[brevo]`). Variable Railway :
+  `BREVO_API_KEY`. Expéditeur `noreply@compagnonsbatisseurs.eu` vérifié dans le dashboard
+  Brevo. `DEFAULT_FROM_EMAIL` hardcodé dans settings.py.
+  M365 SMTP fonctionnel en local uniquement (testé session 16, abandonné pour prod).
 - **Invitation** : email prioritaire (pas d'affichage MDP à l'écran si envoi OK) ;
   fallback écran si pas d'email ou SMTP KO — pas de perte d'accès.
 - **Bypass OTP** : désormais fonctionnel (code envoyé par email) — dette session 10 soldée.
