@@ -167,15 +167,19 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
   Mécanisme : `sessionStorage` (`devis-next-tab-<pk>`) posé avant le rechargement,
   lu et effacé au chargement suivant. Couvre : forms POST dans `#pane-factures`,
   `#delete-facture-form` (modal hors pane), `confirmBypass()`, `confirmerPaye()`.
+- `devis_detail.html` — description par défaut à la création d'un acompte :
+  `setModalType('acompte')` pré-remplit le champ Notes avec *"Montant à régler avant
+  le démarrage des travaux"* si vide ; re-basculer sur Facture efface le texte par
+  défaut (sauf si l'utilisateur l'a modifié).
 - `devis_pdf.html` — CSS `.sep-fin td` : titre "Financements & subventions" passe de
   gris discret (fond `--gray-lt`, couleur `--gray-md`, 9px) à rouge clair (fond
   `--red-lt`, couleur `--red`, 10px, bordure `#F5C6C2`) — cohérent avec les lignes FIN.
 - `views.py` — `facture_apercu` : ajout de `lignes_fin` au contexte (lignes FIN
-  racines du devis, sans `assign_numbers_python` — affichage informatif uniquement).
+  racines du devis) ; exclusion des lignes FIN du queryset `lignes_filtrees` (évite
+  l'affichage double positif/négatif).
 - `facture_apercu.html` — CSS `.sep-fin` et `.row-fin` (même style que devis_pdf) ;
-  section financement ajoutée en fin de tableau après les lignes normales ; les totaux
-  de la facture restent inchangés (le montant facturé est indépendant du financement
-  devis).
+  section financement ajoutée en fin de tableau, **uniquement pour les factures
+  classiques** (`facture.type_doc != 'acompte'`) ; les totaux restent inchangés.
 
 ### Décisions actées
 - **Onglet Factures** : `sessionStorage` plutôt que hash URL ou param serveur —
@@ -183,6 +187,8 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - **Section financement sur la facture** : informatif uniquement (lignes FIN du devis
   dans le tableau) ; les totaux de la facture ne sont pas recalculés (le montant
   facturé reste la référence comptable).
+- **Financement masqué sur les acomptes** : sans pertinence comptable sur un acompte,
+  la section ne s'affiche pas sur les aperçus `type_doc='acompte'`.
 
 ---
 
