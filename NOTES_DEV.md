@@ -4,11 +4,10 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (02/06/2026 — session 15) :** en test beta, en attente de retours
-des collègues. Correctifs UX : onglet Factures persisté après changement de statut ;
-section financement plus visible sur le PDF devis et présente sur l'aperçu facture.
-Items sécurité toujours reportés (voir Session 10 « Hors scope ») : durcissement
-config (`DEBUG`/`SECRET_KEY`), politique de rôle du bypass OTP.
+**État du projet (02/06/2026 — session 16) :** en test beta, en attente de retours
+des collègues. SMTP M365 branché : invitations, bypass OTP et reset mot de passe
+fonctionnels. Page `/aide/` publique (manuel utilisateur HTML). Items sécurité
+toujours reportés : durcissement config (`DEBUG`/`SECRET_KEY`).
 
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
@@ -156,6 +155,60 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 16 — 02/06/2026 — SMTP, invitations, manuel utilisateur & reset MDP
+
+### Fichiers modifiés
+- `requirements.txt` — ajout `python-dotenv`
+- `cbretagne/settings.py` — chargement `.env` via `load_dotenv()` ; config SMTP M365
+  (`EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`,
+  `DEFAULT_FROM_EMAIL`) ; `SITE_URL` (Railway ou localhost)
+- `.env` — fichier local (gitignore) avec les credentials SMTP de la boîte
+  `noreply@compagnonsbatisseurs.eu`
+- `core/models.py` — `ProfilUtilisateur.invitation_envoyee` (BooleanField, défaut False)
+- `core/migrations/0015_profil_invitation_envoyee.py`
+- `core/views.py` :
+  - `aide_view` — page publique (pas de `@login_required`)
+  - `mot_de_passe_oublie` — reset MDP restreint au domaine `@compagnonsbatisseurs.eu` ;
+    génère un mot de passe temporaire et l'envoie par email (même message si adresse
+    inconnue → pas d'énumération)
+  - `utilisateur_create` — envoie l'email d'invitation avec identifiant + MDP temp +
+    lien connexion + lien manuel ; `invitation_envoyee=True` si envoi OK ; fallback page
+    de succès avec affichage MDP si envoi échoue ou pas d'email
+  - `facture_bypass_send_code` — envoie le code OTP par email à `request.user.email` ;
+    retourne `{'ok': False, 'error': '...'}` si pas d'email ou SMTP échoue
+  - `utilisateur_create` (GET) + `utilisateur_edit` (GET) — équipes triées par
+    `service__nom, nom` pour le `{% regroup %}`
+- `core/urls.py` — routes `/aide/` et `/mot-de-passe-oublie/`
+- `core/templates/core/aide.html` — page manuel utilisateur autonome (pas de base.html) :
+  TOC sticky, 9 sections, lien "← Retour à l'application" encadré vert
+- `core/templates/core/mot_de_passe_oublie.html` — page reset MDP (style login.html)
+- `core/templates/core/login.html` — lien "Mot de passe oublié ?" sous le bouton
+- `core/templates/core/utilisateur_form.html` — équipes groupées par service via
+  `{% regroup %}` (plus compact, prévu pour ~6 services × ~5 équipes)
+- `core/templates/core/utilisateur_succes.html` — page fallback (email non envoyé) :
+  affiche le MDP + message d'erreur contextuel
+- `core/templates/core/utilisateurs_list.html` — badge "Invitation envoyée" (vert) ou
+  "Invitation non envoyée" (orange) sous l'email de chaque utilisateur
+- `core/templates/core/devis_detail.html` — `openBypass()` devient `async` : attend la
+  réponse du `/send/` et affiche l'erreur dans la modale si envoi impossible
+- `core/tests.py` — `test_bypass_send` : alice reçoit un email pour que la vue réussisse
+
+### Décisions actées
+- **SMTP M365** : mot de passe classique (pas d'app password), SMTP AUTH activé sur la
+  boîte `noreply@compagnonsbatisseurs.eu`. Variables d'env Railway :
+  `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`.
+- **Invitation** : email prioritaire (pas d'affichage MDP à l'écran si envoi OK) ;
+  fallback écran si pas d'email ou SMTP KO — pas de perte d'accès.
+- **Bypass OTP** : désormais fonctionnel (code envoyé par email) — dette session 10 soldée.
+- **Reset MDP** : restriction domaine `@compagnonsbatisseurs.eu` côté serveur ;
+  pas d'énumération (même message quel que soit l'email).
+- **Manuel `/aide/`** : page HTML publique (sans `@login_required`), maintenu manuellement
+  à chaque grosse session. Lien dans la sidebar + dans l'email d'invitation.
+- **Équipes groupées** : `{% regroup %}` Django (pas de JS) ; tri `order_by('service__nom', 'nom')`
+  dans les deux vues (création + édition).
 
 ---
 
@@ -485,9 +538,8 @@ politique de rôle du bypass OTP.
 - **Durcissement config** — `DEBUG` défaut True + `SECRET_KEY` retombe sur une clé dev
   si les variables d'env manquent (settings.py). Cible : `DEBUG=False` par défaut, échec
   fort si `SECRET_KEY` absente en prod.
-- **OTP bypass** — ✅ `code` retiré du JSON + vérif côté serveur (session 10). Reste :
-  envoyer le code par e-mail à `request.user.email` dans `facture_bypass_send_code` dès
-  SMTP M365 branché ; décider la politique de rôle. ⚠️ Bypass **dormant** d'ici là.
+- **OTP bypass** — ✅ fonctionnel (session 16) : code envoyé par email via SMTP M365.
+  Reste : décider la politique de rôle (admin/responsable uniquement vs tout le monde).
 - **Bibliothèque Aides — droits** — `aide_delete`/`aides_api_save` ouverts à tout
   utilisateur connecté (**BETA assumé**). Restreindre (admin/responsable ?) au passage
   hébergement définitif — Phase 4.
