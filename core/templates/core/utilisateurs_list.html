@@ -38,6 +38,11 @@
           {% if p.user.email %}
           <br><small class="text-muted">{{ p.user.email }}</small>
           {% endif %}
+          {% if p.invitation_envoyee %}
+          <br><span class="badge badge-invitation"><i class="ti ti-mail-check"></i> Invitation envoyée</span>
+          {% elif p.user.email %}
+          <br><span class="badge badge-invitation-pending"><i class="ti ti-mail-x"></i> Invitation non envoyée</span>
+          {% endif %}
         </td>
         <td><code>{{ p.user.username }}</code></td>
         <td>
@@ -100,6 +105,8 @@
   .badge-equipe { background: #F1EFE8; color: #5F5E5A; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 3px; }
   .badge-success { background: #EAF3DE; color: #3B6D11; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
   .badge-inactive { background: #F1EFE8; color: #888780; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
+  .badge-invitation { background: #E0F5F2; color: #007A64; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+  .badge-invitation-pending { background: #FEF3C7; color: #92400E; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
   .actions { white-space: nowrap; }
   .btn-warning { border-color: #EF9F27; color: #854F0B; }
   .btn-warning:hover { background: #FAEEDA; }

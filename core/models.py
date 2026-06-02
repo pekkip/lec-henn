@@ -101,6 +101,10 @@ class ProfilUtilisateur(models.Model):
         default=list, blank=True,
         help_text="Ordre et visibilité des catégories dans la bibliothèque"
     )
+    invitation_envoyee = models.BooleanField(
+        default=False,
+        help_text="Email d'invitation envoyé avec succès"
+    )
     conditions_devis = models.TextField(blank=True)
     conditions_facture = models.TextField(blank=True)
     coordonnees_cb = models.TextField(

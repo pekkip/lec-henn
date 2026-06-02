@@ -1578,6 +1578,8 @@ def utilisateur_create(request):
             email_erreur = 'Aucune adresse email renseignée — communiquez le mot de passe manuellement.'
 
         if email_envoye:
+            nouveau_profil.invitation_envoyee = True
+            nouveau_profil.save(update_fields=['invitation_envoyee'])
             messages.success(request, f'Utilisateur {username} créé. Email d\'invitation envoyé à {email}.')
             return redirect('core:utilisateurs-list')
 
