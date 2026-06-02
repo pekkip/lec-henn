@@ -576,6 +576,9 @@ politique de rôle du bypass OTP.
 ### Fonctionnel (à prévoir)
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
 - **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
+- **Restriction email @compagnonsbatisseurs.eu à la création d'utilisateur** — validation
+  commentée dans `views.py` (`utilisateur_create`, TODO Phase 4). Décommenter avant
+  passage en hébergement définitif.
 
 ### Infra
 - **SMTP Microsoft 365** — boîte partagée `noreply@domaine.fr`, SMTP AUTH dans Exchange admin, `EMAIL_BACKEND` Django.

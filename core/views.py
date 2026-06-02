@@ -1543,6 +1543,11 @@ def utilisateur_create(request):
             messages.error(request, 'Le nom d\'utilisateur est obligatoire.')
             return redirect('core:utilisateur-create')
 
+        # TODO (avant passage Phase 4) : limiter les emails à @compagnonsbatisseurs.eu
+        # if email and not email.endswith(f'@{DOMAINE_AUTORISE}'):
+        #     messages.error(request, f'L\'adresse email doit être une adresse @{DOMAINE_AUTORISE}.')
+        #     return redirect('core:utilisateur-create')
+
         if User.objects.filter(username=username).exists():
             messages.error(request, f'Le nom d\'utilisateur "{username}" est déjà utilisé.')
             return redirect('core:utilisateur-create')
