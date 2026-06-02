@@ -202,6 +202,51 @@ def aide_view(request):
     return render(request, 'core/aide.html')
 
 
+DOMAINE_AUTORISE = 'compagnonsbatisseurs.eu'
+
+def mot_de_passe_oublie(request):
+    succes = False
+    erreur = None
+
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip().lower()
+
+        if not email.endswith(f'@{DOMAINE_AUTORISE}'):
+            erreur = f'Seules les adresses @{DOMAINE_AUTORISE} sont acceptées.'
+        else:
+            user = User.objects.filter(email__iexact=email, is_active=True).first()
+            if user:
+                mdp_temp = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+                user.set_password(mdp_temp)
+                user.save()
+                try:
+                    send_mail(
+                        subject='Réinitialisation de votre mot de passe CB Bretagne',
+                        message=(
+                            f'Bonjour {user.first_name or user.username},\n\n'
+                            f'Votre mot de passe a été réinitialisé suite à votre demande.\n\n'
+                            f'Identifiant : {user.username}\n'
+                            f'Mot de passe temporaire : {mdp_temp}\n\n'
+                            f'Connectez-vous ici : {settings.SITE_URL}/login/\n\n'
+                            f'Pensez à changer votre mot de passe après connexion.\n\n'
+                            f'CB Bretagne'
+                        ),
+                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        recipient_list=[email],
+                        fail_silently=False,
+                    )
+                except Exception as e:
+                    logger.error('Password reset email error (user %s): %s', user.username, e)
+            # Même message qu'un email inexistant pour éviter l'énumération
+            succes = True
+
+    return render(request, 'core/mot_de_passe_oublie.html', {
+        'succes': succes,
+        'erreur': erreur,
+        'domaine': DOMAINE_AUTORISE,
+    })
+
+
 @login_required
 def profil_view(request):
     profil = get_profil(request.user)

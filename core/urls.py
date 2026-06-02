@@ -15,6 +15,9 @@ urlpatterns = [
     # Aide / Manuel utilisateur (public)
     path('aide/', views.aide_view, name='aide'),
 
+    # Mot de passe oublié (public)
+    path('mot-de-passe-oublie/', views.mot_de_passe_oublie, name='mot-de-passe-oublie'),
+
     # Clients
     path('clients/', views.clients_list, name='clients'),
     path('clients/nouveau/', views.client_create, name='client-create'),
