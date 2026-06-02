@@ -196,6 +196,14 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
   réponse du `/send/` et affiche l'erreur dans la modale si envoi impossible
 - `core/tests.py` — `test_bypass_send` : alice reçoit un email pour que la vue réussisse
 
+- `requirements.txt` — contrainte `django>=4.2,<6.0` → `django>=6.0` (alignée avec
+  la version réelle en prod)
+- `cbretagne/settings.py` — `STATICFILES_STORAGE` (supprimé dans Django 6) remplacé
+  par le dict `STORAGES` avec `whitenoise.storage.CompressedStaticFilesStorage`
+- `railway.toml` — créé : `collectstatic` déplacé en phase **build** Railway ;
+  `migrate + gunicorn` en phase **deploy**. Remplace le Procfile pour le contrôle
+  des phases build/start.
+
 ### Décisions actées
 - **SMTP M365** : mot de passe classique (pas d'app password), SMTP AUTH activé sur la
   boîte `noreply@compagnonsbatisseurs.eu`. Variables d'env Railway :
@@ -209,6 +217,10 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
   à chaque grosse session. Lien dans la sidebar + dans l'email d'invitation.
 - **Équipes groupées** : `{% regroup %}` Django (pas de JS) ; tri `order_by('service__nom', 'nom')`
   dans les deux vues (création + édition).
+- **CSS admin Railway** : `STATICFILES_STORAGE` supprimé en Django 6 → `STORAGES` dict.
+  Cause racine : `collectstatic` tournait dans la phase start (Procfile) mais les fichiers
+  ne persistaient pas jusqu'à gunicorn. Résolu par `railway.toml` qui déplace
+  `collectstatic` en phase build (fichiers intégrés à l'image container).
 
 ---
 
