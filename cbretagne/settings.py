@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'anymail',
     'core',
 ]
 
@@ -141,20 +142,16 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Email (Microsoft 365 en prod ; console en dev si EMAIL_HOST_USER absent)
-_email_user = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_BACKEND = os.environ.get(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.smtp.EmailBackend' if _email_user
-    else 'django.core.mail.backends.console.EmailBackend',
+# Email — Brevo (HTTP API, pas de SMTP) en prod ; console en dev
+_brevo_key = os.environ.get('BREVO_API_KEY', '')
+EMAIL_BACKEND = (
+    'anymail.backends.brevo.EmailBackend' if _brevo_key
+    else 'django.core.mail.backends.console.EmailBackend'
 )
-EMAIL_HOST          = os.environ.get('EMAIL_HOST', 'smtp.office365.com')
-EMAIL_PORT          = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS       = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER     = _email_user
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', _email_user or 'noreply@example.com')
-EMAIL_TIMEOUT       = 10  # évite de bloquer le worker gunicorn si SMTP injoignable
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@compagnonsbatisseurs.eu')
+ANYMAIL = {
+    'BREVO_API_KEY': _brevo_key,
+}
 SITE_URL = os.environ.get('SITE_URL', 'https://lec-henn-production.up.railway.app')
 
 LOGIN_URL = '/login/'
