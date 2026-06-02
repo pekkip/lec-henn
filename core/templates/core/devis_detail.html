@@ -2433,7 +2433,7 @@ async function confirmBypass() {
     body:`code=${code}`,
   });
   const data = await resp.json();
-  if (data.ok) window.location.reload();
+  if (data.ok) { sessionStorage.setItem('devis-next-tab-' + DEVIS_ID, 'factures'); window.location.reload(); }
   else document.getElementById('bypass-err').style.display = 'block';
 }
 
@@ -2591,8 +2591,23 @@ fetch('/aides/')
     renderAidesPanel();
   });
 
+// ── PERSISTANCE ONGLET FACTURES ──
+// Mémorise l'onglet actif dans sessionStorage avant tout rechargement déclenché
+// par une action sur une facture (changement de statut, validation, paiement…).
+(function () {
+  const KEY = 'devis-next-tab-' + DEVIS_ID;
+  const nextTab = sessionStorage.getItem(KEY);
+  if (nextTab) {
+    sessionStorage.removeItem(KEY);
+    switchTab(null, nextTab);
+  }
+  document.querySelectorAll('#pane-factures form').forEach(form => {
+    form.addEventListener('submit', () => sessionStorage.setItem(KEY, 'factures'));
+  });
+  const delForm = document.getElementById('delete-facture-form');
+  if (delForm) delForm.addEventListener('submit', () => sessionStorage.setItem(KEY, 'factures'));
+})();
 
-  
 </script>
 
 <script>
@@ -2651,6 +2666,7 @@ async function confirmerPaye() {
     }
 
     document.getElementById('modal-paye').classList.add('hidden');
+    sessionStorage.setItem('devis-next-tab-' + DEVIS_ID, 'factures');
     window.location.reload();
   } catch(e) {
     btn.disabled = false;
