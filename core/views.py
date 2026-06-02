@@ -1229,6 +1229,9 @@ def facture_apercu(request, pk):
 
     lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None))
 
+    # Lignes financement du devis (FIN, niveau racine) — section informative
+    lignes_fin = list(devis.lignes.filter(parent=None, type_ligne='FIN'))
+
     # Acomptes déduits uniquement sur la première facture non-acompte du devis
     from decimal import Decimal
     premiere_facture = devis.factures.exclude(
@@ -1253,6 +1256,7 @@ def facture_apercu(request, pk):
         'devis': devis,
         'params': params,
         'lignes': lignes_filtrees,
+        'lignes_fin': lignes_fin,
         'coordonnees_cb': devis.coordonnees_cb,
         'acomptes': acomptes,
         'total_acomptes': total_acomptes,

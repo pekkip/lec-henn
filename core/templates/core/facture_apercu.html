@@ -97,6 +97,21 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
 .row-titre td { background: var(--prune-lt); font-weight: 700; font-size: 11px; color: var(--prune); border-bottom: 1px solid var(--prune-bd); padding: 8px 10px; }
 .row-child .td-desig { padding-left: 22px; }
 
+/* Lignes financement */
+.sep-fin td {
+  background: var(--red-lt);
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: var(--red);
+  padding: 7px 10px;
+  border-top: 2px solid #F5C6C2;
+}
+.row-fin td {
+  background: var(--red-lt);
+  color: var(--red);
+  font-style: italic;
+}
+
 /* TOTAUX */
 .doc-totaux { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; padding: 16px 32px 0; }
 .tot-row { display: flex; align-items: baseline; font-size: 11px; }
@@ -283,6 +298,18 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
           {% endwith %}
           {% endif %}
         {% endfor %}
+
+        {% if lignes_fin %}
+        <tr class="sep-fin"><td colspan="5">Financements &amp; subventions</td></tr>
+        {% for l in lignes_fin %}
+        <tr class="row-fin">
+          <td colspan="2">{{ l.description|safe }}</td>
+          <td></td>
+          <td></td>
+          <td class="td-num" style="font-weight:600">−{{ l.total|floatformat:2 }} €</td>
+        </tr>
+        {% endfor %}
+        {% endif %}
       </tbody>
     </table>
 
