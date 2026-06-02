@@ -154,6 +154,7 @@ EMAIL_USE_TLS       = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
 EMAIL_HOST_USER     = _email_user
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL  = os.environ.get('DEFAULT_FROM_EMAIL', _email_user or 'noreply@example.com')
+EMAIL_TIMEOUT       = 10  # évite de bloquer le worker gunicorn si SMTP injoignable
 SITE_URL = os.environ.get('SITE_URL', 'https://lec-henn-production.up.railway.app')
 
 LOGIN_URL = '/login/'
