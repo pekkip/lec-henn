@@ -1,4 +1,5 @@
 import json
+from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
@@ -153,6 +154,67 @@ class AccesDevisFactureTests(TestCase):
         data = resp.json()
         self.assertTrue(data.get('ok'))
         self.assertNotIn('code', data)
+
+    def test_bypass_send_refuse_hors_equipe(self):
+        # Bob (équipe B) ne peut pas demander un code pour la facture d'Alice.
+        self.user_b.email = 'bob@example.com'
+        self.user_b.save()
+        self.client.login(username='bob', password='pw')
+        resp = self.client.get(
+            reverse('core:facture-bypass-send', args=[self.facture.pk])
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_bypass_refuse_hors_equipe(self):
+        # Bob ne peut pas valider via bypass même avec un code en session.
+        self.client.login(username='bob', password='pw')
+        session = self.client.session
+        session[f'bypass_code_{self.facture.pk}'] = '123456'
+        session.save()
+        resp = self.client.post(
+            reverse('core:facture-bypass', args=[self.facture.pk]),
+            {'code': '123456'},
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.facture.refresh_from_db()
+        self.assertFalse(self.facture.bypass_validation)
+
+
+class SecurityFixesTests(TestCase):
+    """Régressions sur les correctifs de sécurité/robustesse (session 17)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr = Territoire.objects.create(nom='Bretagne')
+        service = Service.objects.create(territoire=terr, nom='Habitat')
+        equipe = Equipe.objects.create(service=service, nom='Équipe A')
+        cls.user = User.objects.create_user('testuser', password='pw',
+                                            email='test@example.com')
+        ProfilUtilisateur.objects.create(user=cls.user, role='technicien')
+
+    def test_aides_api_save_montant_invalide_retourne_400(self):
+        # Un montant non numérique ne doit plus lever une 500.
+        self.client.login(username='testuser', password='pw')
+        resp = self.client.post(
+            reverse('core:aides-save'),
+            data=json.dumps({'description': 'Test aide', 'montant_defaut': 'pas-un-nombre'}),
+            content_type='application/json',
+        )
+        self.assertNotEqual(resp.status_code, 500)
+
+    def test_reset_mdp_preserve_mot_de_passe_si_email_echoue(self):
+        # Si l'envoi d'email échoue, le mot de passe ne doit pas être changé.
+        user = User.objects.create_user(
+            'resetuser', password='ancien_mdp',
+            email='resetuser@compagnonsbatisseurs.eu',
+        )
+        with patch('core.views.send_mail', side_effect=Exception('SMTP down')):
+            self.client.post(
+                reverse('core:mot-de-passe-oublie'),
+                {'email': 'resetuser@compagnonsbatisseurs.eu'},
+            )
+        user.refresh_from_db()
+        self.assertTrue(user.check_password('ancien_mdp'))
 
 
 class ClientsTests(TestCase):

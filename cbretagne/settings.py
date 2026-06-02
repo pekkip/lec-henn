@@ -14,6 +14,7 @@ from pathlib import Path
 import os
 import dj_database_url
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 load_dotenv()
 
@@ -25,10 +26,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY =  os.environ.get('SECRET_KEY', 'django-insecure-i__ygeb%x7vyjq1%oyn1#=r_yq#tlr@^$4cj-ty*403@r!6(gv')
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-i__ygeb%x7vyjq1%oyn1#=r_yq#tlr@^$4cj-ty*403@r!6(gv')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+if not DEBUG and os.environ.get('DATABASE_URL') and SECRET_KEY.startswith('django-insecure-'):
+    raise ImproperlyConfigured("SECRET_KEY doit être définie via la variable d'environnement en production.")
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost 127.0.0.1').split(' ')
 
@@ -153,6 +157,14 @@ ANYMAIL = {
     'BREVO_API_KEY': _brevo_key,
 }
 SITE_URL = os.environ.get('SITE_URL', 'https://lec-henn-production.up.railway.app')
+
+# Sécurité prod — activée uniquement sur Railway (DATABASE_URL présente)
+if not DEBUG and os.environ.get('DATABASE_URL'):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # HSTS différé (post-beta) — effet durable côté navigateur, prudent en beta
 
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'

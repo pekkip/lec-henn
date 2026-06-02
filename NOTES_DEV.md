@@ -4,10 +4,11 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (02/06/2026 — session 16) :** en test beta, en attente de retours
-des collègues. SMTP M365 branché : invitations, bypass OTP et reset mot de passe
-fonctionnels. Page `/aide/` publique (manuel utilisateur HTML). Items sécurité
-toujours reportés : durcissement config (`DEBUG`/`SECRET_KEY`).
+**État du projet (03/06/2026 — session 17) :** en test beta, en attente de retours
+des collègues. Email via **Brevo** (HTTP API) : invitations, bypass OTP et reset mot de
+passe fonctionnels. Page `/aide/` publique (manuel utilisateur HTML). Correctifs sécurité
+session 17 appliqués : bypass OTP protégé, durcissement config prod, Decimal robuste,
+reset MDP sûr. 25 tests. Items restants : voir § Dette technique.
 
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
@@ -155,6 +156,43 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 17 — 03/06/2026 — Audit sécurité & correctifs
+
+### Fichiers modifiés
+- `cbretagne/settings.py` — `ImproperlyConfigured` si `SECRET_KEY` absente en prod
+  (détection via `DATABASE_URL`) ; bloc `if not DEBUG and DATABASE_URL:` avec
+  `SECURE_PROXY_SSL_HEADER`, `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`,
+  `CSRF_COOKIE_SECURE`. Import `ImproperlyConfigured`.
+- `core/views.py` :
+  - `facture_bypass` + `facture_bypass_send_code` — gate `peut_modifier_facture` sur les
+    deux vues ; code OTP posé en session uniquement après envoi email réussi.
+  - Helper `to_decimal(val, default)` ajouté dans HELPERS.
+  - `aides_api_save` — `montant_defaut` via `to_decimal` (protège la 500).
+  - `lignes_save` + `lignes_facture_save` — `quantite`/`cout_unitaire` via `to_decimal`.
+  - `mot_de_passe_oublie` — `set_password`+`save` uniquement si `send_mail` réussit
+    (évite de bloquer l'accès de l'utilisateur en cas d'échec Brevo).
+  - Guillemets typographiques (U+2018/U+2019) remplacés par des apostrophes ASCII dans
+    tout le fichier (bug d'encodage introduit lors d'un Edit précédent).
+- `core/tests.py` — 4 nouveaux tests dans 2 classes :
+  - `AccesDevisFactureTests` : `test_bypass_send_refuse_hors_equipe`,
+    `test_bypass_refuse_hors_equipe`
+  - `SecurityFixesTests` (nouvelle classe) : `test_aides_api_save_montant_invalide_retourne_400`,
+    `test_reset_mdp_preserve_mot_de_passe_si_email_echoue`
+- `NOTES_DEV.md` — corrections dette (DEBUG, Brevo, bypass) ; session 17.
+- `core/templates/core/devis_form.html` + `devis_detail.html` — `step="0.5"` → `step="0.01"`
+  sur le champ Taux horaire MO (€/h) : permet la saisie à 2 décimales (ex : 47.24).
+
+### Décisions actées
+- **Bypass OTP** : gate `peut_modifier_facture` (= équipe du devis) en beta ; rôle à
+  restreindre (admin/comptable uniquement ?) en Phase 4 selon les retours.
+- **Sécurité settings** : détection prod via `DATABASE_URL` (présent sur Railway, absent
+  en dev/test) — évite d'activer `SECURE_SSL_REDIRECT` dans les tests locaux.
+- **HSTS** : volontairement différé (post-beta) — effet persistant côté navigateur.
+- **Race `gen_reference`** : laissé en dette (proba nulle à l'échelle beta).
+- **`total_facture()` brouillons** : comportement inchangé (décision métier à confirmer).
 
 ---
 
@@ -549,11 +587,13 @@ politique de rôle du bypass OTP.
 > figés — ne pas y dupliquer de TODO : tout item à reprendre vit **ici**.
 
 ### Sécurité / config
-- **Durcissement config** — `DEBUG` défaut True + `SECRET_KEY` retombe sur une clé dev
-  si les variables d'env manquent (settings.py). Cible : `DEBUG=False` par défaut, échec
-  fort si `SECRET_KEY` absente en prod.
-- **OTP bypass** — ✅ fonctionnel (session 16) : code envoyé par email via SMTP M365.
-  Reste : décider la politique de rôle (admin/responsable uniquement vs tout le monde).
+- ✅ **Durcissement config** — réglé session 17 : `DEBUG` défaut déjà `False` (était
+  noté à tort comme True) ; `SECRET_KEY` lève `ImproperlyConfigured` si absente et
+  `DATABASE_URL` présente (= prod Railway) ; cookies secure + `SECURE_SSL_REDIRECT`
+  activés uniquement si `DATABASE_URL` (même garde-fou). HSTS **différé** post-beta.
+- ✅ **OTP bypass** — ✅ sécurisé session 17 : gate `peut_modifier_facture` sur les deux
+  endpoints ; code posé en session uniquement après envoi réussi. Rôle : équipe du devis
+  (à restreindre admin/comptable en Phase 4 si besoin).
 - **Bibliothèque Aides — droits** — `aide_delete`/`aides_api_save` ouverts à tout
   utilisateur connecté (**BETA assumé**). Restreindre (admin/responsable ?) au passage
   hébergement définitif — Phase 4.
@@ -570,7 +610,9 @@ politique de rôle du bypass OTP.
 - **Auditer les templates** — chercher `f.reference` parasites (→ doit être `f.get_reference`).
 
 ### Tests
-- **Couverture session 14 manquante** — zone_financement (persistance), `aides_api_save` (nom vide → 400, type invalide), `aide_delete`. **21 tests** au total aujourd'hui.
+- **Couverture session 14 manquante** — zone_financement (persistance), `aide_delete`.
+  `aides_api_save` montant invalide : ✅ couvert session 17 (test `test_aides_api_save_montant_invalide_retourne_400`).
+  **25 tests** au total.
 
 ### Performance
 - **Dashboard** — remplacer les boucles Python par `aggregate(Sum(...))` — Phase 3.
@@ -583,5 +625,5 @@ politique de rôle du bypass OTP.
   passage en hébergement définitif.
 
 ### Infra
-- **SMTP Microsoft 365** — boîte partagée `noreply@domaine.fr`, SMTP AUTH dans Exchange admin, `EMAIL_BACKEND` Django.
+- ✅ ~~**SMTP Microsoft 365**~~ — abandonné (Railway bloque les ports SMTP). **Brevo HTTP API** en prod (`django-anymail[brevo]`, variable `BREVO_API_KEY`). M365 SMTP uniquement en local.
 - **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés (logo, etc.).

@@ -1,4 +1,4 @@
-import json
+﻿import json
 import logging
 import random
 import string
@@ -43,6 +43,15 @@ def get_profil(user):
     """Retourne le profil de l'utilisateur, le crée si nécessaire."""
     profil, _ = ProfilUtilisateur.objects.get_or_create(user=user)
     return profil
+
+
+def to_decimal(val, default=None):
+    if val is None or val == '':
+        return default
+    try:
+        return Decimal(str(val))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
 
 
 def gen_reference(prefix):
@@ -217,8 +226,6 @@ def mot_de_passe_oublie(request):
             user = User.objects.filter(email__iexact=email, is_active=True).first()
             if user:
                 mdp_temp = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-                user.set_password(mdp_temp)
-                user.save()
                 try:
                     send_mail(
                         subject='Réinitialisation de votre mot de passe CB Bretagne',
@@ -235,6 +242,9 @@ def mot_de_passe_oublie(request):
                         recipient_list=[email],
                         fail_silently=False,
                     )
+                    # MDP changé seulement si l'email est parti — évite de bloquer l'accès
+                    user.set_password(mdp_temp)
+                    user.save()
                 except Exception as e:
                     logger.error('Password reset email error (user %s): %s', user.username, e)
             # Même message qu'un email inexistant pour éviter l'énumération
@@ -514,7 +524,7 @@ def aides_api_save(request):
     if type_ligne not in ('FMO', 'FMAT', 'FIN'):
         return JsonResponse({'error': 'Type invalide'}, status=400)
     montant_raw = data.get('montant_defaut')
-    montant = Decimal(str(montant_raw)) if montant_raw is not None else None
+    montant = to_decimal(montant_raw)
     aide = BibliothèqueAides.objects.create(
         description=description,
         type_ligne=type_ligne,
@@ -945,9 +955,9 @@ def lignes_save(request, pk):
                 devis=devis, parent=parent,
                 type_ligne=item.get('type_ligne', 'F'),
                 description=item.get('description', ''),
-                quantite=Decimal(str(item.get('quantite', 1))),
+                quantite=to_decimal(item.get('quantite'), default=Decimal('1')),
                 unite=item.get('unite', ''),
-                cout_unitaire=Decimal(str(cout)) if cout is not None else None,
+                cout_unitaire=to_decimal(cout),
                 ordre=ordre,
                 ouvert=item.get('ouvert', True),
                 aide=aide,
@@ -1114,6 +1124,8 @@ def facture_status(request, pk):
 @require_POST
 def facture_bypass(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
+    if not peut_modifier_facture(request.user, facture):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
     code = request.POST.get('code', '')
     stored = request.session.get(f'bypass_code_{pk}')
     if not stored or code != stored:
@@ -1158,8 +1170,10 @@ def facture_bypass_send_code(request, pk):
         return JsonResponse({'ok': False, 'error': 'Aucune adresse email sur votre compte. Contactez un administrateur.'})
 
     facture = get_object_or_404(Facture, pk=pk)
+    if not peut_modifier_facture(request.user, facture):
+        return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
+
     code = ''.join(random.choices(string.digits, k=6))
-    request.session[f'bypass_code_{pk}'] = code
 
     try:
         send_mail(
@@ -1175,10 +1189,11 @@ def facture_bypass_send_code(request, pk):
             recipient_list=[request.user.email],
             fail_silently=False,
         )
+        request.session[f'bypass_code_{pk}'] = code
         return JsonResponse({'ok': True})
     except Exception as e:
         logger.error('Bypass email error (facture %s): %s', pk, e)
-        return JsonResponse({'ok': False, 'error': "Impossible d’envoyer le code par email. Contactez un administrateur."})
+        return JsonResponse({'ok': False, 'error': "Impossible d'envoyer le code par email. Contactez un administrateur."})
 
 
 def calc_deja_facture_par_source(devis, facture_courante):
@@ -1454,10 +1469,10 @@ def lignes_facture_save(request, pk):
                 facture=facture, parent=parent,
                 type_ligne=item.get('type_ligne', 'F'),
                 description=item.get('description', ''),
-                quantite=Decimal(str(item.get('quantite', 1))),
-                quantite_originale=Decimal(str(item.get('quantite_originale', item.get('quantite', 1)))),
+                quantite=to_decimal(item.get('quantite'), default=Decimal('1')),
+                quantite_originale=to_decimal(item.get('quantite_originale', item.get('quantite')), default=Decimal('1')),
                 unite=item.get('unite', ''),
-                cout_unitaire=Decimal(str(cout)) if cout is not None else None,
+                cout_unitaire=to_decimal(cout),
                 ordre=ordre,
                 ouvert=item.get('ouvert', True),
             )
