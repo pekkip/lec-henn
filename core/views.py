@@ -198,6 +198,10 @@ def logout_view(request):
     logout(request)
     return redirect('core:login')
 
+def aide_view(request):
+    return render(request, 'core/aide.html')
+
+
 @login_required
 def profil_view(request):
     profil = get_profil(request.user)
@@ -1557,7 +1561,9 @@ def utilisateur_create(request):
                         f'Votre compte CB Bretagne a été créé.\n\n'
                         f'Identifiant : {username}\n'
                         f'Mot de passe temporaire : {mdp_temp}\n\n'
+                        f'Connectez-vous ici : {settings.SITE_URL}/login/\n\n'
                         f'Merci de changer votre mot de passe dès votre première connexion.\n\n'
+                        f'Un manuel utilisateur est disponible directement sur le site : {settings.SITE_URL}/aide/\n\n'
                         f'CB Bretagne'
                     ),
                     from_email=settings.DEFAULT_FROM_EMAIL,

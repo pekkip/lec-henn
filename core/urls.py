@@ -12,6 +12,9 @@ urlpatterns = [
     # Dashboard
     path('', views.dashboard, name='dashboard'),
 
+    # Aide / Manuel utilisateur (public)
+    path('aide/', views.aide_view, name='aide'),
+
     # Clients
     path('clients/', views.clients_list, name='clients'),
     path('clients/nouveau/', views.client_create, name='client-create'),
