@@ -182,8 +182,8 @@ tbody tr:hover td{background:#FAFAF8}
     <a href="{% url 'core:clients' %}" class="nav-item {% block nav_clients %}{% endblock %}"><i class="ti ti-users"></i>Clients</a>
     <div class="nav-sect">Configuration</div>
     <a href="{% url 'core:biblio' %}" class="nav-item {% block nav_biblio %}{% endblock %}"><i class="ti ti-books"></i>Bibliothèque</a>
-    <a href="{% url 'core:aides-page' %}" class="nav-item {% block nav_aides %}{% endblock %}"><i class="ti ti-gift"></i>Aides</a>
-    <a href="{% url 'core:aide' %}" class="nav-item {% block nav_aide %}{% endblock %}"><i class="ti ti-help"></i>Aide</a>
+    <a href="{% url 'core:aides-page' %}" class="nav-item {% block nav_aides %}{% endblock %}"><span style="font-weight:700;margin-right:6px;font-style:normal">€</span>Aides travaux</a>
+    <a href="{% url 'core:aide' %}" class="nav-item {% block nav_aide %}{% endblock %}"><i class="ti ti-help"></i>Manuel</a>
     {% if request.user.is_authenticated %}
       {% with role=request.user.profil.role %}
         {% if role == 'admin' or role == 'responsable' %}

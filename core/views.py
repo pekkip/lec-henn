@@ -1,4 +1,5 @@
-﻿import json
+﻿import io
+import json
 import logging
 import random
 import string
@@ -833,6 +834,407 @@ def devis_pdf(request, pk):
         'expiry': expiry,
         'coordonnees_cb': devis.coordonnees_cb,
     })
+
+@login_required
+def devis_export_excel(request, pk):
+    import html as html_module
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    def strip_html(text):
+        if not text or '<' not in text:
+            return text or ''
+        # <div> → saut de ligne (sauf le premier)
+        t = re.sub(r'<div>', '\n', text, flags=re.IGNORECASE)
+        # <br> variants → saut de ligne
+        t = re.sub(r'<br\s*/?>', '\n', t, flags=re.IGNORECASE)
+        # Supprimer toutes les balises restantes
+        t = re.sub(r'<[^>]+>', '', t)
+        # Décoder les entités HTML (&amp; &lt; etc.)
+        t = html_module.unescape(t)
+        # Nettoyer les lignes vides et espaces superflus
+        lines = [l.strip() for l in t.splitlines() if l.strip()]
+        return '\n'.join(lines)
+
+    devis = get_object_or_404(Devis, pk=pk)
+    if not peut_voir_devis(request.user, devis):
+        messages.error(request, "Vous n'avez pas accès à ce devis.")
+        return redirect('core:devis-list')
+
+    PRUNE    = '67123A'
+    PRUNE_LT = 'F2DCDB'
+    GRAY     = 'E0E0E0'
+    AMBER_LT = 'FFF2CC'
+    GREEN_LT = 'E2EFDA'
+    GREEN_MID = 'C6EFCE'
+    GREEN_DK  = '375623'
+
+    def fill(hex_color):
+        return PatternFill('solid', fgColor=hex_color)
+
+    FN = Font(name='Calibri', size=10)
+    FB = Font(name='Calibri', size=10, bold=True)
+    FW = Font(name='Calibri', size=10, bold=True, color='FFFFFF')
+    FWL = Font(name='Calibri', size=11, bold=True, color='FFFFFF')
+    FT = Font(name='Calibri', size=14, bold=True, color='FFFFFF')
+    FC = Font(name='Calibri', size=10, bold=True, color=PRUNE)
+
+    AL = Alignment(vertical='center', wrap_text=True)
+    AR = Alignment(horizontal='right', vertical='center')
+    AC = Alignment(horizontal='center', vertical='center')
+    AT = Alignment(wrap_text=True, vertical='top')
+
+    FMT_EUR = '#,##0.00 "€"'
+    FMT_QTY = '#,##0.###'
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Devis'
+
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 46
+    ws.column_dimensions['C'].width = 10
+    ws.column_dimensions['D'].width = 10
+    ws.column_dimensions['E'].width = 14
+    ws.column_dimensions['F'].width = 14
+
+    row = 1
+
+    def c(r, col, value='', font=None, fill_=None, align=None, fmt=None):
+        obj = ws.cell(row=r, column=col, value=value)
+        if font:  obj.font      = font
+        if fill_: obj.fill      = fill_
+        if align: obj.alignment = align
+        if fmt:   obj.number_format = fmt
+        return obj
+
+    def full_row(r, font=None, fill_=None, value=None, align=None, height=16):
+        ws.row_dimensions[r].height = height
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=6)
+        for col in range(1, 7):
+            ws.cell(r, col).fill = fill_ or PatternFill()
+        if value is not None:
+            ws.cell(r, 1).value = value
+        if font:  ws.cell(r, 1).font = font
+        if align: ws.cell(r, 1).alignment = align
+
+    def total_row(r, label, amount, font_label=None, font_amount=None, fill_=None, height=16):
+        ws.row_dimensions[r].height = height
+        for col in range(1, 7):
+            ws.cell(r, col).fill = fill_ or PatternFill()
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=5)
+        ws.cell(r, 1).value = label
+        ws.cell(r, 1).font = font_label or FB
+        ws.cell(r, 1).alignment = AR
+        ws.cell(r, 6).value = float(amount)
+        ws.cell(r, 6).font = font_amount or FB
+        ws.cell(r, 6).number_format = FMT_EUR
+        ws.cell(r, 6).alignment = AR
+
+    # ── En-tête ──────────────────────────────────────────────────
+    ws.row_dimensions[row].height = 28
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
+    ws.merge_cells(start_row=row, start_column=5, end_row=row, end_column=6)
+    for col in range(1, 7):
+        ws.cell(row, col).fill = fill(PRUNE)
+    ws.cell(row, 1).value = f"DEVIS TRAVAUX — {devis.reference}"
+    ws.cell(row, 1).font = FT
+    ws.cell(row, 1).alignment = AL
+    ws.cell(row, 5).value = f"Date : {devis.date_creation.strftime('%d/%m/%Y')}"
+    ws.cell(row, 5).font = Font(name='Calibri', size=10, color='FFFFFF')
+    ws.cell(row, 5).alignment = AR
+    row += 1
+
+    ws.row_dimensions[row].height = 18
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+    for col in range(1, 7):
+        ws.cell(row, col).fill = fill(PRUNE_LT)
+    ws.cell(row, 1).value = (
+        f"Statut : {devis.get_status_display()}"
+        f"   |   Chantier : {devis.chantier}"
+    )
+    ws.cell(row, 1).font = FB
+    ws.cell(row, 1).alignment = AL
+    row += 1
+
+    def info_row(r, label, value):
+        ws.row_dimensions[r].height = 14
+        ws.cell(r, 1).value = label
+        ws.cell(r, 1).font = FB
+        ws.cell(r, 2).value = value
+        ws.cell(r, 2).font = FN
+        ws.cell(r, 2).alignment = AL
+
+    info_row(row, 'Client :', str(devis.client))
+    if devis.client.telephone:
+        ws.cell(row, 4).value = f"Tél : {devis.client.telephone}"
+        ws.cell(row, 4).font = FN
+    if devis.client.email:
+        ws.merge_cells(start_row=row, start_column=5, end_row=row, end_column=6)
+        ws.cell(row, 5).value = devis.client.email
+        ws.cell(row, 5).font = FN
+    row += 1
+
+    adresse_client = ' — '.join(filter(None, [
+        devis.client.adresse,
+        f"{devis.client.code_postal} {devis.client.ville}".strip() or None,
+    ]))
+    if adresse_client:
+        info_row(row, '', adresse_client)
+        row += 1
+
+    chantier_adresse = ' — '.join(filter(None, [
+        devis.chantier_adresse1,
+        devis.chantier_adresse2,
+        f"{devis.chantier_cp} {devis.chantier_ville}".strip() or None,
+    ]))
+    if chantier_adresse:
+        info_row(row, 'Adresse chantier :', chantier_adresse)
+        row += 1
+
+    if devis.equipe:
+        info_row(row, 'Équipe :', str(devis.equipe))
+        row += 1
+
+    if devis.coordonnees_cb:
+        info_row(row, 'Contact CB :', devis.coordonnees_cb.replace('\n', ' | '))
+        row += 1
+
+    if devis.date_validite:
+        info_row(row, "Valable jusqu'au :", devis.date_validite.strftime('%d/%m/%Y'))
+        row += 1
+
+    row += 1  # séparateur
+
+    # En-tête colonnes
+    ws.row_dimensions[row].height = 18
+    for col, label in enumerate(['N°', 'Description', 'Unité', 'Quantité', 'P.U. HT', 'Total HT'], 1):
+        ws.cell(row, col).value = label
+        ws.cell(row, col).font = Font(name='Calibri', size=10, bold=True, color='FFFFFF')
+        ws.cell(row, col).fill = fill('444444')
+        ws.cell(row, col).alignment = AC
+    row += 1
+
+    # ── Lignes de devis ──────────────────────────────────────────
+    racines_pos = list(
+        devis.lignes.filter(parent=None).exclude(type_ligne='FIN')
+        .prefetch_related('enfants', 'enfants__enfants', 'enfants__enfants__enfants')
+        .order_by('ordre')
+    )
+    racines_fin = list(
+        devis.lignes.filter(parent=None, type_ligne='FIN').order_by('ordre')
+    )
+
+    titres      = [l for l in racines_pos if l.type_ligne == 'TITRE']
+    autres_rac  = [l for l in racines_pos if l.type_ligne != 'TITRE']
+
+    def write_enfants(r, parent_ligne, depth=1):
+        for enfant in parent_ligne.enfants.all():
+            r = write_ligne(r, enfant, depth)
+        return r
+
+    def write_ligne(r, ligne, depth=0):
+        ws.row_dimensions[r].height = 15
+        indent = '  ' * depth
+        t = ligne.type_ligne
+
+        if t == 'TITRE':
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=5)
+            for col in range(1, 7):
+                ws.cell(r, col).fill = fill(PRUNE_LT)
+            ws.cell(r, 1).value = indent + strip_html(ligne.description)
+            ws.cell(r, 1).font = FC
+            ws.cell(r, 1).alignment = AL
+            ws.cell(r, 6).value = float(ligne.total())
+            ws.cell(r, 6).font = FC
+            ws.cell(r, 6).number_format = FMT_EUR
+            ws.cell(r, 6).alignment = AR
+            r += 1
+            r = write_enfants(r, ligne, depth + 1)
+            # SS TOTAL du titre
+            ws.row_dimensions[r].height = 15
+            for col in range(1, 7):
+                ws.cell(r, col).fill = fill(GRAY)
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=5)
+            ws.cell(r, 1).value = f"SS TOTAL — {strip_html(ligne.description)}"
+            ws.cell(r, 1).font = FB
+            ws.cell(r, 1).alignment = AR
+            ws.cell(r, 6).value = float(ligne.total())
+            ws.cell(r, 6).font = FB
+            ws.cell(r, 6).number_format = FMT_EUR
+            ws.cell(r, 6).alignment = AR
+            r += 1
+            ws.row_dimensions[r].height = 6   # ligne vide entre LOTs
+            r += 1
+            return r
+
+        # Ligne ordinaire
+        num = getattr(ligne, 'num', '')
+        ws.cell(r, 1).value = indent + (num or '')
+        ws.cell(r, 1).font = FN
+        ws.cell(r, 1).alignment = AC
+
+        ws.cell(r, 2).value = indent + strip_html(ligne.description)
+        ws.cell(r, 2).font = FN
+        ws.cell(r, 2).alignment = AL
+
+        ws.cell(r, 3).value = ligne.unite or ''
+        ws.cell(r, 3).font = FN
+        ws.cell(r, 3).alignment = AC
+
+        if t not in ('FMO', 'FMAT'):
+            ws.cell(r, 4).value = float(ligne.quantite)
+            ws.cell(r, 4).number_format = FMT_QTY
+            ws.cell(r, 4).font = FN
+            ws.cell(r, 4).alignment = AR
+
+        if ligne.cout_unitaire is not None:
+            ws.cell(r, 5).value = float(ligne.cout_unitaire)
+            ws.cell(r, 5).number_format = FMT_EUR
+            ws.cell(r, 5).font = FN
+            ws.cell(r, 5).alignment = AR
+
+        total_val = float(ligne.total())
+        ws.cell(r, 6).value = total_val if total_val != 0 else None
+        ws.cell(r, 6).number_format = FMT_EUR
+        ws.cell(r, 6).font = FB if t in ('FMO', 'FMAT') else FN
+        ws.cell(r, 6).alignment = AR
+
+        if t in ('FMO', 'FMAT'):
+            for col in range(1, 7):
+                ws.cell(r, col).fill = fill(AMBER_LT)
+
+        r += 1
+        r = write_enfants(r, ligne, depth + 1)
+        return r
+
+    # Section Travaux réalisés
+    full_row(row, font=FW, fill_=fill(PRUNE),
+             value='TRAVAUX RÉALISÉS', align=AL, height=18)
+    for col in range(2, 7):
+        ws.cell(row, col).fill = fill(PRUNE)
+    row += 1
+
+    for titre in titres:
+        row = write_ligne(row, titre, depth=0)
+
+    for ligne in autres_rac:
+        row = write_ligne(row, ligne, depth=0)
+
+    # SS TOTAL Travaux
+    total_travaux = sum(l.total() for l in titres + autres_rac)
+    total_row(row, 'SS TOTAL TRAVAUX', total_travaux, fill_=fill(GRAY), height=16)
+    row += 1
+
+    # Total brut net de taxes
+    row += 1
+    total_row(row, 'TOTAL COÛT DES TRAVAUX NET DE TAXES',
+              devis.total_brut(),
+              font_label=FW, font_amount=FWL, fill_=fill(PRUNE), height=20)
+    row += 1
+
+    # Section Aides / Financements
+    if racines_fin:
+        row += 1
+        full_row(row, font=FW, fill_=fill(GREEN_DK),
+                 value='AIDES NOTIFIÉES', align=AL, height=18)
+        for col in range(2, 7):
+            ws.cell(row, col).fill = fill(GREEN_DK)
+        row += 1
+        for ligne in racines_fin:
+            ws.row_dimensions[row].height = 15
+            for col in range(1, 7):
+                ws.cell(row, col).fill = fill(GREEN_LT)
+            ws.cell(row, 2).value = strip_html(ligne.description)
+            ws.cell(row, 2).font = FN
+            ws.cell(row, 2).alignment = AL
+            ws.cell(row, 3).value = ligne.unite or ''
+            ws.cell(row, 3).font = FN
+            ws.cell(row, 3).alignment = AC
+            ws.cell(row, 6).value = float(ligne.total())
+            ws.cell(row, 6).number_format = FMT_EUR
+            ws.cell(row, 6).font = FN
+            ws.cell(row, 6).alignment = AR
+            row += 1
+        total_row(row, 'SS TOTAL Aides', devis.total_financement(),
+                  fill_=fill(GREEN_MID), height=16)
+        row += 1
+
+    # Montant dû
+    row += 1
+    total_row(row, "MONTANT DÛ PAR LE MAÎTRE D'OUVRAGE",
+              devis.net_client(),
+              font_label=FW, font_amount=FWL, fill_=fill(PRUNE), height=20)
+    row += 1
+
+    # Acomptes versés
+    acomptes = list(devis.factures.filter(type_doc='acompte', status='paid'))
+    if acomptes:
+        row += 1
+        ws.row_dimensions[row].height = 14
+        ws.cell(row, 1).value = 'NB : mettre les dates de versement'
+        ws.cell(row, 1).font = Font(name='Calibri', size=9, italic=True)
+        ws.cell(row, 2).value = 'Acompte déjà versé'
+        ws.cell(row, 2).font = FB
+        row += 1
+        for f in acomptes:
+            ws.row_dimensions[row].height = 14
+            label = f.libelle or f.get_reference()
+            if f.date_versement:
+                label += f" (versé le {f.date_versement.strftime('%d/%m/%Y')})"
+            ws.cell(row, 2).value = label
+            ws.cell(row, 2).font = FN
+            ws.cell(row, 6).value = float(f.montant)
+            ws.cell(row, 6).number_format = FMT_EUR
+            ws.cell(row, 6).alignment = AR
+            row += 1
+        total_acomptes = sum(f.montant for f in acomptes)
+        total_row(row, 'Reste à payer',
+                  devis.net_client() - total_acomptes,
+                  fill_=fill(GRAY), height=16)
+        row += 1
+
+    # Conditions
+    if devis.conditions_devis:
+        row += 1
+        ws.row_dimensions[row].height = 14
+        ws.cell(row, 1).value = 'Conditions :'
+        ws.cell(row, 1).font = FB
+        row += 1
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+        ws.cell(row, 1).value = devis.conditions_devis
+        ws.cell(row, 1).font = Font(name='Calibri', size=9)
+        ws.cell(row, 1).alignment = AT
+        ws.row_dimensions[row].height = max(
+            30, min(len(devis.conditions_devis) // 5, 100)
+        )
+        row += 2
+
+    # Signatures
+    ws.row_dimensions[row].height = 14
+    ws.cell(row, 2).value = "Pour le Maître d'ouvrage"
+    ws.cell(row, 2).font = FB
+    ws.cell(row, 5).value = "Pour les Compagnons Bâtisseurs Bretagne"
+    ws.cell(row, 5).font = FB
+    row += 1
+    ws.cell(row, 2).value = 'Signature précédée de la mention "Bon pour accord"'
+    ws.cell(row, 2).font = Font(name='Calibri', size=9, italic=True)
+    ws.cell(row, 5).value = 'Signature + Cachet'
+    ws.cell(row, 5).font = Font(name='Calibri', size=9, italic=True)
+
+    # ── Réponse ──────────────────────────────────────────────────
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    ref_clean = devis.reference.replace('/', '-')
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="devis_{ref_clean}.xlsx"'
+    return response
+
 
 @login_required
 @require_POST

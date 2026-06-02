@@ -4,8 +4,9 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (03/06/2026 — session 17) :** en test beta, en attente de retours
-des collègues. Email via **Brevo** (HTTP API) : invitations, bypass OTP et reset mot de
+**État du projet (03/06/2026 — session 18) :** en test beta, en attente de retours
+des collègues. Export Excel temporaire ajouté pour la beta (voir § Fonctionnalités
+temporaires beta — à retirer). Email via **Brevo** (HTTP API) : invitations, bypass OTP et reset mot de
 passe fonctionnels. Page `/aide/` publique (manuel utilisateur HTML). Correctifs sécurité
 session 17 appliqués : bypass OTP protégé, durcissement config prod, Decimal robuste,
 reset MDP sûr. 25 tests. Items restants : voir § Dette technique.
@@ -156,6 +157,35 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 18 — 03/06/2026 — Export Excel (beta temporaire)
+
+### Contexte
+Fonctionnalité **temporaire** ajoutée pour la phase beta : permet aux collègues qui
+testent l'outil d'exporter un devis en `.xlsx` pour conserver leur travail. **À
+supprimer avant la version finale** — voir § Fonctionnalités temporaires beta.
+
+### Fichiers modifiés
+- `requirements.txt` — ajout `openpyxl`
+- `core/views.py` — ajout `import io` (ligne 1) ; vue `devis_export_excel` (environ
+  200 lignes, insérée juste avant `devis_entete_save`)
+- `core/urls.py` — route `path('devis/<int:pk>/excel/', views.devis_export_excel, name='devis-excel')`
+- `core/templates/core/devis_detail.html` — onglet `<a href="{% url 'core:devis-excel' ... %}">Excel</a>`
+  ajouté dans la barre d'onglets après "Vue client"
+
+### Décisions actées
+- Export `.xlsx` (openpyxl) — pas de remplissage du template `.xls` existant
+  (xlwt ne supporte pas l'insertion de lignes dynamiques)
+- Structure : en-tête devis → LOTs avec lignes → SS totaux → Total brut →
+  Aides/financements (FIN) → Montant dû → Acomptes payés → Conditions → Signatures
+- HTML dans les descriptions (`<div>`, `<br>`) nettoyé via `strip_html()` (helper
+  interne à la vue)
+- Migration locale manquante `0015_profil_invitation_envoyee` appliquée en cours
+  de session (`manage.py migrate`)
+- `core/templates/core/base.html` — renommage sidebar : "Aide" → "Manuel" (icône `?`
+  conservée) ; "Aides" → "Aides travaux" (icône cadeau remplacée par € temporaire)
 
 ---
 
@@ -578,6 +608,26 @@ politique de rôle du bypass OTP.
 5. **Statut devis "envoyé au client"** ✅ select dans la topbar (session 14), mais pas encore affiché dans la liste des devis
 6. **Dashboard — section suivi financements** : `LigneDevis.objects.filter(aide__isnull=False, devis__status='accepted')` prêt à requêter
 7. **PDF WeasyPrint — Phase 3**
+
+---
+
+## Fonctionnalités temporaires beta — À RETIRER avant version finale
+
+> Code ajouté uniquement pour faciliter la phase de test. **Ne pas laisser en prod.**
+
+### Export Excel (`devis_export_excel`) — ajouté session 18
+
+Pour supprimer proprement :
+
+1. **`requirements.txt`** — retirer la ligne `openpyxl`
+2. **`core/views.py`** — retirer `import io` (ligne 1) + supprimer la fonction
+   `devis_export_excel` (chercher `def devis_export_excel` — environ 200 lignes
+   jusqu'au prochain `@login_required`)
+3. **`core/urls.py`** — retirer la ligne :
+   `path('devis/<int:pk>/excel/', views.devis_export_excel, name='devis-excel'),`
+4. **`core/templates/core/devis_detail.html`** — retirer la ligne :
+   `<a href="{% url 'core:devis-excel' devis.pk %}" class="tab">...</a>`
+   (dans la barre d'onglets, après "Vue client")
 
 ---
 

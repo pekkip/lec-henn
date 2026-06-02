@@ -45,6 +45,7 @@ urlpatterns = [
     path('devis/<int:pk>/dupliquer/', views.devis_duplicate, name='devis-duplicate'),
     path('devis/<int:pk>/supprimer/', views.devis_delete, name='devis-delete'),
     path('devis/<int:pk>/pdf/', views.devis_pdf, name='devis-pdf'),
+    path('devis/<int:pk>/excel/', views.devis_export_excel, name='devis-excel'),
     path('devis/<int:pk>/entete/sauvegarder/', views.devis_entete_save, name='devis-entete-save'),
 
     # Lignes devis (API JSON)
