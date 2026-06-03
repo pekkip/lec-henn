@@ -209,15 +209,25 @@
         <a href="#factures-creer">Créer une facture</a>
         <a href="#factures-cycle">Cycle de validation</a>
         <a href="#factures-bypass">Bypass comptable</a>
+        <a href="#factures-avoir">Créer un avoir</a>
       </div>
 
-      <div class="toc-section"><a href="#biblio">6. Ma bibliothèque</a></div>
+      <div class="toc-section"><a href="#compta">6. Outils compta</a></div>
+      <div class="toc-sub">
+        <a href="#compta-structure">Factures structure</a>
+        <a href="#compta-appel">Appels de convention</a>
+        <a href="#compta-editeur">L'éditeur</a>
+        <a href="#compta-contacts">Contacts / services</a>
+        <a href="#compta-avoir">Avoirs</a>
+      </div>
 
-      <div class="toc-section"><a href="#aides">7. Bibliothèque Aides</a></div>
+      <div class="toc-section"><a href="#biblio">7. Ma bibliothèque</a></div>
 
-      <div class="toc-section"><a href="#profil">8. Mon profil</a></div>
+      <div class="toc-section"><a href="#aides">8. Bibliothèque Aides</a></div>
 
-      <div class="toc-section"><a href="#utilisateurs">9. Gestion des utilisateurs</a></div>
+      <div class="toc-section"><a href="#profil">9. Mon profil</a></div>
+
+      <div class="toc-section"><a href="#utilisateurs">10. Gestion des utilisateurs</a></div>
     </nav>
   </aside>
 
@@ -249,11 +259,13 @@
       <ul>
         <li><strong>Tableau de bord</strong> — vue d'ensemble</li>
         <li><strong>Devis</strong> — liste de tous les devis</li>
-        <li><strong>Factures</strong> — liste de toutes les factures</li>
+        <li><strong>Factures</strong> — factures liées à un devis (chantiers)</li>
+        <li><strong>Avoirs</strong> — tous les avoirs (chantiers + compta)</li>
         <li><strong>Clients</strong> — liste des clients</li>
         <li><strong>Bibliothèque</strong> — votre catalogue personnel d'ouvrages</li>
-        <li><strong>🎁 Aides</strong> — bibliothèque des aides et subventions partagée</li>
+        <li><strong>Aides travaux</strong> — bibliothèque des aides et subventions partagée</li>
       </ul>
+      <p>Les <strong>comptables</strong> et <strong>administrateurs</strong> disposent en plus d'une section <strong>Outils compta</strong> (factures structure, appels de convention) — voir le chapitre 6.</p>
     </div>
 
     <!-- 3. CLIENTS -->
@@ -264,6 +276,7 @@
       <p>Cliquez sur <strong>Clients</strong> dans le menu latéral. Vous pouvez filtrer par :</p>
       <ul>
         <li><strong>Nom</strong> — recherche libre</li>
+        <li><strong>Type</strong> — Particulier / Association / Bailleur / Collectivité / Autre</li>
         <li><strong>Code postal</strong> ou <strong>Département</strong></li>
         <li><strong>Ville</strong></li>
         <li><strong>Portée</strong> — Tous les clients / Mes clients / Mon équipe</li>
@@ -391,11 +404,61 @@
       <h3 id="factures-bypass">Bypass de validation comptable</h3>
       <p>Si le comptable n'est pas disponible, un responsable ou administrateur peut contourner la validation via le bouton <strong>Bypass</strong>. Un code à 6 chiffres est envoyé par email au demandeur — il doit le saisir pour confirmer. L'action est tracée dans le journal d'audit.</p>
       <div class="warn"><strong>Important</strong> — Le bypass est une exception, à utiliser avec parcimonie. Toutes les utilisations sont enregistrées et visibles dans le journal du devis.</div>
+
+      <h3 id="factures-avoir">Créer un avoir</h3>
+      <p>Un <strong>avoir</strong> annule tout ou partie d'une facture (facture négative). Il se crée <strong>depuis une facture validée</strong> :</p>
+      <ol>
+        <li>Dans la liste des factures, repérez la facture concernée (statut Validée, Envoyée ou Payée)</li>
+        <li>Cliquez sur l'icône <strong>↩ Créer un avoir</strong></li>
+        <li>L'avoir reprend automatiquement les lignes de la facture avec les <strong>quantités inversées</strong> (ex. 20 m² → −20 m²)</li>
+        <li>Ajustez les quantités si vous n'annulez qu'une partie (ex. corrigez à −10 m²), puis <strong>Sauvegarder</strong> et <strong>Valider</strong></li>
+      </ol>
+      <p>Une facture qui a donné lieu à un avoir affiche un badge rouge <strong>↩ Avoir</strong> à côté de son statut (cliquable pour ouvrir l'avoir). Tous les avoirs sont regroupés dans la rubrique <strong>Avoirs</strong> du menu (chapitre commun aux factures de chantier et aux factures compta).</p>
+      <div class="tip"><strong>Numérotation</strong> — les avoirs ont leur propre série <code>AV-2026-001</code>, attribuée à la validation.</div>
     </div>
 
-    <!-- 6. BIBLIOTHÈQUE -->
+    <!-- 6. OUTILS COMPTA -->
+    <div class="section" id="compta">
+      <h2>6. Outils compta <small style="font-size:12px;font-weight:400;color:var(--gray-md)">(comptable / admin)</small></h2>
+      <p>La section <strong>Outils compta</strong> du menu (visible uniquement pour les comptables et administrateurs) permet de facturer <strong>directement</strong>, sans passer par un devis. Deux outils sont disponibles : <strong>Factures structure</strong> et <strong>Appels de convention</strong>.</p>
+      <p>Ces documents s'adressent à des <strong>structures</strong> (collectivités, bailleurs, associations…) et reprennent la même présentation que les factures classiques. Ils n'ont pas d'adresse de chantier.</p>
+
+      <h3 id="compta-structure">Factures structure</h3>
+      <ol>
+        <li>Menu <strong>Outils compta → Factures Structure</strong>, puis <strong>Nouvelle facture</strong></li>
+        <li>Choisissez (ou créez) le <strong>client</strong> et, si besoin, un <strong>service / interlocuteur</strong></li>
+        <li>Renseignez l'objet et l'échéance, puis <strong>Créer</strong></li>
+        <li>Construisez les lignes dans l'éditeur, puis <strong>Sauvegarder</strong> et <strong>Valider</strong></li>
+      </ol>
+      <p>Les factures structure partagent la <strong>même numérotation que les factures classiques</strong> (<code>FAC-2026-…</code>, attribuée à la validation).</p>
+
+      <h3 id="compta-appel">Appels de convention</h3>
+      <p>Même fonctionnement que les factures structure, via <strong>Outils compta → Appels de convention</strong>. Seule différence : un préfixe de numérotation dédié (<code>APP-2026-…</code>) et le titre « Facture d'appel de convention » sur l'édition client.</p>
+
+      <h3 id="compta-editeur">L'éditeur (titres &amp; forfaits)</h3>
+      <p>L'éditeur des outils compta est volontairement simplifié — pas de distinction main-d'œuvre / matériaux. Deux types de lignes :</p>
+      <ul>
+        <li><strong>Titre</strong> — en-tête de section qui regroupe des forfaits</li>
+        <li><strong>Forfait</strong> — une ligne avec description, quantité, unité et prix unitaire</li>
+      </ul>
+      <p>Sur chaque ligne&nbsp;: <strong>glisser-déposer</strong> via la poignée ⠿ pour réorganiser, <strong>dupliquer</strong> (l'icône copie — un titre est dupliqué avec tous ses forfaits) et <strong>supprimer</strong>. Depuis la liste, l'icône copie duplique une facture entière en nouveau brouillon.</p>
+      <div class="tip"><strong>Proforma</strong> — tant qu'une facture est en brouillon, son édition client porte un numéro provisoire <code>PF-…</code> et la mention « proforma ». Le numéro définitif est attribué à la validation.</div>
+
+      <h3 id="compta-contacts">Contacts / services d'un client</h3>
+      <p>Une même structure (ex. une collectivité) peut avoir plusieurs services destinataires. Vous pouvez attacher à un client un <strong>carnet de contacts</strong> (service, interlocuteur, email, téléphone) :</p>
+      <ul>
+        <li>À la création d'une facture compta — bouton <strong>Nouveau contact</strong> sous le sélecteur</li>
+        <li>Depuis la fiche client — la modale de modification (admin) liste et permet d'ajouter les contacts</li>
+      </ul>
+      <p>C'est optionnel : un particulier ou une association n'a généralement aucun contact à part. Le champ <strong>Type</strong> du client (Particulier / Association / Bailleur / Collectivité / Autre) permet de filtrer la liste des clients.</p>
+
+      <h3 id="compta-avoir">Avoirs sur factures compta</h3>
+      <p>Comme pour les factures de chantier, vous pouvez créer un <strong>avoir</strong> depuis une facture structure ou un appel de convention validé (voir <a href="#factures-avoir" style="color:var(--teal)">Créer un avoir</a>). L'avoir reprend les lignes en quantités inversées, et apparaît à la fois dans la liste <strong>Avoirs</strong> et dans la liste de l'outil concerné (avec une icône indiquant l'origine).</p>
+    </div>
+
+    <!-- 7. BIBLIOTHÈQUE -->
     <div class="section" id="biblio">
-      <h2>6. Ma bibliothèque personnelle</h2>
+      <h2>7. Ma bibliothèque personnelle</h2>
       <p>La bibliothèque est accessible depuis le menu latéral. C'est votre catalogue personnel d'ouvrages réutilisables d'un devis à l'autre.</p>
 
       <h3>Organiser sa bibliothèque</h3>
@@ -414,9 +477,9 @@
       </ul>
     </div>
 
-    <!-- 7. AIDES -->
+    <!-- 8. AIDES -->
     <div class="section" id="aides">
-      <h2>7. Bibliothèque Aides (partagée)</h2>
+      <h2>8. Bibliothèque Aides (partagée)</h2>
       <p>Accessible depuis <strong>🎁 Aides</strong> dans le menu latéral. Contrairement à la bibliothèque personnelle, la bibliothèque Aides est <strong>partagée entre tous les utilisateurs</strong>.</p>
       <p>Elle regroupe les aides financières et subventions connues (organisme, montant, type : MO / MAT / global). Tout le monde peut créer ou supprimer des aides.</p>
 
@@ -429,9 +492,9 @@
       <p>Une ligne liée à une aide affiche un indicateur 🔗. Le montant reste modifiable sur le devis.</p>
     </div>
 
-    <!-- 8. PROFIL -->
+    <!-- 9. PROFIL -->
     <div class="section" id="profil">
-      <h2>8. Mon profil</h2>
+      <h2>9. Mon profil</h2>
       <p>Cliquez sur votre identifiant en haut à droite pour accéder à votre profil.</p>
       <table>
         <thead><tr><th>Paramètre</th><th>Description</th></tr></thead>
@@ -445,9 +508,9 @@
       </table>
     </div>
 
-    <!-- 9. UTILISATEURS -->
+    <!-- 10. UTILISATEURS -->
     <div class="section" id="utilisateurs">
-      <h2>9. Gestion des utilisateurs <small style="font-size:12px;font-weight:400;color:var(--gray-md)">(admin / responsable)</small></h2>
+      <h2>10. Gestion des utilisateurs <small style="font-size:12px;font-weight:400;color:var(--gray-md)">(admin / responsable)</small></h2>
       <p>Accessible depuis <strong>Utilisateurs</strong> dans le menu latéral (visible uniquement pour les admins et responsables).</p>
 
       <h3>Rôles</h3>
@@ -456,7 +519,7 @@
         <tbody>
           <tr><td><strong>Technicien</strong></td><td>Crée et modifie les devis de son équipe. Consulte tous les devis en lecture seule.</td></tr>
           <tr><td><strong>Responsable</strong></td><td>Idem technicien + gère les utilisateurs de ses équipes + peut bypasser la validation comptable.</td></tr>
-          <tr><td><strong>Comptable</strong></td><td>Consulte tous les devis (lecture seule) + valide les factures.</td></tr>
+          <tr><td><strong>Comptable</strong></td><td>Consulte tous les devis (lecture seule) + valide les factures + accède aux <strong>Outils compta</strong> (factures structure, appels de convention, avoirs).</td></tr>
           <tr><td><strong>Admin</strong></td><td>Accès complet — tous les droits sur tous les objets.</td></tr>
         </tbody>
       </table>

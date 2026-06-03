@@ -4,12 +4,14 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (03/06/2026 — session 18) :** en test beta, en attente de retours
-des collègues. Export Excel temporaire ajouté pour la beta (voir § Fonctionnalités
+**État du projet (04/06/2026 — session 19) :** en test beta, en attente de retours
+des collègues. **OUTILS COMPTA** ajoutés (session 19) : factures structure + appels de
+convention (facturation directe sans devis, réservée admin/comptable) et **avoirs** pour
+tous les types. Export Excel temporaire toujours présent pour la beta (voir § Fonctionnalités
 temporaires beta — à retirer). Email via **Brevo** (HTTP API) : invitations, bypass OTP et reset mot de
 passe fonctionnels. Page `/aide/` publique (manuel utilisateur HTML). Correctifs sécurité
 session 17 appliqués : bypass OTP protégé, durcissement config prod, Decimal robuste,
-reset MDP sûr. 25 tests. Items restants : voir § Dette technique.
+reset MDP sûr. **39 tests**. Items restants : voir § Dette technique.
 
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
@@ -26,7 +28,7 @@ venv\Scripts\pip install -r requirements.txt
 # Lancer / migrer / tester / vérifier (utiliser le python du venv)
 venv\Scripts\python manage.py migrate
 venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
-venv\Scripts\python manage.py test core      # 21 tests (core/tests.py)
+venv\Scripts\python manage.py test core      # 39 tests (core/tests.py)
 venv\Scripts\python manage.py check
 ```
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
@@ -68,7 +70,11 @@ cb-bretagne/
         ├── facture_detail.html
         ├── facture_apercu.html    — aperçu facture imprimable
         ├── _apercu_ligne.html     — partial (ligne d'aperçu)
-        ├── clients.html           — liste + filtres + modales création/édition
+        ├── clients.html           — liste + filtres (type) + modales + carnet contacts
+        ├── facture_compta_list.html   — liste outil compta (structure/appel + avoirs liés)
+        ├── facture_compta_form.html   — création facture compta (client + contact optionnel)
+        ├── facture_compta_detail.html — éditeur 2 niveaux (titres+forfaits, glisser-déposer)
+        ├── avoirs_list.html       — liste de tous les avoirs (Principal)
         ├── bibliotheque.html      — bibliothèque perso (éditeur arbre)
         ├── aides.html             — bibliothèque Aides partagée (page dédiée)
         ├── profil.html            — préférences utilisateur
@@ -81,11 +87,12 @@ cb-bretagne/
 - `ParametresAssociation` — nom, adresse, logo, SIRET, slogan
 - `Territoire` → `Service` → `Equipe` — hiérarchie organisationnelle
 - `ProfilUtilisateur` (OneToOne User) — role, taux_mo_defaut, saisie_ht, conditions_devis, conditions_facture, coordonnees_cb
-- `Client` — nom, contact, email, telephone, adresse (rue), code_postal, ville, created_by (FK User)
+- `Client` — nom, **type_client** (particulier/association/bailleur/collectivite/autre), contact, email, telephone, adresse (rue), code_postal, ville, created_by (FK User)
+- `ContactClient` — **carnet de contacts optionnel** (1..n par client) : client FK, service, nom, fonction, email, telephone. Pour distinguer plusieurs services au sein d'une structure (ex. collectivité).
 - `Devis` — reference, client, chantier, equipe, taux_mo, status, conditions_devis, coordonnees_cb, **zone_financement** (bool), created_by
 - `LigneDevis` — arbre imbriqué (TITRE/S/C/OUV/MO/MAT/FMO/FMAT/FIN), parent FK, **aide FK nullable**
 - `BibliothèqueAides` — bibliothèque partagée (tous) : description, type_ligne (FMO/FMAT/FIN), montant_defaut, unite, organisme, created_by
-- `Facture` — devis FK, type_doc (acompte/facture/avoir), status (draft/validated/sent/paid), numero (unique), montant, date_versement, conditions_facture, created_by
+- `Facture` — **devis FK nullable**, type_doc (facture/acompte/appel/**structure**/avoir), status (draft/validated/sent/paid/cancelled), numero (unique), montant, **client FK** (direct, compta), **contact_client FK**, **coordonnees_cb** (snapshot), **facture_origine FK** (avoir→facture créditée), conditions_facture, created_by
 - `LigneFacture` — même structure que LigneDevis, ligne_devis_source FK
 - `AuditLog` — toutes les actions tracées (devis, facture, bypass)
 - `Bibliotheque` — articles réutilisables par utilisateur
@@ -146,7 +153,27 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 /aides/                     aides_api_get (GET JSON — liste des aides)
 /aides/sauvegarder/         aides_api_save (POST JSON — création aide)
 /aides/<pk>/supprimer/      aide_delete (POST — suppression aide)
+
+# OUTILS COMPTA (admin/comptable — peut_acceder_compta)
+/avoirs/                          avoirs_list (Principal — tous les avoirs)
+/factures/<pk>/avoir/             avoir_create (POST — depuis facture validée, qtés inversées)
+/compta/structures/               factures_compta_list {type_doc:structure}
+/compta/structures/nouvelle/      facture_compta_create
+/compta/appels/                   factures_compta_list {type_doc:appel}
+/compta/appels/nouvelle/          facture_compta_create
+/compta/factures/<pk>/            facture_compta_detail (éditeur 2 niveaux)
+/compta/factures/<pk>/valider/    facture_compta_valider (POST — gen_numero_facture)
+/compta/factures/<pk>/statut/     facture_compta_status (POST)
+/compta/factures/<pk>/supprimer/  facture_compta_delete (POST — brouillon)
+/compta/factures/<pk>/dupliquer/  facture_compta_duplicate (POST — nouveau brouillon)
+/compta/factures/<pk>/lignes/[sauvegarder/]   lignes_compta_get / lignes_compta_save
+/compta/clients/<pk>/contacts/    client_contacts_get (GET JSON)
+/compta/contacts/creation-rapide/ contact_client_create (POST JSON)
+/compta/contacts/<pk>/supprimer/  contact_client_delete (POST — admin)
 ```
+
+⚠️ **Aperçu réutilisé** : les factures compta utilisent la route existante
+`/factures/<pk>/apercu/` (`facture_apercu` généralisée pour `devis=None`).
 
 ⚠️ Les noms d'URLs sont un mélange français/anglais à homogénéiser (statut/status, supprimer/delete).
 
@@ -157,6 +184,91 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 19 — 04/06/2026 — OUTILS COMPTA (factures structure/appel) & avoirs
+
+### Contexte
+Besoin de facturer directement des **structures** (collectivités, bailleurs, associations)
+sans passer par un devis, via deux outils — **Factures Structure** et **Appels de convention** —
+regroupés dans une section sidebar « OUTILS COMPTA » réservée aux comptables et admins.
+Ajout aussi des **avoirs** (factures négatives) pour tous les types. Choix structurant :
+**réutiliser le modèle `Facture`/`LigneFacture`** (devis rendu optionnel) plutôt que des
+modèles parallèles.
+
+### Fichiers modifiés
+- `models.py` :
+  - `Client.type_client` (choices particulier/association/bailleur/collectivite/autre)
+  - **`ContactClient`** (nouveau) — carnet optionnel 1..n par client (service, nom, fonction, email, tél)
+  - `Facture` : `devis` → **nullable** ; `client` FK, `contact_client` FK, `coordonnees_cb`
+    (snapshot), `facture_origine` FK (avoir→source) ; type_doc `structure` ajouté
+  - Helpers `Facture` : `is_compta`, `get_client()`, `get_reference_client()` (proforma `PF-`)
+  - `Devis.total_facture()` **corrigé** : somme directe de tous les types (l'avoir porte un
+    montant négatif et se déduit naturellement)
+  - `ProfilUtilisateur.peut_voir_compta()` (sidebar)
+- `migrations/0016_…` — type_client, ContactClient, champs Facture
+- `permissions.py` : **`peut_acceder_compta`** (admin/comptable, extensible 'responsable') ;
+  **gardes null-devis** sur `peut_voir/modifier/envoyer/supprimer_facture`
+  (`if facture.devis and _partage_equipe_devis(...)`) ; `peut_voir_facture` restreint les
+  factures compta (devis None) aux rôles compta
+- `views.py` :
+  - **`NUMEROTATION_FACTURE`** + **`gen_numero_facture(type_doc)`** : découple préfixe affiché
+    et séquence de comptage. structure→FAC (séquence partagée), appel→APP (séquence propre),
+    avoir→AV. `facture_valider`/`facture_bypass` branchés dessus.
+  - Bloc « OUTILS COMPTA » : `factures_compta_list`, `facture_compta_create`,
+    `facture_compta_detail`, `facture_compta_valider`, `facture_compta_status`,
+    `facture_compta_delete`, `facture_compta_duplicate`, `lignes_compta_get/save`,
+    `client_contacts_get`, `contact_client_create`, `contact_client_delete`
+  - **`avoir_create`** : copie les lignes avec **quantités inversées** (titres + forfaits),
+    `facture_origine` renseigné ; gate `peut_modifier_facture(source)` ; source validée requise
+  - **`avoirs_list`** (Principal) : tous les avoirs ; filtré aux avoirs de chantier si l'user
+    n'a pas accès compta
+  - `factures_list` **restreinte** aux factures de chantier (`devis__isnull=False`, hors avoirs)
+    + `prefetch_related('avoirs')` pour le badge
+  - `facture_apercu` **généralisée** : gère `devis=None` (gardes sur `devis.*`, acomptes/FIN/réf
+    devis conditionnés), client via `get_client()`, coordonnées snapshot, titre dynamique
+  - `clients_list`/`client_create`/`client_edit` : champ `type_client` + filtre
+- `urls.py` — routes `/avoirs/`, `/factures/<pk>/avoir/`, bloc `/compta/...`
+- `admin.py` — `ContactClient` inline, `type_client` sur ClientAdmin, raw_id_fields sur Facture
+- Templates :
+  - `base.html` — section sidebar « OUTILS COMPTA » (admin/comptable) + lien « Avoirs » dans
+    Principal ; **`.btn i,.ico-btn i,… {pointer-events:none}`** (icônes transparentes à la souris)
+  - `facture_compta_list.html`, `facture_compta_form.html`, `facture_compta_detail.html` (nouveaux)
+  - `avoirs_list.html` (nouveau) — icône d'origine (structure/appel/chantier) par ligne
+  - `facture_apercu.html` — bloc chantier **conditionnel** (masqué si vide), titre dynamique
+    (FACTURE / Facture d'appel de convention / AVOIR + PROFORMA), réf client `get_reference_client`
+  - `factures_list.html` — badge « ↩ Avoir » cliquable + bouton « Créer un avoir »
+  - `clients.html` — colonne/filtre type, gestion des contacts dans la modale d'édition
+- `tests.py` — classe `FactureComptaTests` (14 tests) : accès, création, numérotation FAC/APP/AV,
+  proforma PF-, validation admin/comptable, lignes, avoirs (qtés négatives, refus brouillon),
+  filtre type_client. **39 tests au total.**
+
+### Décisions actées
+- **Réutilisation `Facture`/`LigneFacture`** : `devis` nullable, type_doc `structure`/`appel`,
+  lignes plates 2 niveaux (TITRE + `F` forfait). `LigneFacture` inchangé.
+- **Numérotation** : structure partage la séquence FAC (gratuit car même table) ; appel = préfixe
+  APP + séquence propre. **Reconfigurable** : passer `appel.sequence` à `'FAC'` (1 ligne) bascule
+  les appels sur la numérotation FAC en gardant le préfixe APP.
+- **Proforma** : `draft` = proforma ; éditions client préfixées `PF-` (`get_reference_client`),
+  l'outil interne garde « BROUILLON ».
+- **Validation** : `peut_valider_facture` existant (admin OU comptable) — un seul suffit.
+- **Avoirs** : créés depuis une facture validée, quantités inversées **modifiables** (corriger si
+  seule une partie est annulée), édités dans l'éditeur compta simple, liés via `facture_origine`.
+  `montant` négatif ⇒ `total_facture()` les déduit.
+- **Aperçu non forké** : bloc chantier masqué quand vide (vrai aussi pour particuliers sans chantier).
+- **Base client unique** + `type_client` + carnet `ContactClient` optionnel (créé à la demande).
+- **Accès compta** = admin/comptable (sidebar + toutes les vues), via `peut_acceder_compta`.
+- **Éditeur compta** : glisser-déposer (poignée), dupliquer/supprimer par ligne, copier les titres
+  avec leurs forfaits.
+
+### Pièges rencontrés
+- `{# … #}` Django **ne gère pas le multiligne** → utiliser `{% comment %}`.
+- **Toast invisible** (`opacity:0`) sans `pointer-events:none` recouvrait le coin bas-droit et
+  bloquait le clic sur « Sauvegarder » → ajouté `pointer-events:none`.
+- **Icônes** `<i>` dans les boutons captaient la souris → `pointer-events:none` global (base.html).
+- `factures_list` montrait toutes les factures (y compris compta, `devis=None`) → plantait le
+  template sur `devis.pk` ; restreinte aux factures de chantier.
 
 ---
 
@@ -647,6 +759,12 @@ Pour supprimer proprement :
 - **Bibliothèque Aides — droits** — `aide_delete`/`aides_api_save` ouverts à tout
   utilisateur connecté (**BETA assumé**). Restreindre (admin/responsable ?) au passage
   hébergement définitif — Phase 4.
+- **Accès OUTILS COMPTA** — `peut_acceder_compta` = admin/comptable (création + lecture des
+  factures compta). À étendre à 'responsable' si le besoin se confirme (1 ligne dans
+  `permissions.py`). Suppression de contact (`contact_client_delete`) = admin uniquement.
+- **Avoir — rôle de création** — `avoir_create` gate `peut_modifier_facture(source)` (équipe
+  du devis pour le chantier, compta pour les factures compta). À restreindre éventuellement
+  (admin/comptable only) en Phase 4 selon les retours.
 
 ### Données / logique métier
 - **`gen_reference`** — calcule max+1 en Python → race condition sur la numérotation concurrente.
@@ -662,7 +780,8 @@ Pour supprimer proprement :
 ### Tests
 - **Couverture session 14 manquante** — zone_financement (persistance), `aide_delete`.
   `aides_api_save` montant invalide : ✅ couvert session 17 (test `test_aides_api_save_montant_invalide_retourne_400`).
-  **25 tests** au total.
+  Compta (factures structure/appel, avoirs, type_client) : ✅ couvert session 19 (`FactureComptaTests`).
+  **39 tests** au total.
 
 ### Performance
 - **Dashboard** — remplacer les boucles Python par `aggregate(Sum(...))` — Phase 3.
