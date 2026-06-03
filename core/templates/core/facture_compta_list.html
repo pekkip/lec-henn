@@ -1,0 +1,71 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ meta.titre }}{% endblock %}
+{% if type_doc == 'structure' %}{% block nav_compta_struct %}active{% endblock %}{% endif %}
+{% if type_doc == 'appel' %}{% block nav_compta_appel %}active{% endblock %}{% endif %}
+{% block topbar_title %}{{ meta.titre }}{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <div class="page-title">{{ meta.titre }}</div>
+    <div class="page-sub">{{ factures|length }} document{{ factures|length|pluralize }}</div>
+  </div>
+  {% if type_doc == 'structure' %}
+  <a href="{% url 'core:compta-structure-create' %}" class="btn btn-prune"><i class="ti ti-plus"></i> Nouvelle facture</a>
+  {% else %}
+  <a href="{% url 'core:compta-appel-create' %}" class="btn btn-prune"><i class="ti ti-plus"></i> Nouvel appel</a>
+  {% endif %}
+</div>
+<div style="flex:1;overflow-y:auto">
+  <table>
+    <thead><tr>
+      <th>Référence</th>
+      <th>Client</th>
+      <th>Objet</th>
+      <th>Date</th>
+      <th class="num">Montant</th>
+      <th>Statut</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      {% for f in factures %}
+      <tr>
+        <td>
+          <span class="mono">{{ f.get_reference }}</span>
+          {% if f.type_doc == 'avoir' %}<span class="badge b-refused" style="margin-left:4px">Avoir</span>{% endif %}
+        </td>
+        <td>{{ f.get_client|default:f.destinataire }}</td>
+        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.notes|striptags|truncatechars:60 }}</td>
+        <td>{{ f.date_creation|date:"d/m/Y" }}</td>
+        <td class="num">{{ f.montant|floatformat:2 }} €</td>
+        <td>
+          <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
+          {% if f.bypass_validation %}<span class="badge" style="background:var(--amber-lt);color:#8B5E0A;margin-left:4px"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span>{% endif %}
+          {% with av=f.avoirs.all %}{% if av %}
+            {% if av|length == 1 %}
+            <a href="{% url 'core:compta-facture-detail' av.0.pk %}" class="badge" style="background:var(--red-lt);color:var(--red);margin-left:4px" title="Avoir {{ av.0.get_reference }}"><i class="ti ti-receipt-refund" style="font-size:11px"></i> Avoir</a>
+            {% else %}
+            <a href="{% url 'core:avoirs-list' %}" class="badge" style="background:var(--red-lt);color:var(--red);margin-left:4px" title="{{ av|length }} avoirs"><i class="ti ti-receipt-refund" style="font-size:11px"></i> {{ av|length }} avoirs</a>
+            {% endif %}
+          {% endif %}{% endwith %}
+        </td>
+        <td style="text-align:right;white-space:nowrap">
+          <a href="{% url 'core:compta-facture-detail' f.pk %}" class="ico-btn" title="Ouvrir"><i class="ti ti-pencil"></i></a>
+          <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu" target="_blank"><i class="ti ti-eye"></i></a>
+          {% if f.type_doc != 'avoir' %}
+          <form method="post" action="{% url 'core:compta-facture-duplicate' f.pk %}" style="display:inline" onsubmit="return confirm('Dupliquer {{ f.get_reference }} en brouillon ?')">
+            {% csrf_token %}
+            <button type="submit" class="ico-btn" title="Dupliquer"><i class="ti ti-copy"></i></button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray-md)">
+        Aucun document.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

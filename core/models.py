@@ -130,6 +130,10 @@ class ProfilUtilisateur(models.Model):
     def is_comptable(self):
         return self.role == 'comptable'
 
+    def peut_voir_compta(self):
+        # Accès OUTILS COMPTA — extensible 'responsable' plus tard.
+        return self.role in ('admin', 'comptable')
+
     # Règles d'accès devis/facture : voir core.permissions (source unique).
 
 
@@ -237,7 +241,17 @@ class ParametresAssociation(models.Model):
 # ══════════════════════════════════════════
 
 class Client(models.Model):
+    TYPE_CLIENT_CHOICES = [
+        ('particulier',  'Particulier'),
+        ('association',  'Association'),
+        ('bailleur',     'Bailleur'),
+        ('collectivite', 'Collectivité'),
+        ('autre',        'Autre'),
+    ]
     nom = models.CharField(max_length=200)
+    type_client = models.CharField(
+        max_length=20, choices=TYPE_CLIENT_CHOICES, default='particulier'
+    )
     contact = models.CharField(max_length=200, blank=True)
     email = models.EmailField(blank=True)
     telephone = models.CharField(max_length=50, blank=True)
@@ -256,6 +270,35 @@ class Client(models.Model):
 
     def __str__(self):
         return self.nom
+
+
+class ContactClient(models.Model):
+    """
+    Carnet de contacts optionnel d'un client (1..n).
+    Permet de distinguer plusieurs services / interlocuteurs au sein d'une même
+    structure (ex. collectivité : "Direction du patrimoine", "Service Jardins").
+    Créé à la demande — un particulier ou une association n'en a généralement aucun.
+    """
+    client = models.ForeignKey(
+        Client, on_delete=models.CASCADE, related_name='contacts'
+    )
+    service = models.CharField(
+        max_length=200, blank=True,
+        help_text="Service destinataire (ex. Direction du patrimoine)"
+    )
+    nom = models.CharField(max_length=200, blank=True, help_text="Interlocuteur / technicien")
+    fonction = models.CharField(max_length=200, blank=True)
+    email = models.EmailField(blank=True)
+    telephone = models.CharField(max_length=50, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['service', 'nom']
+        verbose_name = 'Contact client'
+
+    def __str__(self):
+        parts = [p for p in (self.service, self.nom) if p]
+        return ' — '.join(parts) if parts else f"Contact #{self.pk}"
 
 
 # ══════════════════════════════════════════
@@ -389,12 +432,11 @@ class Devis(models.Model):
         return self.total_brut() - self.total_financement()
 
     def total_facture(self):
+        # Somme directe : un avoir porte un montant négatif (quantités inversées),
+        # il se déduit donc naturellement du total.
         return sum(
             f.montant for f in self.factures.exclude(status='cancelled')
-            if f.type_doc in ('facture', 'acompte')
-        ) - sum(
-            f.montant for f in self.factures.exclude(status='cancelled')
-            if f.type_doc == 'avoir'
+            if f.type_doc in ('facture', 'acompte', 'avoir')
         )
 
     def reste_a_facturer(self):
@@ -489,6 +531,7 @@ class Facture(models.Model):
         ('facture', 'Facture'),
         ('acompte', "Facture d'acompte"),
         ('appel', "Facture d'appel convention"),
+        ('structure', 'Facture structure'),
         ('avoir',   'Avoir'),
     ]
     STATUS_CHOICES = [
@@ -507,7 +550,24 @@ class Facture(models.Model):
         max_length=10, choices=TYPE_DOC_CHOICES, default='facture'
     )
     devis = models.ForeignKey(
-        Devis, on_delete=models.PROTECT, related_name='factures'
+        Devis, on_delete=models.PROTECT, related_name='factures',
+        null=True, blank=True,
+        help_text="Optionnel : factures compta (structure/appel) créées sans devis"
+    )
+    # Lien client direct (factures compta sans devis ; pour les factures de devis,
+    # le client reste accessible via devis.client — voir get_client())
+    client = models.ForeignKey(
+        Client, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='factures_directes'
+    )
+    contact_client = models.ForeignKey(
+        'ContactClient', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='factures'
+    )
+    # Avoir → facture créditée (lignes copiées avec quantités inversées)
+    facture_origine = models.ForeignKey(
+        'self', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='avoirs'
     )
     destinataire = models.CharField(max_length=200)
     montant = models.DecimalField(
@@ -534,6 +594,11 @@ class Facture(models.Model):
         blank=True,
         help_text="Conditions de vente pour cette facture"
     )
+    coordonnees_cb = models.TextField(
+        blank=True,
+        help_text="Coordonnées CB (snapshot à la création depuis le profil) — "
+                  "utilisé pour les factures compta sans devis"
+    )
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, related_name='factures_creees'
@@ -555,7 +620,21 @@ class Facture(models.Model):
         return f"{ref} — {self.destinataire}"
 
     def get_reference(self):
+        """Référence interne (outil) — proforma affiché « BROUILLON »."""
         return self.numero or f"BROUILLON-{self.pk}"
+
+    def get_reference_client(self):
+        """Référence affichée sur les éditions client — proforma préfixé « PF- »."""
+        return self.numero or f"PF-{self.pk}"
+
+    @property
+    def is_compta(self):
+        """Facture des outils compta (création directe sans devis)."""
+        return self.type_doc in ('structure', 'appel')
+
+    def get_client(self):
+        """Client effectif : lien direct (compta) ou via le devis."""
+        return self.client or (self.devis.client if self.devis else None)
 
 
 # ══════════════════════════════════════════

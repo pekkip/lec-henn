@@ -14,6 +14,12 @@
     <i class="ti ti-search"></i>
     <input class="search-inp" name="nom" value="{{ f_nom }}" placeholder="Nom…" autocomplete="off"/>
   </div>
+  <select class="sel" name="type_client">
+    <option value="">Tous types</option>
+    {% for val, lbl in type_choices %}
+    <option value="{{ val }}" {% if f_type_client == val %}selected{% endif %}>{{ lbl }}</option>
+    {% endfor %}
+  </select>
   <input class="sel" name="ville" value="{{ f_ville }}" placeholder="Ville" style="max-width:140px"/>
   <input class="sel" name="code_postal" value="{{ f_code_postal }}" placeholder="Code postal" style="max-width:120px" inputmode="numeric"/>
   <input class="sel" name="departement" value="{{ f_departement }}" placeholder="Dépt (29)" style="max-width:90px" inputmode="numeric"/>
@@ -29,16 +35,18 @@
 <div style="flex:1;overflow-y:auto">
   <table>
     <thead><tr>
-      <th>Nom</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Adresse</th><th>Ville</th><th>CP</th><th class="num">Devis</th>{% if is_admin %}<th></th>{% endif %}
+      <th>Nom</th><th>Type</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Ville</th><th>CP</th><th class="num">Devis</th>{% if is_admin %}<th></th>{% endif %}
     </tr></thead>
     <tbody>
       {% for c in clients %}
       <tr>
-        <td style="font-weight:500">{{ c.nom }}</td>
+        <td style="font-weight:500">{{ c.nom }}
+          {% if c.contacts.all %}<span class="badge" style="background:var(--teal-lt);color:var(--teal-dk);margin-left:4px" title="Contacts / services">{{ c.contacts.all|length }} contact{{ c.contacts.all|length|pluralize }}</span>{% endif %}
+        </td>
+        <td>{{ c.get_type_client_display }}</td>
         <td>{{ c.contact|default:"—" }}</td>
         <td>{{ c.email|default:"—" }}</td>
         <td>{{ c.telephone|default:"—" }}</td>
-        <td style="color:var(--gray-md);font-size:11px">{{ c.adresse|default:"—" }}</td>
         <td>{{ c.ville|default:"—" }}</td>
         <td class="mono">{{ c.code_postal|default:"—" }}</td>
         <td class="num">{{ c.devis.count }}</td>
@@ -46,7 +54,8 @@
         <td style="text-align:right;white-space:nowrap">
           <button type="button" class="ico-btn"
             data-action="{% url 'core:client-edit' c.pk %}"
-            data-nom="{{ c.nom }}" data-contact="{{ c.contact }}" data-email="{{ c.email }}"
+            data-pk="{{ c.pk }}"
+            data-nom="{{ c.nom }}" data-type="{{ c.type_client }}" data-contact="{{ c.contact }}" data-email="{{ c.email }}"
             data-telephone="{{ c.telephone }}" data-adresse="{{ c.adresse }}"
             data-cp="{{ c.code_postal }}" data-ville="{{ c.ville }}"
             onclick="openEdit(this)" title="Modifier"><i class="ti ti-pencil"></i></button>
@@ -75,6 +84,11 @@
     <form method="post" action="{% url 'core:client-create' %}">
       {% csrf_token %}
       <div class="field"><label>Nom / Organisation *</label><input class="input" name="nom" required/></div>
+      <div class="field"><label>Type</label>
+        <select class="input" name="type_client">
+          {% for val, lbl in type_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+        </select>
+      </div>
       <div class="field"><label>Contact</label><input class="input" name="contact" placeholder="Nom du responsable"/></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="field"><label>Email</label><input class="input" type="email" name="email"/></div>
@@ -101,6 +115,11 @@
     <form method="post" id="edit-form">
       {% csrf_token %}
       <div class="field"><label>Nom / Organisation *</label><input class="input" id="e-nom" name="nom" required/></div>
+      <div class="field"><label>Type</label>
+        <select class="input" id="e-type" name="type_client">
+          {% for val, lbl in type_choices %}<option value="{{ val }}">{{ lbl }}</option>{% endfor %}
+        </select>
+      </div>
       <div class="field"><label>Contact</label><input class="input" id="e-contact" name="contact"/></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="field"><label>Email</label><input class="input" id="e-email" type="email" name="email"/></div>
@@ -116,6 +135,19 @@
         <button type="submit" class="btn btn-prune">Enregistrer</button>
       </div>
     </form>
+
+    <!-- Contacts / services -->
+    <div style="margin-top:1rem;border-top:1px solid var(--gray-bd);padding-top:.75rem">
+      <div style="font-size:11px;font-weight:600;color:var(--gray-md);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">
+        Contacts / services
+      </div>
+      <div id="contacts-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <input class="input" id="nc-service" placeholder="Service (ex. Patrimoine)"/>
+        <input class="input" id="nc-nom" placeholder="Interlocuteur"/>
+      </div>
+      <button type="button" class="btn btn-sm" style="margin-top:6px" onclick="addContact()"><i class="ti ti-plus"></i> Ajouter ce contact</button>
+    </div>
   </div>
 </div>
 {% endif %}
@@ -123,6 +155,7 @@
 
 {% block extra_js %}
 <script>
+const CSRF = '{{ csrf_token }}';
 function openCreate(){ document.getElementById('modal-client').classList.remove('hidden'); }
 
 // Pré-remplissage ville depuis le CP (helper global défini dans base.html)
@@ -135,17 +168,76 @@ const eCp = document.getElementById('e-cp');
 const eVille = document.getElementById('e-ville');
 if (eCp) eCp.addEventListener('blur', () => remplirVilleDepuisCP(eCp, eVille));
 
+let currentClientPk = null;
+
 function openEdit(btn){
   const d = btn.dataset;
+  currentClientPk = d.pk;
   document.getElementById('edit-form').action = d.action;
   document.getElementById('e-nom').value       = d.nom || '';
+  document.getElementById('e-type').value      = d.type || 'particulier';
   document.getElementById('e-contact').value   = d.contact || '';
   document.getElementById('e-email').value     = d.email || '';
   document.getElementById('e-telephone').value = d.telephone || '';
   document.getElementById('e-adresse').value   = d.adresse || '';
   document.getElementById('e-cp').value        = d.cp || '';
   document.getElementById('e-ville').value     = d.ville || '';
+  document.getElementById('nc-service').value  = '';
+  document.getElementById('nc-nom').value      = '';
+  loadContacts();
   document.getElementById('modal-edit').classList.remove('hidden');
+}
+
+async function loadContacts(){
+  const box = document.getElementById('contacts-list');
+  box.innerHTML = '<span style="font-size:11px;color:var(--gray-md)">Chargement…</span>';
+  try {
+    const resp = await fetch(`/compta/clients/${currentClientPk}/contacts/`);
+    const data = await resp.json();
+    if (!(data.contacts||[]).length){
+      box.innerHTML = '<span style="font-size:11px;color:var(--gray-md)">Aucun contact.</span>';
+      return;
+    }
+    box.innerHTML = '';
+    data.contacts.forEach(c => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:4px 8px;background:var(--gray-lt);border-radius:4px';
+      row.innerHTML = `<span>${c.label}</span>`;
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'ico-btn danger'; del.innerHTML = '<i class="ti ti-trash"></i>';
+      del.onclick = () => deleteContact(c.id);
+      row.appendChild(del);
+      box.appendChild(row);
+    });
+  } catch(e){ box.innerHTML = '<span style="font-size:11px;color:var(--red)">Erreur de chargement.</span>'; }
+}
+
+async function addContact(){
+  const service = document.getElementById('nc-service').value.trim();
+  const nom = document.getElementById('nc-nom').value.trim();
+  if (!service && !nom) return;
+  try {
+    const resp = await fetch(`{% url 'core:contact-client-create' %}`, {
+      method:'POST',
+      headers:{'X-CSRFToken':CSRF,'Content-Type':'application/json'},
+      body: JSON.stringify({client: currentClientPk, service, nom}),
+    });
+    if (resp.ok){
+      document.getElementById('nc-service').value = '';
+      document.getElementById('nc-nom').value = '';
+      loadContacts();
+    }
+  } catch(e){ /* silencieux */ }
+}
+
+async function deleteContact(pk){
+  if (!confirm('Supprimer ce contact ?')) return;
+  try {
+    const resp = await fetch(`/compta/contacts/${pk}/supprimer/`, {
+      method:'POST', headers:{'X-CSRFToken':CSRF},
+    });
+    if (resp.ok) loadContacts();
+  } catch(e){ /* silencieux */ }
 }
 {% endif %}
 </script>

@@ -170,7 +170,7 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
 <body>
 
 <div class="no-print">
-  <a href="{% url 'core:facture-detail' facture.pk %}">← Retour</a>
+  <a href="{% if facture.devis %}{% url 'core:facture-detail' facture.pk %}{% else %}{% url 'core:compta-facture-detail' facture.pk %}{% endif %}">← Retour</a>
   <button onclick="window.print()">🖨 Imprimer / PDF</button>
   <span class="bar-title">{{ facture.get_reference }} — Aperçu</span>
 </div>
@@ -188,33 +188,44 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
     </div>
     <div class="header-right">
       <div class="doc-type-label">
-        {% if facture.type_doc == 'acompte' %}
-          {% if facture.status == 'draft' %}Acompte proforma{% else %}Facture d'acompte{% endif %}
-        {% else %}
-          {% if facture.status == 'draft' %}Facture proforma{% else %}Facture{% endif %}
-        {% endif %}
+        {% if facture.type_doc == 'avoir' %}Avoir{% if facture.status == 'draft' %} proforma{% endif %}
+        {% elif facture.type_doc == 'appel' %}Facture d'appel de convention{% if facture.status == 'draft' %} — proforma{% endif %}
+        {% elif facture.type_doc == 'acompte' %}{% if facture.status == 'draft' %}Acompte proforma{% else %}Facture d'acompte{% endif %}
+        {% else %}{% if facture.status == 'draft' %}Facture proforma{% else %}Facture{% endif %}{% endif %}
       </div>
       <div class="doc-meta-grid">
         <span class="lbl">Numéro :</span>
-        <span class="val">{{ facture.get_reference }}</span>
+        <span class="val">{{ facture.get_reference_client }}</span>
         <span class="lbl">Date :</span>
         <span class="val">{{ facture.date_creation|date:"d/m/Y" }}</span>
         {% if facture.date_echeance %}
         <span class="lbl">Échéance :</span>
         <span class="val">{{ facture.date_echeance|date:"d/m/Y" }}</span>
         {% endif %}
+        {% if devis %}
         <span class="lbl">Référence devis :</span>
         <span class="val">{{ devis.reference }}</span>
         {% if devis.equipe %}
         <span class="lbl">Secteur :</span>
         <span class="val">{{ devis.equipe.nom }}</span>
         {% endif %}
+        {% endif %}
+        {% if facture.type_doc == 'avoir' and facture.facture_origine %}
+        <span class="lbl">Avoir sur :</span>
+        <span class="val">{{ facture.facture_origine.get_reference_client }}</span>
+        {% endif %}
       </div>
     </div>
   </div>
 
   {# ── PARTIES ── #}
-  <div class="doc-parties">
+  {% comment %}
+  Bloc chantier affiché uniquement s'il y a une adresse de chantier (devis).
+  Pour les factures compta (sans devis) ou les particuliers sans chantier,
+  le bloc disparaît et le destinataire occupe toute la largeur.
+  {% endcomment %}
+  <div class="doc-parties" {% if not devis.chantier %}style="grid-template-columns:1fr"{% endif %}>
+    {% if devis.chantier %}
     <div class="doc-bloc">
       <div class="doc-bloc-title">Adresse du chantier</div>
       <div class="doc-bloc-main">{{ devis.chantier }}</div>
@@ -225,14 +236,19 @@ table.lignes .td-total { text-align: right; font-weight: 600; color: var(--prune
         <span style="font-family:var(--fm);font-size:10px;color:var(--gray-md)">{{ devis.reference }}</span>
       </div>
     </div>
-    <div class="doc-bloc">
-      <div class="doc-bloc-title">Coordonnées du maître d'ouvrage</div>
+    {% endif %}
+    <div class="doc-bloc" {% if not devis.chantier %}style="border-right:none"{% endif %}>
+      <div class="doc-bloc-title">{% if devis %}Coordonnées du maître d'ouvrage{% else %}Destinataire{% endif %}</div>
       <div class="doc-bloc-main">{{ facture.destinataire }}</div>
       <div class="doc-bloc-sub">
-        {% if devis.client.contact %}{{ devis.client.contact }}<br>{% endif %}
-        {% if devis.client.adresse %}{{ devis.client.adresse|linebreaksbr }}<br>{% endif %}
-        {% if devis.client.email %}{{ devis.client.email }}<br>{% endif %}
-        {% if devis.client.telephone %}{{ devis.client.telephone }}{% endif %}
+        {% if contact %}
+          {% if contact.service %}{{ contact.service }}<br>{% endif %}
+          {% if contact.nom %}{{ contact.nom }}{% if contact.fonction %} — {{ contact.fonction }}{% endif %}<br>{% endif %}
+        {% elif client.contact %}{{ client.contact }}<br>{% endif %}
+        {% if client.adresse %}{{ client.adresse|linebreaksbr }}<br>{% endif %}
+        {% if client.code_postal or client.ville %}{{ client.code_postal }} {{ client.ville }}<br>{% endif %}
+        {% if contact.email %}{{ contact.email }}<br>{% elif client.email %}{{ client.email }}<br>{% endif %}
+        {% if contact.telephone %}{{ contact.telephone }}{% elif client.telephone %}{{ client.telephone }}{% endif %}
       </div>
     </div>
   </div>

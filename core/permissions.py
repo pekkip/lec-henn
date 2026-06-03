@@ -31,6 +31,18 @@ def is_comptable(user):
     return profil and profil.role == 'comptable'
 
 
+def peut_acceder_compta(user):
+    """
+    Accès aux OUTILS COMPTA (factures structure / appels de convention).
+    Réservé à l'admin et au comptable — extensible 'responsable' plus tard
+    (ajouter le rôle ici suffit, vues et sidebar suivent).
+    """
+    if not user.is_authenticated:
+        return False
+    profil = get_profil_or_none(user)
+    return bool(profil and profil.role in ('admin', 'comptable'))
+
+
 def get_techniciens(user):
     """Retourne les profils des techniciens sous ce responsable."""
     profil = get_profil_or_none(user)
@@ -172,14 +184,21 @@ def peut_envoyer_facture(user, facture):
         return True
 
     # Accès via le devis parent (équipe ou responsable)
-    if _partage_equipe_devis(profil, facture.devis):
+    if facture.devis and _partage_equipe_devis(profil, facture.devis):
         return True
 
     return False
 
 
 def peut_voir_facture(user, facture):
-    """Peut consulter une facture (lecture seule) ? Via le devis parent."""
+    """
+    Peut consulter une facture (lecture seule) ?
+
+    - Facture de devis : tout utilisateur connecté (cf. peut_voir_devis).
+    - Facture compta (sans devis) : réservée aux rôles compta.
+    """
+    if facture.devis is None:
+        return peut_acceder_compta(user)
     return peut_voir_devis(user, facture.devis)
 
 
@@ -205,7 +224,7 @@ def peut_modifier_facture(user, facture):
         return True
 
     # Accès via le devis parent (équipe ou responsable)
-    if _partage_equipe_devis(profil, facture.devis):
+    if facture.devis and _partage_equipe_devis(profil, facture.devis):
         return True
 
     return False
@@ -258,7 +277,7 @@ def peut_supprimer_facture(user, facture):
         return True
 
     # Accès via le devis parent (équipe ou responsable)
-    if _partage_equipe_devis(profil, facture.devis):
+    if facture.devis and _partage_equipe_devis(profil, facture.devis):
         return True
 
     return False

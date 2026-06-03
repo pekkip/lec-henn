@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
-    ParametresAssociation, Client,
+    ParametresAssociation, Client, ContactClient,
     Devis, LigneDevis, Facture, LigneFacture, AuditLog,
     Bibliotheque
 )
@@ -69,10 +69,18 @@ class ParametresAssociationAdmin(admin.ModelAdmin):
 #  CLIENTS
 # ══════════════════════════════════════════
 
+class ContactClientInline(admin.TabularInline):
+    model = ContactClient
+    extra = 0
+    fields = ['service', 'nom', 'fonction', 'email', 'telephone']
+
+
 @admin.register(Client)
 class ClientAdmin(admin.ModelAdmin):
-    list_display = ['nom', 'contact', 'email', 'telephone', 'code_postal', 'ville', 'created_by']
+    list_display = ['nom', 'type_client', 'contact', 'email', 'telephone', 'code_postal', 'ville', 'created_by']
+    list_filter = ['type_client']
     search_fields = ['nom', 'contact', 'email', 'ville', 'code_postal']
+    inlines = [ContactClientInline]
 
 
 
@@ -108,10 +116,11 @@ class LigneFactureInline(admin.TabularInline):
 
 @admin.register(Facture)
 class FactureAdmin(admin.ModelAdmin):
-    list_display = ['get_reference', 'type_doc', 'devis', 'destinataire', 'montant', 'status']
+    list_display = ['get_reference', 'type_doc', 'devis', 'client', 'destinataire', 'montant', 'status']
     list_filter = ['status', 'type_doc', 'bypass_validation']
     search_fields = ['numero', 'destinataire']
     readonly_fields = ['created_at', 'validated_at', 'validated_by', 'created_by']
+    raw_id_fields = ['devis', 'client', 'contact_client', 'facture_origine']
     inlines = [LigneFactureInline]
 
 

@@ -48,6 +48,9 @@ a{color:inherit;text-decoration:none}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;font-size:12px;border-radius:var(--r);border:1px solid var(--gray-bd);background:transparent;color:var(--gray);cursor:pointer;text-decoration:none}
 .btn:hover{background:var(--gray-lt)}
 .btn i{font-size:14px}
+/* Les icônes ne capturent pas la souris : tout le bouton/onglet reste cliquable
+   et affiche le curseur "main" sur toute sa surface. */
+.btn i,.ico-btn i,.nav-item i,.tab i{pointer-events:none}
 .btn-sm{padding:4px 8px;font-size:11px}
 .btn-prune{background:var(--prune);color:#fff;border-color:var(--prune-dk)}
 .btn-prune:hover{background:var(--prune-dk);color:#fff}
@@ -179,6 +182,7 @@ tbody tr:hover td{background:#FAFAF8}
     <a href="{% url 'core:dashboard' %}" class="nav-item {% block nav_dashboard %}{% endblock %}"><i class="ti ti-layout-dashboard"></i>Tableau de bord</a>
     <a href="{% url 'core:devis-list' %}" class="nav-item {% block nav_devis %}{% endblock %}"><i class="ti ti-file-text"></i>Devis</a>
     <a href="{% url 'core:factures-list' %}" class="nav-item {% block nav_factures %}{% endblock %}"><i class="ti ti-receipt"></i>Factures</a>
+    <a href="{% url 'core:avoirs-list' %}" class="nav-item {% block nav_avoirs %}{% endblock %}"><i class="ti ti-receipt-refund"></i>Avoirs</a>
     <a href="{% url 'core:clients' %}" class="nav-item {% block nav_clients %}{% endblock %}"><i class="ti ti-users"></i>Clients</a>
     <div class="nav-sect">Configuration</div>
     <a href="{% url 'core:biblio' %}" class="nav-item {% block nav_biblio %}{% endblock %}"><i class="ti ti-books"></i>Bibliothèque</a>
@@ -189,6 +193,15 @@ tbody tr:hover td{background:#FAFAF8}
         {% if role == 'admin' or role == 'responsable' %}
         <a href="{% url 'core:utilisateurs-list' %}" class="nav-item {% block nav_users %}{% endblock %}">
           <i class="ti ti-users-group"></i>Utilisateurs
+        </a>
+        {% endif %}
+        {% if role == 'admin' or role == 'comptable' %}
+        <div class="nav-sect">Outils compta</div>
+        <a href="{% url 'core:compta-structures-list' %}" class="nav-item {% block nav_compta_struct %}{% endblock %}">
+          <i class="ti ti-building-bank"></i>Factures Structure
+        </a>
+        <a href="{% url 'core:compta-appels-list' %}" class="nav-item {% block nav_compta_appel %}{% endblock %}">
+          <i class="ti ti-file-invoice"></i>Appels de convention
         </a>
         {% endif %}
       {% endwith %}

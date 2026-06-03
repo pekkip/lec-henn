@@ -23,7 +23,7 @@ from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 logger = logging.getLogger(__name__)
 
 from .models import (
-    Client, Devis, LigneDevis,
+    Client, ContactClient, Devis, LigneDevis,
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
     BibliothèqueAides,
@@ -34,7 +34,7 @@ from .permissions import (
     peut_voir_facture, peut_modifier_facture,
     peut_supprimer_client, is_admin,
     peut_gerer_utilisateurs, peut_gerer_cet_utilisateur,
-    get_collegues_ids
+    get_collegues_ids, peut_acceder_compta,
 )
 # ══════════════════════════════════════════
 #  HELPERS
@@ -83,6 +83,34 @@ def gen_reference(prefix):
             except ValueError:
                 pass
 
+    next_num = max(nums) + 1 if nums else 1
+    return f"{prefix}-{year}-{str(next_num).zfill(3)}"
+
+
+# Numérotation des factures : découple le préfixe AFFICHÉ de la SÉQUENCE de comptage.
+# Pour basculer les appels sur la séquence FAC (en gardant le préfixe APP), il suffit
+# de passer 'appel' -> {'prefix': 'APP', 'sequence': 'FAC'} (une ligne).
+NUMEROTATION_FACTURE = {
+    'facture':   {'prefix': 'FAC', 'sequence': 'FAC'},
+    'acompte':   {'prefix': 'FAC', 'sequence': 'FAC'},
+    'structure': {'prefix': 'FAC', 'sequence': 'FAC'},  # partage la séquence FAC
+    'appel':     {'prefix': 'APP', 'sequence': 'APP'},  # séquence propre (pour l'instant)
+    'avoir':     {'prefix': 'AV',  'sequence': 'AV'},
+}
+
+
+def gen_numero_facture(type_doc):
+    """Génère le prochain numéro de facture selon le type_doc (préfixe + séquence)."""
+    cfg = NUMEROTATION_FACTURE.get(type_doc, NUMEROTATION_FACTURE['facture'])
+    prefix, seq = cfg['prefix'], cfg['sequence']
+    year = date.today().year
+    group = [td for td, c in NUMEROTATION_FACTURE.items() if c['sequence'] == seq]
+    qs = Facture.objects.filter(type_doc__in=group, numero__isnull=False)
+    nums = []
+    for f in qs:
+        tail = f.numero.split('-')[-1] if f.numero else ''
+        if tail.isdigit():
+            nums.append(int(tail))
     next_num = max(nums) + 1 if nums else 1
     return f"{prefix}-{year}-{str(next_num).zfill(3)}"
 
@@ -328,6 +356,7 @@ def clients_list(request):
     departement = request.GET.get('departement', '').strip()
     ville = request.GET.get('ville', '').strip()
     portee = request.GET.get('portee', 'tous')
+    type_client = request.GET.get('type_client', '').strip()
 
     clients = Client.objects.all()
     if nom:
@@ -338,19 +367,23 @@ def clients_list(request):
         clients = clients.filter(code_postal__startswith=departement)
     if ville:
         clients = clients.filter(ville__icontains=ville)
+    if type_client:
+        clients = clients.filter(type_client=type_client)
     if portee == 'moi':
         clients = clients.filter(created_by=request.user)
     elif portee == 'equipe':
         clients = clients.filter(created_by__in=get_collegues_ids(request.user))
 
     return render(request, 'core/clients.html', {
-        'clients': clients,
+        'clients': clients.prefetch_related('contacts'),
         'is_admin': is_admin(request.user),
+        'type_choices': Client.TYPE_CLIENT_CHOICES,
         'f_nom': nom,
         'f_code_postal': code_postal,
         'f_departement': departement,
         'f_ville': ville,
         'f_portee': portee,
+        'f_type_client': type_client,
     })
 
 
@@ -402,6 +435,7 @@ def client_create(request):
         return redirect('core:clients')
     Client.objects.create(
         nom=nom,
+        type_client=request.POST.get('type_client', 'particulier'),
         contact=request.POST.get('contact', ''),
         email=request.POST.get('email', ''),
         telephone=request.POST.get('telephone', ''),
@@ -426,6 +460,7 @@ def client_edit(request, pk):
         messages.error(request, 'Le nom est obligatoire.')
         return redirect('core:clients')
     client.nom = nom
+    client.type_client = request.POST.get('type_client', client.type_client)
     client.contact = request.POST.get('contact', '')
     client.email = request.POST.get('email', '')
     client.telephone = request.POST.get('telephone', '')
@@ -1386,10 +1421,28 @@ def lignes_save(request, pk):
 
 @login_required
 def factures_list(request):
+    # Factures de chantier uniquement (liées à un devis, hors avoirs).
+    # Les factures compta (structure/appel) et les avoirs ont leurs propres listes.
     factures = Facture.objects.select_related(
         'devis', 'devis__client', 'devis__equipe'
-    ).all()
+    ).prefetch_related('avoirs').filter(devis__isnull=False).exclude(type_doc='avoir')
     return render(request, 'core/factures_list.html', {'factures': factures})
+
+
+@login_required
+def avoirs_list(request):
+    """
+    Liste de tous les avoirs (chantier + compta).
+    Lecture partagée pour les avoirs de chantier ; les avoirs compta (sans devis)
+    ne sont visibles que par les rôles compta — chaque ligne affichée est donc
+    accessible à l'utilisateur.
+    """
+    avoirs = Facture.objects.filter(type_doc='avoir').select_related(
+        'devis', 'client', 'facture_origine'
+    ).order_by('-created_at')
+    if not peut_acceder_compta(request.user):
+        avoirs = avoirs.filter(devis__isnull=False)
+    return render(request, 'core/avoirs_list.html', {'avoirs': avoirs})
 
 
 @login_required
@@ -1482,8 +1535,7 @@ def facture_valider(request, pk):
         messages.error(request, 'Validation réservée au comptable.')
         return redirect('core:devis-detail', pk=facture.devis.pk)
     if not facture.numero:
-        prefix = 'AV' if facture.type_doc == 'avoir' else 'FAC'
-        facture.numero = gen_reference(prefix)
+        facture.numero = gen_numero_facture(facture.type_doc)
     facture.status = 'validated'
     facture.validated_by = request.user
     facture.validated_at = timezone.now()
@@ -1533,8 +1585,7 @@ def facture_bypass(request, pk):
     if not stored or code != stored:
         return JsonResponse({'error': 'Code incorrect'}, status=400)
     if not facture.numero:
-        prefix = 'AV' if facture.type_doc == 'avoir' else 'FAC'
-        facture.numero = gen_reference(prefix)
+        facture.numero = gen_numero_facture(facture.type_doc)
     facture.status = 'validated'
     facture.bypass_validation = True
     facture.validated_by = request.user
@@ -1716,37 +1767,62 @@ def facture_apercu(request, pk):
                     result.append(lf)
         return result
 
-    lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None).exclude(type_ligne='FIN'))
+    # Pour un avoir, les quantités sont négatives → on garde tout (pas de filtre > 0),
+    # mais on attache enfants_filtres pour que les titres affichent leurs enfants.
+    def garder_tout(lignes_qs):
+        result = []
+        for lf in lignes_qs:
+            if lf.type_ligne == 'TITRE':
+                lf.enfants_filtres = garder_tout(lf.enfants.all())
+                result.append(lf)
+            else:
+                result.append(lf)
+        return result
 
-    # Lignes financement du devis (FIN, niveau racine) — section informative
-    lignes_fin = list(devis.lignes.filter(parent=None, type_ligne='FIN'))
-
-    # Acomptes déduits uniquement sur la première facture non-acompte du devis
-    from decimal import Decimal
-    premiere_facture = devis.factures.exclude(
-        type_doc='acompte'
-    ).exclude(status='cancelled').order_by('created_at').first()
-
-    if premiere_facture and premiere_facture.pk == facture.pk:
-        acomptes = devis.factures.filter(
-            type_doc='acompte',
-        ).exclude(status='draft').order_by('created_at')
-        total_acomptes = sum(
-            a.montant for a in acomptes if a.status == 'paid'
-        )
+    if facture.type_doc == 'avoir':
+        lignes_filtrees = garder_tout(facture.lignes.filter(parent=None).exclude(type_ligne='FIN'))
     else:
-        acomptes = devis.factures.none()
+        lignes_filtrees = filtrer_lignes(facture.lignes.filter(parent=None).exclude(type_ligne='FIN'))
+
+    from decimal import Decimal
+    if devis is not None:
+        # Lignes financement du devis (FIN, niveau racine) — section informative
+        lignes_fin = list(devis.lignes.filter(parent=None, type_ligne='FIN'))
+
+        # Acomptes déduits uniquement sur la première facture non-acompte du devis
+        premiere_facture = devis.factures.exclude(
+            type_doc='acompte'
+        ).exclude(status='cancelled').order_by('created_at').first()
+
+        if premiere_facture and premiere_facture.pk == facture.pk:
+            acomptes = devis.factures.filter(
+                type_doc='acompte',
+            ).exclude(status='draft').order_by('created_at')
+            total_acomptes = sum(
+                a.montant for a in acomptes if a.status == 'paid'
+            )
+        else:
+            acomptes = devis.factures.none()
+            total_acomptes = Decimal('0')
+        coordonnees_cb = facture.coordonnees_cb or devis.coordonnees_cb
+    else:
+        # Facture compta (sans devis) : pas de financement ni d'acomptes
+        lignes_fin = []
+        acomptes = Facture.objects.none()
         total_acomptes = Decimal('0')
+        coordonnees_cb = facture.coordonnees_cb
 
     solde = facture.montant - total_acomptes
 
     return render(request, 'core/facture_apercu.html', {
         'facture': facture,
         'devis': devis,
+        'client': facture.get_client(),
+        'contact': facture.contact_client,
         'params': params,
         'lignes': lignes_filtrees,
         'lignes_fin': lignes_fin,
-        'coordonnees_cb': devis.coordonnees_cb,
+        'coordonnees_cb': coordonnees_cb,
         'acomptes': acomptes,
         'total_acomptes': total_acomptes,
         'solde': solde,
@@ -2198,3 +2274,401 @@ def utilisateur_toggle(request, pk):
     action = 'réactivé' if cible_user.is_active else 'désactivé'
     messages.success(request, f'Utilisateur "{cible_user.username}" {action}.')
     return redirect('core:utilisateurs-list')
+
+
+# ══════════════════════════════════════════
+#  OUTILS COMPTA — Factures structure / Appels de convention / Avoirs
+# ══════════════════════════════════════════
+#
+# Factures créées directement, sans devis. Réservées aux rôles compta
+# (peut_acceder_compta). Réutilisent le modèle Facture/LigneFacture :
+#   - devis = None
+#   - type_doc in ('structure', 'appel')  (+ 'avoir' généré depuis une facture)
+#   - lignes plates à 2 niveaux : TITRE (groupe) + F (forfait)
+# La validation suit peut_valider_facture (admin ou comptable). draft = proforma.
+
+from django.db.models import Q
+
+# Métadonnées d'affichage par type d'outil compta
+COMPTA_TYPES = {
+    'structure': {'titre': 'Factures Structure',     'singulier': 'Facture structure',
+                  'list_url': 'core:compta-structures-list'},
+    'appel':     {'titre': 'Appels de convention',   'singulier': 'Appel de convention',
+                  'list_url': 'core:compta-appels-list'},
+}
+
+
+def _compta_lignes_to_dict(ligne):
+    """Sérialise une LigneFacture compta (TITRE/forfait) en dict JSON."""
+    return {
+        'id': ligne.pk,
+        'type_ligne': ligne.type_ligne,
+        'description': ligne.description,
+        'quantite': float(ligne.quantite),
+        'unite': ligne.unite,
+        'cout_unitaire': float(ligne.cout_unitaire) if ligne.cout_unitaire is not None else None,
+        'ordre': ligne.ordre,
+        'enfants': [_compta_lignes_to_dict(e) for e in ligne.enfants.all().order_by('ordre')],
+    }
+
+
+@login_required
+def factures_compta_list(request, type_doc):
+    """Liste des factures d'un outil compta + leurs avoirs liés."""
+    if not peut_acceder_compta(request.user):
+        messages.error(request, "Accès réservé à la comptabilité.")
+        return redirect('core:dashboard')
+
+    meta = COMPTA_TYPES[type_doc]
+    factures = Facture.objects.filter(
+        Q(type_doc=type_doc, devis__isnull=True)
+        | Q(type_doc='avoir', facture_origine__type_doc=type_doc)
+    ).select_related('client', 'facture_origine').prefetch_related('avoirs').order_by('-created_at')
+
+    return render(request, 'core/facture_compta_list.html', {
+        'factures': factures,
+        'type_doc': type_doc,
+        'meta': meta,
+    })
+
+
+@login_required
+def facture_compta_create(request, type_doc):
+    """Création directe d'une facture compta (structure ou appel)."""
+    if not peut_acceder_compta(request.user):
+        messages.error(request, "Accès réservé à la comptabilité.")
+        return redirect('core:dashboard')
+
+    meta = COMPTA_TYPES[type_doc]
+    profil = get_profil(request.user)
+
+    if request.method == 'POST':
+        client_id = request.POST.get('client') or None
+        client = Client.objects.filter(pk=client_id).first() if client_id else None
+        contact_id = request.POST.get('contact_client') or None
+        contact = None
+        if contact_id and client:
+            contact = ContactClient.objects.filter(pk=contact_id, client=client).first()
+
+        objet = request.POST.get('notes', '').strip()
+        try:
+            echeance_jours = int(request.POST.get('echeance_jours') or 30)
+        except (TypeError, ValueError):
+            echeance_jours = 30
+
+        destinataire = (client.nom if client else request.POST.get('destinataire', '').strip())
+
+        facture = Facture.objects.create(
+            type_doc=type_doc,
+            devis=None,
+            client=client,
+            contact_client=contact,
+            destinataire=destinataire or 'Sans nom',
+            notes=objet,
+            date_echeance=date.today() + timedelta(days=echeance_jours),
+            conditions_facture=profil.conditions_facture,
+            coordonnees_cb=profil.coordonnees_cb,
+            created_by=request.user,
+        )
+        add_audit(request.user, f"Création {meta['singulier']} {facture.get_reference()}",
+                  facture=facture)
+        return redirect('core:compta-facture-detail', pk=facture.pk)
+
+    return render(request, 'core/facture_compta_form.html', {
+        'type_doc': type_doc,
+        'meta': meta,
+        'profil': profil,
+    })
+
+
+@login_required
+def facture_compta_detail(request, pk):
+    """Éditeur 2 niveaux (titres + forfaits) d'une facture compta ou d'un avoir."""
+    facture = get_object_or_404(Facture, pk=pk)
+    if not peut_voir_facture(request.user, facture):
+        messages.error(request, "Vous n'avez pas accès à cette facture.")
+        return redirect('core:dashboard')
+
+    meta = COMPTA_TYPES.get(
+        facture.facture_origine.type_doc if facture.type_doc == 'avoir' and facture.facture_origine
+        else facture.type_doc,
+        {'titre': 'Facture', 'singulier': 'Facture', 'list_url': 'core:factures-list'},
+    )
+    return render(request, 'core/facture_compta_detail.html', {
+        'facture': facture,
+        'meta': meta,
+        'modifiable': facture.status == 'draft' and peut_modifier_facture(request.user, facture),
+        'profil': get_profil(request.user),
+    })
+
+
+@login_required
+def lignes_compta_get(request, pk):
+    """Retourne les lignes (titres + forfaits) + montant de la facture compta."""
+    facture = get_object_or_404(Facture, pk=pk)
+    if not peut_voir_facture(request.user, facture):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
+    racines = facture.lignes.filter(parent=None).order_by('ordre')
+    return JsonResponse({
+        'lignes': [_compta_lignes_to_dict(l) for l in racines],
+        'montant': float(facture.montant),
+        'notes': facture.notes,
+    })
+
+
+@login_required
+@require_POST
+def lignes_compta_save(request, pk):
+    """Remplace les lignes (titres + forfaits) ; recalcule le montant (± pour les avoirs)."""
+    facture = get_object_or_404(Facture, pk=pk)
+    if not peut_modifier_facture(request.user, facture):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
+    if facture.status != 'draft':
+        return JsonResponse({'error': 'Facture non modifiable'}, status=400)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    notes = data.get('notes', None)
+    if notes is not None:
+        facture.notes = notes
+    lignes = data.get('lignes', [])
+
+    facture.lignes.all().delete()
+
+    def create_lignes(items, parent=None, ordre=0):
+        for item in items:
+            type_ligne = item.get('type_ligne', 'F')
+            lf = LigneFacture.objects.create(
+                facture=facture, parent=parent,
+                type_ligne=type_ligne,
+                description=item.get('description', ''),
+                quantite=to_decimal(item.get('quantite'), default=Decimal('1')),
+                unite=item.get('unite', ''),
+                cout_unitaire=to_decimal(item.get('cout_unitaire')),
+                ordre=ordre,
+            )
+            if type_ligne == 'TITRE':
+                create_lignes(item.get('enfants', []), parent=lf)
+            ordre += 1
+
+    create_lignes(lignes)
+
+    total = sum(l.total() for l in facture.lignes.filter(parent=None))
+    facture.montant = total
+    facture.save()
+    return JsonResponse({'ok': True, 'montant': float(total)})
+
+
+@login_required
+@require_POST
+def facture_compta_valider(request, pk):
+    """Validation comptable d'une facture compta — assigne le numéro."""
+    facture = get_object_or_404(Facture, pk=pk)
+    if not peut_acceder_compta(request.user) or not peut_valider_facture(request.user, facture):
+        messages.error(request, "Validation réservée à la comptabilité.")
+        return redirect('core:compta-facture-detail', pk=pk)
+    if not facture.numero:
+        facture.numero = gen_numero_facture(facture.type_doc)
+    facture.status = 'validated'
+    facture.validated_by = request.user
+    facture.validated_at = timezone.now()
+    facture.save()
+    add_audit(request.user, f"Validation {facture.numero} ({facture.destinataire})", facture=facture)
+    return redirect('core:compta-facture-detail', pk=pk)
+
+
+@login_required
+@require_POST
+def facture_compta_status(request, pk):
+    """Changement de statut d'une facture compta (validée → envoyée → payée)."""
+    facture = get_object_or_404(Facture, pk=pk)
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json'
+    if not peut_modifier_facture(request.user, facture):
+        if is_ajax:
+            return JsonResponse({'error': 'Permission refusée'}, status=403)
+        messages.error(request, 'Vous ne pouvez pas modifier cette facture.')
+        return redirect('core:compta-facture-detail', pk=pk)
+    old = facture.status
+    facture.status = request.POST.get('status', facture.status)
+    facture.save()
+    add_audit(request.user, f"Statut {facture.get_reference()} : {old} → {facture.status}", facture=facture)
+    if is_ajax:
+        return JsonResponse({'ok': True})
+    return redirect('core:compta-facture-detail', pk=pk)
+
+
+@login_required
+@require_POST
+def facture_compta_delete(request, pk):
+    """Suppression d'une facture compta — brouillons uniquement."""
+    facture = get_object_or_404(Facture, pk=pk)
+    if not peut_supprimer_facture(request.user, facture):
+        messages.error(request, 'Vous ne pouvez pas supprimer cette facture.')
+        return redirect('core:compta-facture-detail', pk=pk)
+    # Liste de retour selon le type (avoir → liste de la facture d'origine)
+    type_retour = (facture.facture_origine.type_doc
+                   if facture.type_doc == 'avoir' and facture.facture_origine
+                   else facture.type_doc)
+    list_url = COMPTA_TYPES.get(type_retour, {}).get('list_url', 'core:dashboard')
+    ref = facture.get_reference()
+    add_audit(request.user, f"Suppression facture compta {ref}", facture=None)
+    facture.delete()
+    messages.success(request, f'Facture {ref} supprimée.')
+    return redirect(list_url)
+
+
+@login_required
+@require_POST
+def facture_compta_duplicate(request, pk):
+    """Duplique une facture compta (structure/appel) en un nouveau brouillon."""
+    source = get_object_or_404(Facture, pk=pk)
+    if not peut_acceder_compta(request.user):
+        messages.error(request, "Accès réservé à la comptabilité.")
+        return redirect('core:dashboard')
+    if source.type_doc not in ('structure', 'appel'):
+        messages.error(request, "Seules les factures structure et appels peuvent être dupliqués.")
+        return redirect('core:compta-facture-detail', pk=source.pk)
+
+    copie = Facture.objects.create(
+        type_doc=source.type_doc,
+        devis=None,
+        client=source.client,
+        contact_client=source.contact_client,
+        destinataire=source.destinataire,
+        notes=source.notes,
+        date_echeance=source.date_echeance,
+        conditions_facture=source.conditions_facture,
+        coordonnees_cb=source.coordonnees_cb,
+        created_by=request.user,
+    )
+
+    def copier(lignes_src, parent=None):
+        for l in lignes_src.order_by('ordre'):
+            nl = LigneFacture.objects.create(
+                facture=copie, parent=parent,
+                type_ligne=l.type_ligne,
+                description=l.description,
+                quantite=l.quantite,
+                quantite_originale=l.quantite_originale,
+                unite=l.unite,
+                cout_unitaire=l.cout_unitaire,
+                ordre=l.ordre,
+            )
+            copier(l.enfants.all(), parent=nl)
+
+    copier(source.lignes.filter(parent=None))
+    copie.montant = sum(l.total() for l in copie.lignes.filter(parent=None))
+    copie.save()
+
+    add_audit(request.user, f"Duplication {source.get_reference()} → brouillon", facture=copie)
+    return redirect('core:compta-facture-detail', pk=copie.pk)
+
+
+@login_required
+@require_POST
+def avoir_create(request, facture_pk):
+    """
+    Crée un avoir depuis une facture validée : copie les lignes avec quantités
+    inversées (négatives), modifiables ensuite dans l'éditeur. Fonctionne pour
+    tous les types (chantier / structure / appel).
+    """
+    source = get_object_or_404(Facture, pk=facture_pk)
+    if not peut_modifier_facture(request.user, source):
+        messages.error(request, "Vous ne pouvez pas créer d'avoir sur cette facture.")
+        return redirect('core:dashboard')
+    if source.status not in ('validated', 'sent', 'paid'):
+        messages.error(request, "Un avoir ne peut être créé que depuis une facture validée.")
+        return redirect('core:compta-facture-detail', pk=source.pk)
+
+    avoir = Facture.objects.create(
+        type_doc='avoir',
+        devis=source.devis,
+        client=source.client,
+        contact_client=source.contact_client,
+        facture_origine=source,
+        destinataire=source.destinataire,
+        notes=f"Avoir sur facture {source.get_reference()}",
+        conditions_facture=source.conditions_facture,
+        coordonnees_cb=source.coordonnees_cb,
+        created_by=request.user,
+    )
+
+    # Copie des lignes avec quantités inversées (récursif : titres + enfants)
+    def copier_negatif(lignes_src, parent=None):
+        for l in lignes_src.order_by('ordre'):
+            qte = l.quantite if l.type_ligne == 'TITRE' else (l.quantite * Decimal('-1'))
+            nl = LigneFacture.objects.create(
+                facture=avoir, parent=parent,
+                type_ligne=l.type_ligne,
+                description=l.description,
+                quantite=qte,
+                quantite_originale=l.quantite_originale,
+                unite=l.unite,
+                cout_unitaire=l.cout_unitaire,
+                ordre=l.ordre,
+                ligne_devis_source=l.ligne_devis_source,
+            )
+            copier_negatif(l.enfants.all(), parent=nl)
+
+    copier_negatif(source.lignes.filter(parent=None))
+    avoir.montant = sum(l.total() for l in avoir.lignes.filter(parent=None))
+    avoir.save()
+
+    add_audit(request.user, f"Création avoir sur {source.get_reference()}",
+              devis=source.devis, facture=avoir)
+    return redirect('core:compta-facture-detail', pk=avoir.pk)
+
+
+# ── Contacts client (carnet optionnel) ──────────────────────────────
+
+@login_required
+def client_contacts_get(request, client_pk):
+    """Liste JSON des contacts d'un client (pour le select du formulaire compta)."""
+    if not peut_acceder_compta(request.user):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
+    client = get_object_or_404(Client, pk=client_pk)
+    contacts = [
+        {'id': c.pk, 'label': str(c), 'service': c.service, 'nom': c.nom,
+         'email': c.email, 'telephone': c.telephone}
+        for c in client.contacts.all()
+    ]
+    return JsonResponse({'contacts': contacts})
+
+
+@login_required
+@require_POST
+def contact_client_create(request):
+    """Ajout rapide d'un contact à un client → {id, label}."""
+    if not peut_acceder_compta(request.user):
+        return JsonResponse({'error': 'Permission refusée'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    client = get_object_or_404(Client, pk=data.get('client'))
+    service = (data.get('service') or '').strip()
+    nom = (data.get('nom') or '').strip()
+    if not service and not nom:
+        return JsonResponse({'error': 'Service ou nom requis'}, status=400)
+    contact = ContactClient.objects.create(
+        client=client,
+        service=service,
+        nom=nom,
+        fonction=(data.get('fonction') or '').strip(),
+        email=(data.get('email') or '').strip(),
+        telephone=(data.get('telephone') or '').strip(),
+    )
+    return JsonResponse({'ok': True, 'id': contact.pk, 'label': str(contact)})
+
+
+@login_required
+@require_POST
+def contact_client_delete(request, pk):
+    """Suppression d'un contact (admin uniquement, comme l'édition client)."""
+    if not is_admin(request.user):
+        return JsonResponse({'error': 'Réservé à l\'administrateur'}, status=403)
+    contact = get_object_or_404(ContactClient, pk=pk)
+    contact.delete()
+    return JsonResponse({'ok': True})

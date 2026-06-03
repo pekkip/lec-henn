@@ -1,0 +1,324 @@
+{% extends 'core/base.html' %}
+{% block title %}Nouveau — {{ meta.singulier }}{% endblock %}
+{% if type_doc == 'structure' %}{% block nav_compta_struct %}active{% endblock %}{% endif %}
+{% if type_doc == 'appel' %}{% block nav_compta_appel %}active{% endblock %}{% endif %}
+{% block topbar_title %}Nouveau — {{ meta.singulier }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.ac-wrap{position:relative}
+.ac-list{position:absolute;left:0;right:0;top:calc(100% + 2px);background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);box-shadow:0 6px 20px rgba(0,0,0,.12);z-index:50;max-height:240px;overflow-y:auto}
+.ac-item{padding:7px 10px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--gray-lt)}
+.ac-item:last-child{border-bottom:none}
+.ac-item:hover,.ac-item.active{background:var(--teal-lt)}
+.ac-item .sub{font-size:11px;color:var(--gray-md)}
+.ac-empty{padding:8px 10px;font-size:11px;color:var(--gray-md)}
+.modal-lg{width:640px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><div class="page-title">Nouveau — {{ meta.singulier }}</div></div>
+  <a href="{% url meta.list_url %}" class="btn"><i class="ti ti-arrow-left"></i> Retour</a>
+</div>
+<div class="page-body">
+  <div class="card" style="max-width:580px">
+    <div class="card-hd"><span class="card-title"><i class="ti ti-file-plus" style="color:var(--teal)"></i>Informations</span></div>
+    <div class="card-body">
+      <form method="post" id="compta-form">
+        {% csrf_token %}
+        <div class="field">
+          <label>Client *</label>
+          <div class="ac-wrap">
+            <input class="input" id="client-search" autocomplete="off" placeholder="Rechercher un client par nom…"/>
+            <input type="hidden" name="client" id="client-id"/>
+            <div id="client-ac" class="ac-list hidden"></div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button type="button" class="btn btn-sm" onclick="openBrowse()"><i class="ti ti-list-search"></i> Parcourir</button>
+            <button type="button" class="btn btn-sm" onclick="openQuick()"><i class="ti ti-user-plus"></i> Nouveau client</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Service / interlocuteur (optionnel)</label>
+          <select class="input" name="contact_client" id="contact-select" disabled>
+            <option value="">— Coordonnées du client —</option>
+          </select>
+          <button type="button" class="btn btn-sm" id="add-contact-btn" style="margin-top:6px;display:none" onclick="openContact()">
+            <i class="ti ti-plus"></i> Nouveau contact
+          </button>
+        </div>
+
+        <div class="field"><label>Objet</label><input class="input" name="notes" placeholder="Ex. Travaux de rénovation — école X"/></div>
+        <div class="field"><label>Échéance (jours)</label><input class="input" type="number" name="echeance_jours" value="30" min="1"/></div>
+
+        <div style="display:flex;gap:8px;margin-top:.5rem">
+          <button type="submit" class="btn btn-prune"><i class="ti ti-check"></i> Créer</button>
+          <a href="{% url meta.list_url %}" class="btn">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Panneau « Parcourir » -->
+<div id="modal-browse" class="modal-bg hidden">
+  <div class="modal modal-lg">
+    <div class="modal-title">Choisir un client</div>
+    <div class="search-wrap" style="margin-bottom:10px">
+      <i class="ti ti-search"></i>
+      <input class="search-inp" id="browse-filter" placeholder="Filtrer par nom…" autocomplete="off"/>
+    </div>
+    <div style="max-height:50vh;overflow-y:auto;border:1px solid var(--gray-bd);border-radius:var(--r)">
+      <table>
+        <thead><tr><th>Nom</th><th>Ville</th><th>CP</th><th></th></tr></thead>
+        <tbody id="browse-body"></tbody>
+      </table>
+    </div>
+    <div class="modal-acts">
+      <button type="button" class="btn" onclick="closeModal('modal-browse')">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Création rapide d'un client -->
+<div id="modal-quick" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title">Nouveau client</div>
+    <div id="quick-error" class="msg msg-error hidden" style="margin-bottom:.75rem"></div>
+    <div class="field"><label>Nom / Organisation *</label><input class="input" id="q-nom" required/></div>
+    <div class="field"><label>Adresse (rue)</label><input class="input" id="q-adresse"/></div>
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:10px">
+      <div class="field"><label>Code postal</label><input class="input" id="q-cp" inputmode="numeric"/></div>
+      <div class="field"><label>Ville</label><input class="input" id="q-ville"/></div>
+    </div>
+    <div class="modal-acts">
+      <button type="button" class="btn" onclick="closeModal('modal-quick')">Annuler</button>
+      <button type="button" class="btn btn-prune" id="q-submit" onclick="submitQuick()">Créer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Nouveau contact -->
+<div id="modal-contact" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title">Nouveau contact / service</div>
+    <div id="contact-error" class="msg msg-error hidden" style="margin-bottom:.75rem"></div>
+    <div class="field"><label>Service</label><input class="input" id="c-service" placeholder="Ex. Direction du patrimoine"/></div>
+    <div class="field"><label>Interlocuteur</label><input class="input" id="c-nom"/></div>
+    <div class="field"><label>Fonction</label><input class="input" id="c-fonction"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field"><label>Email</label><input class="input" id="c-email"/></div>
+      <div class="field"><label>Téléphone</label><input class="input" id="c-tel"/></div>
+    </div>
+    <div class="modal-acts">
+      <button type="button" class="btn" onclick="closeModal('modal-contact')">Annuler</button>
+      <button type="button" class="btn btn-prune" id="c-submit" onclick="submitContact()">Ajouter</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const CSRF = '{{ csrf_token }}';
+const searchInp = document.getElementById('client-search');
+const hiddenId  = document.getElementById('client-id');
+const acBox     = document.getElementById('client-ac');
+const contactSelect = document.getElementById('contact-select');
+const addContactBtn = document.getElementById('add-contact-btn');
+
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+
+function selectClient(id, nom){
+  hiddenId.value = id;
+  searchInp.value = nom;
+  acBox.classList.add('hidden');
+  loadContacts(id);
+}
+
+async function loadContacts(clientId){
+  contactSelect.innerHTML = '<option value="">— Coordonnées du client —</option>';
+  contactSelect.disabled = true;
+  addContactBtn.style.display = 'inline-flex';
+  if (!clientId) return;
+  try {
+    const resp = await fetch(`/compta/clients/${clientId}/contacts/`);
+    const data = await resp.json();
+    (data.contacts || []).forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id; opt.textContent = c.label;
+      contactSelect.appendChild(opt);
+    });
+    contactSelect.disabled = false;
+  } catch(e){ /* silencieux */ }
+}
+
+/* ── Autocomplétion ── */
+let acTimer = null;
+searchInp.addEventListener('input', () => {
+  hiddenId.value = '';
+  addContactBtn.style.display = 'none';
+  contactSelect.disabled = true;
+  clearTimeout(acTimer);
+  const q = searchInp.value.trim();
+  acTimer = setTimeout(() => runSearch(q, acBox, true), 200);
+});
+searchInp.addEventListener('blur', () => setTimeout(() => acBox.classList.add('hidden'), 150));
+
+async function runSearch(q, box, asDropdown){
+  try {
+    const resp = await fetch(`{% url 'core:client-search' %}?q=${encodeURIComponent(q)}`);
+    const data = await resp.json();
+    if (asDropdown) renderDropdown(data.results);
+    else renderBrowse(data.results);
+  } catch(e){ /* silencieux */ }
+}
+
+function renderDropdown(results){
+  if (!results.length){
+    acBox.innerHTML = '<div class="ac-empty">Aucun client. Utilisez « Nouveau client ».</div>';
+    acBox.classList.remove('hidden');
+    return;
+  }
+  acBox.innerHTML = results.map(c => {
+    const lieu = [c.code_postal, c.ville].filter(Boolean).join(' ');
+    return `<div class="ac-item" data-id="${c.id}" data-nom="${c.nom.replace(/"/g,'&quot;')}">
+      ${c.nom}${lieu ? ` <span class="sub">— ${lieu}</span>` : ''}</div>`;
+  }).join('');
+  acBox.querySelectorAll('.ac-item').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      selectClient(el.dataset.id, el.dataset.nom);
+    });
+  });
+  acBox.classList.remove('hidden');
+}
+
+/* ── Panneau « Parcourir » ── */
+const browseFilter = document.getElementById('browse-filter');
+const browseBody   = document.getElementById('browse-body');
+let browseTimer = null;
+
+function openBrowse(){
+  document.getElementById('modal-browse').classList.remove('hidden');
+  browseFilter.value = '';
+  runSearch('', browseBody, false);
+  browseFilter.focus();
+}
+browseFilter.addEventListener('input', () => {
+  clearTimeout(browseTimer);
+  browseTimer = setTimeout(() => runSearch(browseFilter.value.trim(), browseBody, false), 200);
+});
+
+function renderBrowse(results){
+  if (!results.length){
+    browseBody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:1.5rem;color:var(--gray-md)">Aucun client.</td></tr>';
+    return;
+  }
+  browseBody.innerHTML = results.map(c =>
+    `<tr>
+      <td style="font-weight:500">${c.nom}</td>
+      <td>${c.ville || '—'}</td>
+      <td class="mono">${c.code_postal || '—'}</td>
+      <td style="text-align:right"><button type="button" class="btn btn-sm btn-teal" data-id="${c.id}" data-nom="${c.nom.replace(/"/g,'&quot;')}">Choisir</button></td>
+    </tr>`).join('');
+  browseBody.querySelectorAll('button[data-id]').forEach(b => {
+    b.addEventListener('click', () => {
+      selectClient(b.dataset.id, b.dataset.nom);
+      closeModal('modal-browse');
+    });
+  });
+}
+
+/* ── Création rapide client ── */
+const qCp = document.getElementById('q-cp');
+const qVille = document.getElementById('q-ville');
+qCp.addEventListener('blur', () => remplirVilleDepuisCP(qCp, qVille));
+
+function openQuick(){
+  document.getElementById('quick-error').classList.add('hidden');
+  ['q-nom','q-adresse','q-cp','q-ville'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('modal-quick').classList.remove('hidden');
+  document.getElementById('q-nom').focus();
+}
+
+async function submitQuick(){
+  const nom = document.getElementById('q-nom').value.trim();
+  const errBox = document.getElementById('quick-error');
+  if (!nom){ errBox.textContent = 'Le nom est obligatoire.'; errBox.classList.remove('hidden'); return; }
+  const body = new URLSearchParams({
+    nom,
+    adresse: document.getElementById('q-adresse').value,
+    code_postal: qCp.value,
+    ville: qVille.value,
+  });
+  const btn = document.getElementById('q-submit');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`{% url 'core:client-quick-create' %}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const data = await resp.json();
+    if (!resp.ok){ errBox.textContent = data.error || 'Erreur.'; errBox.classList.remove('hidden'); return; }
+    selectClient(data.id, data.nom);
+    closeModal('modal-quick');
+  } catch(e){ errBox.textContent = 'Erreur réseau.'; errBox.classList.remove('hidden'); }
+  finally { btn.disabled = false; }
+}
+
+/* ── Nouveau contact ── */
+function openContact(){
+  if (!hiddenId.value){ return; }
+  document.getElementById('contact-error').classList.add('hidden');
+  ['c-service','c-nom','c-fonction','c-email','c-tel'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('modal-contact').classList.remove('hidden');
+  document.getElementById('c-service').focus();
+}
+
+async function submitContact(){
+  const errBox = document.getElementById('contact-error');
+  const service = document.getElementById('c-service').value.trim();
+  const nom = document.getElementById('c-nom').value.trim();
+  if (!service && !nom){ errBox.textContent = 'Service ou interlocuteur requis.'; errBox.classList.remove('hidden'); return; }
+  const btn = document.getElementById('c-submit');
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`{% url 'core:contact-client-create' %}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client: hiddenId.value, service, nom,
+        fonction: document.getElementById('c-fonction').value,
+        email: document.getElementById('c-email').value,
+        telephone: document.getElementById('c-tel').value,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok){ errBox.textContent = data.error || 'Erreur.'; errBox.classList.remove('hidden'); return; }
+    const opt = document.createElement('option');
+    opt.value = data.id; opt.textContent = data.label; opt.selected = true;
+    contactSelect.appendChild(opt);
+    contactSelect.disabled = false;
+    closeModal('modal-contact');
+  } catch(e){ errBox.textContent = 'Erreur réseau.'; errBox.classList.remove('hidden'); }
+  finally { btn.disabled = false; }
+}
+
+/* ── Garde-fou : client obligatoire ── */
+document.getElementById('compta-form').addEventListener('submit', e => {
+  if (!hiddenId.value){
+    e.preventDefault();
+    searchInp.focus();
+    acBox.innerHTML = '<div class="ac-empty">Sélectionnez un client dans la liste.</div>';
+    acBox.classList.remove('hidden');
+  }
+});
+</script>
+{% endblock %}

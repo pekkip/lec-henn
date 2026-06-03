@@ -54,6 +54,7 @@ urlpatterns = [
 
     # Factures
     path('factures/', views.factures_list, name='factures-list'),
+    path('avoirs/', views.avoirs_list, name='avoirs-list'),
     path('devis/<int:devis_pk>/factures/nouvelle/', views.facture_create, name='facture-create'),
     path('factures/<int:pk>/valider/', views.facture_valider, name='facture-valider'),
     path('factures/<int:pk>/statut/', views.facture_status, name='facture-status'),
@@ -68,6 +69,25 @@ urlpatterns = [
     # Lignes facture (API JSON)
     path('factures/<int:pk>/lignes/', views.lignes_facture_get, name='lignes-facture-get'),
     path('factures/<int:pk>/lignes/sauvegarder/', views.lignes_facture_save, name='lignes-facture-save'),
+
+    # Avoir (depuis n'importe quelle facture validée — chantier ou compta)
+    path('factures/<int:facture_pk>/avoir/', views.avoir_create, name='avoir-create'),
+
+    # OUTILS COMPTA — Factures structure / Appels de convention
+    path('compta/structures/',          views.factures_compta_list, {'type_doc': 'structure'}, name='compta-structures-list'),
+    path('compta/structures/nouvelle/', views.facture_compta_create, {'type_doc': 'structure'}, name='compta-structure-create'),
+    path('compta/appels/',              views.factures_compta_list, {'type_doc': 'appel'},     name='compta-appels-list'),
+    path('compta/appels/nouvelle/',     views.facture_compta_create, {'type_doc': 'appel'},     name='compta-appel-create'),
+    path('compta/factures/<int:pk>/',            views.facture_compta_detail,  name='compta-facture-detail'),
+    path('compta/factures/<int:pk>/valider/',    views.facture_compta_valider, name='compta-facture-valider'),
+    path('compta/factures/<int:pk>/statut/',     views.facture_compta_status,  name='compta-facture-status'),
+    path('compta/factures/<int:pk>/supprimer/',  views.facture_compta_delete,  name='compta-facture-delete'),
+    path('compta/factures/<int:pk>/dupliquer/',  views.facture_compta_duplicate, name='compta-facture-duplicate'),
+    path('compta/factures/<int:pk>/lignes/',             views.lignes_compta_get,  name='compta-lignes-get'),
+    path('compta/factures/<int:pk>/lignes/sauvegarder/', views.lignes_compta_save, name='compta-lignes-save'),
+    path('compta/clients/<int:client_pk>/contacts/',     views.client_contacts_get,   name='client-contacts-get'),
+    path('compta/contacts/creation-rapide/',             views.contact_client_create, name='contact-client-create'),
+    path('compta/contacts/<int:pk>/supprimer/',          views.contact_client_delete, name='contact-client-delete'),
 
     # Gestion utilisateurs
     path('utilisateurs/', views.utilisateurs_list, name='utilisateurs-list'),

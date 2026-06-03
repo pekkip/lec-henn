@@ -1,0 +1,370 @@
+{% extends 'core/base.html' %}
+{% block title %}{{ facture.get_reference }}{% endblock %}
+{% block topbar_title %}{{ meta.singulier }} — {{ facture.get_reference }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.tabs{display:flex;gap:2px;padding:0 1rem;background:var(--white);border-bottom:1px solid var(--gray-bd)}
+.tab{padding:9px 14px;font-size:12px;color:var(--gray-md);border-bottom:2px solid transparent;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.tab.active{color:var(--prune);border-bottom-color:var(--prune);font-weight:500}
+.tab:hover{color:var(--prune)}
+.ro-banner{background:var(--gray-lt);color:var(--gray-md);padding:8px 1rem;font-size:12px;display:flex;align-items:center;gap:8px}
+.avoir-banner{background:var(--red-lt);color:var(--red);padding:8px 1rem;font-size:12px;display:flex;align-items:center;gap:8px}
+.ed-wrap{flex:1;overflow-y:auto;padding:1rem 1.25rem}
+.ed-head{display:grid;grid-template-columns:22px 1fr 90px 90px 110px 110px 36px;gap:8px;padding:6px 10px;font-size:11px;color:var(--gray-md);font-weight:500;border-bottom:1px solid var(--gray-bd)}
+.ln{display:grid;grid-template-columns:22px 1fr 90px 90px 110px 110px 36px;gap:8px;align-items:center;padding:5px 10px;border-bottom:1px solid var(--gray-lt)}
+.ln.titre{background:var(--prune-lt);font-weight:600}
+.ln.titre .ln-desc{color:var(--prune)}
+.ln.child{padding-left:24px}
+.ln input{padding:5px 8px;font-size:12px;border:1px solid var(--gray-bd);border-radius:4px;width:100%;outline:none;background:#fff}
+.ln input:focus{border-color:var(--teal)}
+.ln .ln-total{text-align:right;font-variant-numeric:tabular-nums;font-size:12px;padding-right:4px}
+.ln-actions{display:flex;justify-content:flex-end}
+.grip{cursor:grab;color:#C4C2BE;display:flex;align-items:center;justify-content:center;font-size:16px}
+.grip:active{cursor:grabbing}
+.ln.dragging{opacity:.4}
+.ln.drop-above{box-shadow:inset 0 2px 0 0 var(--teal)}
+.titre-block{margin-bottom:6px}
+.add-row{display:flex;gap:8px;padding:8px 10px}
+.add-row.dz-active{background:var(--teal-lt);outline:1px dashed var(--teal);border-radius:4px}
+.root-dz{height:16px;margin:2px 0}
+.root-dz.dz-active{background:var(--teal-lt);outline:1px dashed var(--teal);border-radius:4px}
+.foot{display:flex;justify-content:space-between;align-items:center;padding:12px 1.25rem;border-top:1px solid var(--gray-bd);background:var(--white)}
+.foot-total{font-size:18px;font-weight:600;color:var(--prune);font-variant-numeric:tabular-nums}
+.obj-box{margin-bottom:1rem}
+.obj-box textarea{width:100%;padding:8px 10px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;resize:vertical}
+.status-bar{display:flex;gap:8px;align-items:center;padding:9px 1.25rem;border-bottom:1px solid var(--gray-bd);background:var(--white)}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--prune);color:#fff;padding:10px 16px;border-radius:var(--r);font-size:12px;opacity:0;transition:opacity .2s;z-index:999;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tabs">
+  <a href="{% url meta.list_url %}" class="tab"><i class="ti ti-arrow-left"></i> Liste</a>
+  <a href="#" class="tab active"><i class="ti ti-pencil"></i> Édition</a>
+  <a href="{% url 'core:facture-apercu' facture.pk %}" class="tab" target="_blank"><i class="ti ti-eye"></i> Aperçu client</a>
+</div>
+
+{% if facture.type_doc == 'avoir' and facture.facture_origine %}
+<div class="avoir-banner"><i class="ti ti-receipt-refund"></i> Avoir sur facture <strong>{{ facture.facture_origine.get_reference }}</strong> — quantités inversées (modifiables).</div>
+{% endif %}
+
+{% if not modifiable %}
+<div class="ro-banner"><i class="ti ti-lock"></i> Consultation seule ({{ facture.get_status_display }}).</div>
+{% endif %}
+
+<!-- Barre de statut / actions -->
+<div class="status-bar">
+  <span class="badge b-f{{ facture.status }}">{{ facture.get_status_display }}</span>
+  {% if facture.status == 'draft' %}
+    <form method="post" action="{% url 'core:compta-facture-valider' facture.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-prune"><i class="ti ti-user-check"></i> Valider</button>
+    </form>
+  {% elif facture.status == 'validated' %}
+    <form method="post" action="{% url 'core:compta-facture-status' facture.pk %}" style="display:inline">
+      {% csrf_token %}<input type="hidden" name="status" value="sent"/>
+      <button type="submit" class="btn btn-sm btn-teal"><i class="ti ti-send"></i> Marquer envoyée</button>
+    </form>
+  {% elif facture.status == 'sent' %}
+    <form method="post" action="{% url 'core:compta-facture-status' facture.pk %}" style="display:inline">
+      {% csrf_token %}<input type="hidden" name="status" value="paid"/>
+      <button type="submit" class="btn btn-sm" style="background:#EAF3DE;color:#27500A;border-color:#C5DEA0"><i class="ti ti-cash"></i> Marquer payée</button>
+    </form>
+  {% endif %}
+
+  {% if facture.status in 'validated sent paid' and facture.type_doc != 'avoir' %}
+    <form method="post" action="{% url 'core:avoir-create' facture.pk %}" style="display:inline;margin-left:auto">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-danger"><i class="ti ti-receipt-refund"></i> Créer un avoir</button>
+    </form>
+  {% endif %}
+
+  {% if facture.status == 'draft' %}
+    <form method="post" action="{% url 'core:compta-facture-delete' facture.pk %}" style="display:inline;margin-left:auto"
+          onsubmit="return confirm('Supprimer ce brouillon ?')">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-danger"><i class="ti ti-trash"></i> Supprimer</button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="ed-wrap">
+  <div class="obj-box">
+    <label style="font-size:11px;color:var(--gray-md);font-weight:500">Objet / commentaire</label>
+    <textarea id="objet" rows="2" {% if not modifiable %}disabled{% endif %} placeholder="Objet de la facture…">{{ facture.notes }}</textarea>
+  </div>
+
+  <div class="ed-head">
+    <div></div><div>Désignation</div><div>Qté</div><div>Unité</div><div style="text-align:right">P.U. HT</div><div style="text-align:right">Total HT</div><div></div>
+  </div>
+  <div id="lines"></div>
+
+  {% if modifiable %}
+  <div class="add-row">
+    <button type="button" class="btn btn-sm" onclick="addTitre()"><i class="ti ti-heading"></i> Titre</button>
+    <button type="button" class="btn btn-sm" onclick="addForfait(null)"><i class="ti ti-plus"></i> Forfait</button>
+  </div>
+  {% endif %}
+</div>
+
+<div class="foot">
+  <div style="font-size:12px;color:var(--gray-md)">Total {{ meta.singulier|lower }}</div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <div class="foot-total" id="total">0,00 €</div>
+    {% if modifiable %}
+    <button type="button" class="btn btn-prune" onclick="save()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const FACT_PK = {{ facture.pk }};
+const CSRF = '{{ csrf_token }}';
+const MODIFIABLE = {{ modifiable|yesno:"true,false" }};
+const GET_URL = `/compta/factures/${FACT_PK}/lignes/`;
+const SAVE_URL = `/compta/factures/${FACT_PK}/lignes/sauvegarder/`;
+
+let tree = [];   // [{type_ligne, description, quantite, unite, cout_unitaire, enfants?}]
+
+function euros(n){ return (n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
+
+function lineTotal(l){
+  if (l.type_ligne === 'TITRE'){
+    return (l.enfants||[]).reduce((s,e)=>s+lineTotal(e),0);
+  }
+  const q = parseFloat(l.quantite)||0, pu = parseFloat(l.cout_unitaire)||0;
+  return q*pu;
+}
+
+function grandTotal(){ return tree.reduce((s,l)=>s+lineTotal(l),0); }
+
+// ── Identifiants de nœud (stables le temps d'un rendu) ──
+let nidSeq = 1;
+let draggingNid = null;
+function assignNids(){
+  nidSeq = 1;
+  tree.forEach(n => {
+    n._nid = nidSeq++;
+    if (n.type_ligne === 'TITRE') (n.enfants||[]).forEach(c => c._nid = nidSeq++);
+  });
+}
+function findLoc(nid){
+  for (let i=0;i<tree.length;i++){
+    if (tree[i]._nid===nid) return {arr:tree, idx:i, node:tree[i], container:'root'};
+    if (tree[i].type_ligne==='TITRE'){
+      const en = tree[i].enfants||[];
+      for (let j=0;j<en.length;j++){
+        if (en[j]._nid===nid) return {arr:en, idx:j, node:en[j], container:'child', titre:tree[i]};
+      }
+    }
+  }
+  return null;
+}
+function nodeByNid(nid){ const l = findLoc(nid); return l ? l.node : null; }
+function clearDz(){ document.querySelectorAll('.drop-above,.dz-active').forEach(el => el.classList.remove('drop-above','dz-active')); }
+
+function render(){
+  assignNids();
+  const box = document.getElementById('lines');
+  box.innerHTML = '';
+  tree.forEach((l) => {
+    if (l.type_ligne === 'TITRE'){
+      const block = document.createElement('div');
+      block.className = 'titre-block';
+      block.appendChild(rowEl(l, true, null));
+      (l.enfants||[]).forEach((c) => block.appendChild(rowEl(c, false, l)));
+      if (MODIFIABLE){
+        const ar = document.createElement('div');
+        ar.className = 'add-row';
+        ar.innerHTML = `<button type="button" class="btn btn-sm"><i class="ti ti-plus"></i> Forfait dans ce titre</button>`;
+        ar.querySelector('button').addEventListener('click', () => addForfait(l));
+        // Zone de dépôt : glisser un forfait ici l'ajoute en fin de ce titre
+        ar.addEventListener('dragover', e => { if(draggingNid==null)return; e.preventDefault(); clearDz(); ar.classList.add('dz-active'); });
+        ar.addEventListener('dragleave', () => ar.classList.remove('dz-active'));
+        ar.addEventListener('drop', e => { if(draggingNid==null)return; e.preventDefault(); ar.classList.remove('dz-active'); appendIntoTitre(l._nid, draggingNid); });
+        block.appendChild(ar);
+      }
+      box.appendChild(block);
+    } else {
+      box.appendChild(rowEl(l, false, null));
+    }
+  });
+  if (MODIFIABLE){
+    // Zone de dépôt finale : déposer ici place l'élément en fin de liste racine
+    const rdz = document.createElement('div');
+    rdz.className = 'root-dz';
+    rdz.addEventListener('dragover', e => { if(draggingNid==null)return; e.preventDefault(); clearDz(); rdz.classList.add('dz-active'); });
+    rdz.addEventListener('dragleave', () => rdz.classList.remove('dz-active'));
+    rdz.addEventListener('drop', e => { if(draggingNid==null)return; e.preventDefault(); rdz.classList.remove('dz-active'); appendRootEnd(draggingNid); });
+    box.appendChild(rdz);
+  }
+  document.getElementById('total').textContent = euros(grandTotal());
+}
+
+function rowEl(l, isTitre, parentTitre){
+  const row = document.createElement('div');
+  row.className = 'ln' + (isTitre ? ' titre' : '') + (parentTitre ? ' child' : '');
+  const dis = MODIFIABLE ? '' : 'disabled';
+  const grip = `<span class="grip" title="Glisser pour déplacer">${MODIFIABLE?'<i class="ti ti-grip-vertical"></i>':''}</span>`;
+  const acts = MODIFIABLE
+    ? `<button class="ico-btn btn-copy" title="Dupliquer"><i class="ti ti-copy"></i></button><button class="ico-btn danger btn-del" title="Supprimer"><i class="ti ti-trash"></i></button>`
+    : '';
+  if (isTitre){
+    row.innerHTML = `${grip}
+      <input class="ln-desc" value="${esc(l.description)}" placeholder="Titre de section" ${dis}/>
+      <div></div><div></div><div></div>
+      <div class="ln-total">${euros(lineTotal(l))}</div>
+      <div class="ln-actions">${acts}</div>`;
+    const desc = row.querySelector('.ln-desc');
+    desc.addEventListener('input', () => { l.description = desc.value; });
+    if (MODIFIABLE){
+      row.querySelector('.btn-del').addEventListener('click', () => { const loc=findLoc(l._nid); if(loc){loc.arr.splice(loc.idx,1); render();} });
+      row.querySelector('.btn-copy').addEventListener('click', () => { const loc=findLoc(l._nid); if(loc){loc.arr.splice(loc.idx+1,0,cloneLine(l)); render();} });
+    }
+  } else {
+    row.innerHTML = `${grip}
+      <input class="ln-desc" value="${esc(l.description)}" placeholder="Désignation" ${dis}/>
+      <input class="ln-qte" type="number" step="any" value="${l.quantite}" ${dis}/>
+      <input class="ln-unite" value="${esc(l.unite)}" placeholder="u" ${dis}/>
+      <input class="ln-pu" type="number" step="any" value="${l.cout_unitaire==null?'':l.cout_unitaire}" ${dis} style="text-align:right"/>
+      <div class="ln-total">${euros(lineTotal(l))}</div>
+      <div class="ln-actions">${acts}</div>`;
+    const desc = row.querySelector('.ln-desc');
+    const qte = row.querySelector('.ln-qte');
+    const unite = row.querySelector('.ln-unite');
+    const pu = row.querySelector('.ln-pu');
+    const tot = row.querySelector('.ln-total');
+    const recompute = () => { tot.textContent = euros(lineTotal(l)); document.getElementById('total').textContent = euros(grandTotal()); };
+    desc.addEventListener('input', () => l.description = desc.value);
+    qte.addEventListener('input', () => { l.quantite = qte.value; recompute(); });
+    unite.addEventListener('input', () => l.unite = unite.value);
+    pu.addEventListener('input', () => { l.cout_unitaire = pu.value; recompute(); });
+    if (MODIFIABLE){
+      row.querySelector('.btn-del').addEventListener('click', () => { const loc=findLoc(l._nid); if(loc){loc.arr.splice(loc.idx,1); render();} });
+      row.querySelector('.btn-copy').addEventListener('click', () => { const loc=findLoc(l._nid); if(loc){loc.arr.splice(loc.idx+1,0,cloneLine(l)); render();} });
+    }
+  }
+  if (MODIFIABLE) attachDrag(row, l);
+  return row;
+}
+
+// ── Glisser / déposer ──
+function attachDrag(row, node){
+  const grip = row.querySelector('.grip');
+  grip.setAttribute('draggable', 'true');
+  grip.addEventListener('dragstart', e => {
+    draggingNid = node._nid;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', String(node._nid)); } catch(_){}
+    setTimeout(() => row.classList.add('dragging'), 0);
+  });
+  grip.addEventListener('dragend', () => { row.classList.remove('dragging'); clearDz(); draggingNid = null; });
+  row.addEventListener('dragover', e => {
+    if (draggingNid==null || node._nid===draggingNid) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+    clearDz(); row.classList.add('drop-above');
+  });
+  row.addEventListener('dragleave', () => row.classList.remove('drop-above'));
+  row.addEventListener('drop', e => {
+    if (draggingNid==null) return;
+    e.preventDefault(); row.classList.remove('drop-above');
+    doMove(draggingNid, node._nid);
+  });
+}
+
+function doMove(srcNid, tgtNid){
+  if (srcNid==null || srcNid===tgtNid) return;
+  const src = findLoc(srcNid); if(!src) return;
+  const node = src.node;
+  const isTitre = node.type_ligne==='TITRE';
+  let tgt = findLoc(tgtNid); if(!tgt) return;
+  // Un titre ne peut pas être déposé dans ses propres enfants
+  if (isTitre && tgt.container==='child' && tgt.titre===node) return;
+  src.arr.splice(src.idx, 1);
+  tgt = findLoc(tgtNid);                       // indices recalculés après retrait
+  if (!tgt){ render(); return; }
+  if (isTitre){
+    if (tgt.container==='root') tree.splice(tgt.idx, 0, node);
+    else { const ri = tree.indexOf(tgt.titre); tree.splice(ri, 0, node); }
+  } else {
+    if (tgt.container==='child') tgt.arr.splice(tgt.idx, 0, node);
+    else tree.splice(tgt.idx, 0, node);        // au niveau racine, au-dessus de la cible
+  }
+  render();
+}
+
+function appendIntoTitre(titreNid, srcNid){
+  if (srcNid==null) return;
+  const src = findLoc(srcNid); if(!src) return;
+  const node = src.node;
+  const titre = nodeByNid(titreNid); if(!titre || titre.type_ligne!=='TITRE') return;
+  src.arr.splice(src.idx, 1);
+  if (node.type_ligne==='TITRE'){ tree.push(node); render(); return; } // un titre ne s'imbrique pas
+  titre.enfants = titre.enfants||[];
+  titre.enfants.push(node);
+  render();
+}
+
+function appendRootEnd(srcNid){
+  if (srcNid==null) return;
+  const src = findLoc(srcNid); if(!src) return;
+  const node = src.node;
+  src.arr.splice(src.idx, 1);
+  tree.push(node);
+  render();
+}
+
+function cloneLine(l){ const c = JSON.parse(JSON.stringify(l)); delete c._nid; return c; }
+
+function esc(s){ return (s||'').replace(/"/g,'&quot;'); }
+
+function newForfait(){ return {type_ligne:'F', description:'', quantite:1, unite:'', cout_unitaire:null}; }
+function addTitre(){ tree.push({type_ligne:'TITRE', description:'', enfants:[]}); render(); }
+function addForfait(titre){
+  if (!titre) tree.push(newForfait());
+  else { titre.enfants = titre.enfants||[]; titre.enfants.push(newForfait()); }
+  render();
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+async function save(){
+  const payload = { notes: document.getElementById('objet').value, lignes: tree };
+  try {
+    const resp = await fetch(SAVE_URL, {
+      method:'POST',
+      headers:{'X-CSRFToken':CSRF,'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!resp.ok){ showToast(data.error || 'Erreur'); return; }
+    document.getElementById('total').textContent = euros(data.montant);
+    showToast('Enregistré');
+  } catch(e){ showToast('Erreur réseau'); }
+}
+
+document.addEventListener('keydown', e => {
+  if (MODIFIABLE && (e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); save(); }
+});
+
+async function load(){
+  try {
+    const resp = await fetch(GET_URL);
+    const data = await resp.json();
+    tree = data.lignes || [];
+    render();
+  } catch(e){ showToast('Erreur de chargement'); }
+}
+load();
+</script>
+{% endblock %}

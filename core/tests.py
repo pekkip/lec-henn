@@ -5,9 +5,11 @@ from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth.models import User
 
+from datetime import date
+
 from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
-    Client, Devis, Facture,
+    Client, ContactClient, Devis, Facture, LigneFacture,
 )
 
 
@@ -332,3 +334,203 @@ class ClientsTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.cli_alice.refresh_from_db()
         self.assertEqual(self.cli_alice.nom, 'Mairie de Quimper')  # inchangé
+
+
+class FactureComptaTests(TestCase):
+    """
+    Outils compta : factures structure / appels de convention / avoirs.
+    Création directe sans devis, réservée aux rôles compta.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.year = date.today().year
+        cls.admin = User.objects.create_user('admin', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.compta = User.objects.create_user('compta', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.compta, role='comptable')
+        cls.tech = User.objects.create_user('tech', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.tech, role='technicien')
+        cls.client_compta = Client.objects.create(
+            nom='Mairie de Brest', type_client='collectivite',
+        )
+
+    # ── Accès ────────────────────────────────────────────────
+
+    def test_acces_compta_refuse_technicien(self):
+        self.client.login(username='tech', password='pw')
+        resp = self.client.get(reverse('core:compta-structures-list'))
+        self.assertEqual(resp.status_code, 302)  # redirigé vers dashboard
+
+    def test_acces_compta_autorise_comptable(self):
+        self.client.login(username='compta', password='pw')
+        resp = self.client.get(reverse('core:compta-structures-list'))
+        self.assertEqual(resp.status_code, 200)
+
+    # ── Création ─────────────────────────────────────────────
+
+    def test_creation_structure_par_comptable(self):
+        self.client.login(username='compta', password='pw')
+        resp = self.client.post(
+            reverse('core:compta-structure-create'),
+            {'client': self.client_compta.pk, 'notes': 'Travaux école', 'echeance_jours': '30'},
+        )
+        self.assertEqual(resp.status_code, 302)
+        f = Facture.objects.get(type_doc='structure')
+        self.assertIsNone(f.devis)
+        self.assertEqual(f.client, self.client_compta)
+        self.assertEqual(f.destinataire, 'Mairie de Brest')
+
+    def test_creation_refuse_technicien(self):
+        self.client.login(username='tech', password='pw')
+        resp = self.client.post(
+            reverse('core:compta-structure-create'),
+            {'client': self.client_compta.pk},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Facture.objects.filter(type_doc='structure').exists())
+
+    # ── Numérotation ─────────────────────────────────────────
+
+    def _struct(self, status='draft'):
+        return Facture.objects.create(
+            type_doc='structure', devis=None, client=self.client_compta,
+            destinataire='Mairie de Brest', created_by=self.compta, status=status,
+        )
+
+    def test_structure_partage_sequence_fac(self):
+        # Une facture de devis et une facture structure partagent la séquence FAC.
+        devis = Devis.objects.create(
+            reference=f'DEV-{self.year}-001',
+            client=self.client_compta, chantier='Chantier', created_by=self.admin,
+        )
+        fac_devis = Facture.objects.create(
+            devis=devis, type_doc='facture', destinataire='X',
+            status='draft', created_by=self.admin,
+        )
+        self.client.login(username='compta', password='pw')
+        self.client.post(reverse('core:facture-valider', args=[fac_devis.pk]))
+        fac_devis.refresh_from_db()
+        self.assertEqual(fac_devis.numero, f'FAC-{self.year}-001')
+
+        struct = self._struct()
+        self.client.post(reverse('core:compta-facture-valider', args=[struct.pk]))
+        struct.refresh_from_db()
+        self.assertEqual(struct.numero, f'FAC-{self.year}-002')
+
+    def test_appel_prefixe_app(self):
+        appel = Facture.objects.create(
+            type_doc='appel', devis=None, client=self.client_compta,
+            destinataire='Mairie', created_by=self.compta, status='draft',
+        )
+        self.client.login(username='admin', password='pw')
+        self.client.post(reverse('core:compta-facture-valider', args=[appel.pk]))
+        appel.refresh_from_db()
+        self.assertEqual(appel.numero, f'APP-{self.year}-001')
+
+    def test_proforma_reference_client_pf(self):
+        f = self._struct()
+        self.assertEqual(f.get_reference_client(), f'PF-{f.pk}')
+        self.assertTrue(f.get_reference().startswith('BROUILLON-'))
+
+    # ── Validation ───────────────────────────────────────────
+
+    def test_validation_par_admin_ou_comptable(self):
+        for username in ('admin', 'compta'):
+            f = self._struct()
+            self.client.login(username=username, password='pw')
+            resp = self.client.post(reverse('core:compta-facture-valider', args=[f.pk]))
+            self.assertEqual(resp.status_code, 302)
+            f.refresh_from_db()
+            self.assertEqual(f.status, 'validated')
+            self.assertIsNotNone(f.numero)
+
+    # ── Lignes ───────────────────────────────────────────────
+
+    def test_lignes_compta_save_recalcule_montant(self):
+        f = self._struct()
+        self.client.login(username='compta', password='pw')
+        payload = {
+            'notes': 'Objet',
+            'lignes': [
+                {'type_ligne': 'TITRE', 'description': 'Lot 1', 'enfants': [
+                    {'type_ligne': 'F', 'description': 'Peinture', 'quantite': 20, 'unite': 'm2', 'cout_unitaire': 10},
+                ]},
+                {'type_ligne': 'F', 'description': 'Forfait', 'quantite': 1, 'cout_unitaire': 50},
+            ],
+        }
+        resp = self.client.post(
+            reverse('core:compta-lignes-save', args=[f.pk]),
+            data=json.dumps(payload), content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        f.refresh_from_db()
+        self.assertEqual(float(f.montant), 250.0)  # 20*10 + 50
+
+    # ── Avoirs ───────────────────────────────────────────────
+
+    def _struct_validee_avec_lignes(self):
+        f = self._struct(status='validated')
+        f.numero = f'FAC-{self.year}-001'
+        titre = LigneFacture.objects.create(facture=f, type_ligne='TITRE', description='Lot 1', ordre=0)
+        LigneFacture.objects.create(
+            facture=f, parent=titre, type_ligne='F', description='Peinture',
+            quantite=20, unite='m2', cout_unitaire=10, ordre=0,
+        )
+        f.montant = sum(l.total() for l in f.lignes.filter(parent=None))
+        f.save()
+        return f
+
+    def test_avoir_copie_quantites_negatives(self):
+        source = self._struct_validee_avec_lignes()
+        self.client.login(username='compta', password='pw')
+        resp = self.client.post(reverse('core:avoir-create', args=[source.pk]))
+        self.assertEqual(resp.status_code, 302)
+        avoir = Facture.objects.get(type_doc='avoir')
+        self.assertEqual(avoir.facture_origine, source)
+        enfant = avoir.lignes.get(type_ligne='F')
+        self.assertEqual(float(enfant.quantite), -20.0)
+        self.assertEqual(float(avoir.montant), -200.0)
+
+    def test_avoir_refuse_sur_brouillon(self):
+        source = self._struct(status='draft')
+        self.client.login(username='compta', password='pw')
+        resp = self.client.post(reverse('core:avoir-create', args=[source.pk]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Facture.objects.filter(type_doc='avoir').exists())
+
+    def test_avoir_numero_av(self):
+        avoir = Facture.objects.create(
+            type_doc='avoir', devis=None, client=self.client_compta,
+            destinataire='Mairie', created_by=self.compta, status='draft',
+        )
+        self.client.login(username='admin', password='pw')
+        self.client.post(reverse('core:compta-facture-valider', args=[avoir.pk]))
+        avoir.refresh_from_db()
+        self.assertEqual(avoir.numero, f'AV-{self.year}-001')
+
+    def test_total_facture_avec_avoir(self):
+        devis = Devis.objects.create(
+            reference=f'DEV-{self.year}-009',
+            client=self.client_compta, chantier='Chantier', created_by=self.admin,
+        )
+        Facture.objects.create(
+            devis=devis, type_doc='facture', destinataire='X',
+            status='validated', montant=100, created_by=self.admin,
+        )
+        Facture.objects.create(
+            devis=devis, type_doc='avoir', destinataire='X',
+            status='validated', montant=-30, created_by=self.admin,
+        )
+        self.assertEqual(float(devis.total_facture()), 70.0)
+
+    # ── Typologie client ─────────────────────────────────────
+
+    def test_filtre_type_client(self):
+        Client.objects.create(nom='M. Dupont', type_client='particulier')
+        self.client.login(username='admin', password='pw')
+        resp = self.client.get(reverse('core:clients'), {'type_client': 'collectivite'})
+        self.assertEqual(resp.status_code, 200)
+        noms = [c.nom for c in resp.context['clients']]
+        self.assertIn('Mairie de Brest', noms)
+        self.assertNotIn('M. Dupont', noms)

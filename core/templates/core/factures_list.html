@@ -35,6 +35,13 @@
         <td>
           <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
           {% if f.bypass_validation %}<span class="badge" style="background:var(--amber-lt);color:#8B5E0A;margin-left:4px"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span>{% endif %}
+          {% with av=f.avoirs.all %}{% if av %}
+            {% if av|length == 1 %}
+            <a href="{% url 'core:compta-facture-detail' av.0.pk %}" class="badge" style="background:var(--red-lt);color:var(--red);margin-left:4px" title="Avoir {{ av.0.get_reference }}"><i class="ti ti-receipt-refund" style="font-size:11px"></i> Avoir</a>
+            {% else %}
+            <a href="{% url 'core:avoirs-list' %}" class="badge" style="background:var(--red-lt);color:var(--red);margin-left:4px" title="{{ av|length }} avoirs"><i class="ti ti-receipt-refund" style="font-size:11px"></i> {{ av|length }} avoirs</a>
+            {% endif %}
+          {% endif %}{% endwith %}
         </td>
         <td style="text-align:right">
           {% if f.status == 'draft' %}
@@ -55,6 +62,12 @@
             <button type="submit" class="ico-btn" style="color:#3B6D11" title="Marquer payée"><i class="ti ti-cash"></i></button>
           </form>
           {% endif %}
+          {% if f.status == 'validated' or f.status == 'sent' or f.status == 'paid' %}{% if f.type_doc != 'avoir' %}
+          <form method="post" action="{% url 'core:avoir-create' f.pk %}" style="display:inline" onsubmit="return confirm('Créer un avoir sur {{ f.get_reference }} ?')">
+            {% csrf_token %}
+            <button type="submit" class="ico-btn danger" title="Créer un avoir"><i class="ti ti-receipt-refund"></i></button>
+          </form>
+          {% endif %}{% endif %}
           <a href="{% url 'core:devis-detail' f.devis.pk %}" class="ico-btn" title="Voir le devis"><i class="ti ti-external-link"></i></a>
         </td>
       </tr>

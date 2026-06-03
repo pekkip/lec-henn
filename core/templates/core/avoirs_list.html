@@ -1,0 +1,56 @@
+{% extends 'core/base.html' %}
+{% block title %}Avoirs{% endblock %}
+{% block nav_avoirs %}active{% endblock %}
+{% block topbar_title %}Avoirs{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div><div class="page-title">Avoirs</div><div class="page-sub">{{ avoirs|length }} avoir{{ avoirs|length|pluralize }}</div></div>
+</div>
+<div style="flex:1;overflow-y:auto">
+  <table>
+    <thead><tr>
+      <th>Référence</th>
+      <th>Facture d'origine</th>
+      <th>Client</th>
+      <th>Date</th>
+      <th class="num">Montant</th>
+      <th>Statut</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+      {% for f in avoirs %}
+      <tr>
+        <td>
+          {% if f.facture_origine.type_doc == 'structure' %}<i class="ti ti-building-bank" title="Avoir sur facture structure" style="color:var(--gray-md);margin-right:5px"></i>
+          {% elif f.facture_origine.type_doc == 'appel' %}<i class="ti ti-file-invoice" title="Avoir sur appel de convention" style="color:var(--gray-md);margin-right:5px"></i>
+          {% else %}<i class="ti ti-receipt" title="Avoir sur facture de chantier" style="color:var(--gray-md);margin-right:5px"></i>{% endif %}
+          <span class="mono">{{ f.get_reference }}</span>
+        </td>
+        <td>
+          {% if f.facture_origine %}
+            {% if f.devis %}
+            <a href="{% url 'core:facture-detail' f.facture_origine.pk %}" style="color:var(--prune);font-family:var(--fm);font-size:11px">{{ f.facture_origine.get_reference }}</a>
+            {% else %}
+            <a href="{% url 'core:compta-facture-detail' f.facture_origine.pk %}" style="color:var(--prune);font-family:var(--fm);font-size:11px">{{ f.facture_origine.get_reference }}</a>
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ f.get_client|default:f.destinataire }}</td>
+        <td>{{ f.date_creation|date:"d/m/Y" }}</td>
+        <td class="num">{{ f.montant|floatformat:2 }} €</td>
+        <td><span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span></td>
+        <td style="text-align:right;white-space:nowrap">
+          <a href="{% url 'core:compta-facture-detail' f.pk %}" class="ico-btn" title="Ouvrir"><i class="ti ti-pencil"></i></a>
+          <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu" target="_blank"><i class="ti ti-eye"></i></a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray-md)">
+        Aucun avoir.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
