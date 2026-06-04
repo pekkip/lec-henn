@@ -4,13 +4,17 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (04/06/2026 — session 21) :** en test beta, en attente de retours
+**État du projet (04/06/2026 — session 22) :** en test beta, en attente de retours
 des collègues. **TABLEAU DE BORD PERSONNALISABLE** (session 21) : dashboard modulaire par
 utilisateur (widgets KPI / listes / graphiques Chart.js / activité), réordonnables en
 glisser-déposer, masquables, avec **portée par widget** (Tous / Mes données / Mon équipe) ;
-widgets compta réservés admin/comptable ; sidebar **repliable** (icônes seules) + nouvelles
-icônes (Devis → calculatrice, Factures → billets). Bug factures récentes (incluait compta/avoirs)
-corrigé. **47 tests**. **Diag. emails** (session 20) : les invitations vers `@compagnonsbatisseurs.eu`
+widgets compta réservés admin/comptable ; sidebar **repliable** (icônes seules). Icônes :
+Devis → calculatrice, Factures → billets, Appels → `ti-phone-ringing`, Aides → cadeau.
+Bug factures récentes (incluait compta/avoirs) corrigé. **Colonne Auteur** (session 22)
+ajoutée en 1ʳᵉ colonne sur toutes les listes (devis, factures, compta, avoirs — « Coupable »
+pour les avoirs) + **filtre par auteur** sur les listes Devis et Factures.
+**Commande `seed_demo`** : jeu de données de démo (9 équipes 35, chantiers cohérents,
+financements réels) — idempotent, sûr, marqué `SEED_DEMO`. **47 tests**. **Diag. emails** (session 20) : les invitations vers `@compagnonsbatisseurs.eu`
 rebondissent (M365 rejette Brevo, DNS non authentifié — voir § Infra) ; contournement = le mot de
 passe temporaire est **toujours** affiché à l'écran à la création (communication manuelle). **OUTILS COMPTA** ajoutés (session 19) : factures structure + appels de
 convention (facturation directe sans devis, réservée admin/comptable) et **avoirs** pour
@@ -63,6 +67,7 @@ cb-bretagne/
     ├── urls.py
     ├── permissions.py
     ├── dashboard_widgets.py   — registre + fournisseurs de données des widgets du dashboard
+    ├── management/commands/seed_demo.py  — jeu de démo (9 équipes, idempotent, marqué SEED_DEMO)
     ├── admin.py
     ├── tests.py               — 21 tests (contrôle d'accès, clients)
     ├── migrations/
@@ -193,6 +198,39 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 22 — 04/06/2026 — Colonne Auteur, filtres, icônes, seed_demo
+
+### Fichiers modifiés / créés
+- `core/templates/core/devis_list.html` + `factures_list.html` + `facture_compta_list.html`
+  + `avoirs_list.html` — colonne **Auteur** (1ʳᵉ colonne) sur toutes les listes ;
+  libellé **« Coupable »** pour les avoirs. `select_related('created_by')` ajouté
+  dans toutes les vues correspondantes.
+- `core/views.py` — `devis_list` + `factures_list` : paramètre `?auteur=<pk>`,
+  queryset `created_by_id`, liste `auteurs` (utilisateurs ayant créé des objets).
+  `factures_list` : nouvelle barre de filtres (auparavant aucune).
+- `core/templates/core/base.html` — icônes finales : Appels de convention →
+  `ti-phone-ringing`, Aides travaux → `ti-gift` (cadeau rétabli).
+- `core/management/commands/seed_demo.py` (**nouveau**, puis enrichi) :
+  - 9 équipes 35 (GORM/GOSM maçonnerie pierre+chaux remparts Rennes/St-Malo ;
+    SORM/AQRM/AQSM rénovation peinture/cloison/sols PVC ; Bricobus rural élec+plomberie ;
+    Bricobus urbain petite reno ; ARA PO isolation naturelle+réseaux+poêle ; ARA LOC reno).
+  - Articles variés : titres, composites, simples, forfaits, MO, MAT.
+  - Frais de déplacement (< 20 km) = ligne **forfait F** (pas FIN) sur 1-2 devis insertion.
+  - Autres équipes : lignes FIN liées aux fonds existants (ANAH, CBB, Schneider, Aubade,
+    Atlantic) via `get_or_create` sur la bibliothèque des aides.
+  - Équipes réutilisées (`icontains`) ; tout marqué `SEED_DEMO` ;
+    `--clear` supprime uniquement la démo de l'utilisateur cible.
+  - Lancé sur Railway via `railway run python manage.py seed_demo`.
+
+### Décisions actées
+- Colonne Auteur = `get_full_name|default:username|default:"—"` (pas d'impact modèle).
+- Filtre auteur = liste restreinte aux utilisateurs ayant réellement créé des objets
+  (pas tous les users, menu propre).
+- seed_demo **ne supprime jamais** les aides/équipes/services/territoires — uniquement
+  les devis, factures et clients de démo (Facture d'abord car `PROTECT` sur Devis).
 
 ---
 
