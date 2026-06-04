@@ -10,6 +10,7 @@
 <div style="flex:1;overflow-y:auto">
   <table>
     <thead><tr>
+      <th>Coupable</th>
       <th>Référence</th>
       <th>Facture d'origine</th>
       <th>Client</th>
@@ -21,6 +22,7 @@
     <tbody>
       {% for f in avoirs %}
       <tr>
+        <td>{{ f.created_by.get_full_name|default:f.created_by.username|default:"—" }}</td>
         <td>
           {% if f.facture_origine.type_doc == 'structure' %}<i class="ti ti-building-bank" title="Avoir sur facture structure" style="color:var(--gray-md);margin-right:5px"></i>
           {% elif f.facture_origine.type_doc == 'appel' %}<i class="ti ti-file-invoice" title="Avoir sur appel de convention" style="color:var(--gray-md);margin-right:5px"></i>
@@ -46,7 +48,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray-md)">
+      <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-md)">
         Aucun avoir.
       </td></tr>
       {% endfor %}

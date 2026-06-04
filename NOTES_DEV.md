@@ -4,8 +4,13 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (04/06/2026 — session 20) :** en test beta, en attente de retours
-des collègues. **Diag. emails** (session 20) : les invitations vers `@compagnonsbatisseurs.eu`
+**État du projet (04/06/2026 — session 21) :** en test beta, en attente de retours
+des collègues. **TABLEAU DE BORD PERSONNALISABLE** (session 21) : dashboard modulaire par
+utilisateur (widgets KPI / listes / graphiques Chart.js / activité), réordonnables en
+glisser-déposer, masquables, avec **portée par widget** (Tous / Mes données / Mon équipe) ;
+widgets compta réservés admin/comptable ; sidebar **repliable** (icônes seules) + nouvelles
+icônes (Devis → calculatrice, Factures → billets). Bug factures récentes (incluait compta/avoirs)
+corrigé. **47 tests**. **Diag. emails** (session 20) : les invitations vers `@compagnonsbatisseurs.eu`
 rebondissent (M365 rejette Brevo, DNS non authentifié — voir § Infra) ; contournement = le mot de
 passe temporaire est **toujours** affiché à l'écran à la création (communication manuelle). **OUTILS COMPTA** ajoutés (session 19) : factures structure + appels de
 convention (facturation directe sans devis, réservée admin/comptable) et **avoirs** pour
@@ -13,7 +18,7 @@ tous les types. Export Excel temporaire toujours présent pour la beta (voir § 
 temporaires beta — à retirer). Email via **Brevo** (HTTP API) : invitations, bypass OTP et reset mot de
 passe fonctionnels. Page `/aide/` publique (manuel utilisateur HTML). Correctifs sécurité
 session 17 appliqués : bypass OTP protégé, durcissement config prod, Decimal robuste,
-reset MDP sûr. **39 tests**. Items restants : voir § Dette technique.
+reset MDP sûr. Items restants : voir § Dette technique.
 
 ## Stack
 - Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
@@ -57,6 +62,7 @@ cb-bretagne/
     ├── views.py
     ├── urls.py
     ├── permissions.py
+    ├── dashboard_widgets.py   — registre + fournisseurs de données des widgets du dashboard
     ├── admin.py
     ├── tests.py               — 21 tests (contrôle d'accès, clients)
     ├── migrations/
@@ -88,7 +94,7 @@ cb-bretagne/
 ## Modèles principaux
 - `ParametresAssociation` — nom, adresse, logo, SIRET, slogan
 - `Territoire` → `Service` → `Equipe` — hiérarchie organisationnelle
-- `ProfilUtilisateur` (OneToOne User) — role, taux_mo_defaut, saisie_ht, conditions_devis, conditions_facture, coordonnees_cb
+- `ProfilUtilisateur` (OneToOne User) — role, taux_mo_defaut, saisie_ht, conditions_devis, conditions_facture, coordonnees_cb, **dashboard_config** (JSONField — disposition du tableau de bord)
 - `Client` — nom, **type_client** (particulier/association/bailleur/collectivite/autre), contact, email, telephone, adresse (rue), code_postal, ville, created_by (FK User)
 - `ContactClient` — **carnet de contacts optionnel** (1..n par client) : client FK, service, nom, fonction, email, telephone. Pour distinguer plusieurs services au sein d'une structure (ex. collectivité).
 - `Devis` — reference, client, chantier, equipe, taux_mo, status, conditions_devis, coordonnees_cb, **zone_financement** (bool), created_by
@@ -131,7 +137,8 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 
 ## URLs importantes
 ```
-/                           dashboard
+/                           dashboard (tableau de bord à widgets)
+/tableau-de-bord/config/    dashboard_save (POST JSON — ordre/visibilité/portée des widgets)
 /devis/<pk>/                devis_detail (éditeur)
 /devis/<pk>/pdf/            devis_pdf (vue client)
 /devis/<pk>/entete/sauvegarder/   devis_entete_save (POST JSON)
@@ -186,6 +193,65 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 21 — 04/06/2026 — Tableau de bord personnalisable & repli sidebar
+
+### Contexte
+Le dashboard était figé (4 KPIs + 2 listes). Deux besoins : (1) corriger un bug — la liste
+« Dernières factures » incluait depuis la session 19 les factures compta (`devis=None`) et les
+avoirs (colonne « Devis » vide) ; (2) le rendre **personnalisable par utilisateur** (widgets
+choisis, ordonnés, avec portée Tous/Mes données/Mon équipe). Plus une demande UX : **replier la
+sidebar** (icônes seules) et changer deux icônes.
+
+### Fichiers modifiés / créés
+- `models.py` — `ProfilUtilisateur.dashboard_config` (JSONField, défaut dict). Migration
+  `0017_profilutilisateur_dashboard_config`.
+- **`core/dashboard_widgets.py` (nouveau)** — registre `WIDGETS` (id → méta : title, type
+  kpi/list/chart/activity, icon, supports_scope, **requires_compta**), `DASHBOARD_DEFAULT`,
+  fournisseurs de données (`scoped_devis/factures/audit`, `widget_data`), `widgets_for(user)`
+  (filtre compta via `peut_acceder_compta`), `resolve_dashboard(profil, user)` (calcul **lazy** :
+  seuls les widgets visibles), `sanitize_config` (nettoyage avant stockage — ignore ids inconnus
+  ET widgets compta non autorisés).
+- `views.py` — `dashboard` réécrite (utilise `resolve_dashboard`) ; **`dashboard_save`** (POST
+  JSON, `@require_POST`). Import du module.
+- `urls.py` — route `/tableau-de-bord/config/`.
+- `templates/core/dashboard.html` — **réécrit** : grille de widgets (KPI en `.stat`, listes/
+  charts/activité en `.card`), rendu générique par type + par id, **Chart.js via CDN** (line/
+  doughnut/bar), sélecteur de portée par widget (header), mode édition (glisser-déposer,
+  masquer, panneau « Ajouter un widget », bouton Personnaliser/Verrouiller), état d'édition
+  conservé via `sessionStorage` après un rechargement (ajout/portée).
+- `templates/core/base.html` — **icônes** Devis `ti-file-text`→`ti-calculator`, Factures
+  `ti-receipt`→`ti-cash` ; **repli sidebar** : libellés en `<span class="nav-label">`, € en
+  `<i class="nav-euro">`, bouton bascule en bas (`.nav-collapse-btn`), classe `html.sb-collapsed`
+  (largeur 56px, libellés/sections masqués), script anti-flash en `<head>` (localStorage
+  `sidebar-collapsed`), `toggleSidebar()`, tooltips `title` sur chaque item.
+- `tests.py` — classe `DashboardTests` (8 tests) : rendu par rôle, **rendu de tous les
+  widgets**, exclusion compta de `list_factures_recentes` (régression du bug), gating compta
+  (caché hors compta), persistance config, ids inconnus ignorés, widget compta non injectable
+  par POST, portée `mine`. **47 tests au total.**
+
+### Décisions actées
+- **Réutilisation** : `created_by` (Devis/Facture) + `get_collegues_ids` pour la portée ;
+  `peut_acceder_compta` pour le gating ; CSS existant (`.stat`/`.card`/badges) ; pattern
+  glisser-déposer proche de `facture_compta_detail.html`.
+- **Widgets compta gatés** (`requires_compta=True` : `list_avoirs_recents`) — invisibles et
+  **non injectables** pour les non admin/comptable (filtré au rendu ET à la sauvegarde).
+  `list_factures_a_valider`/`kpi_a_valider` : pour un non-compta, restreints au chantier.
+- **Chart.js via CDN** (`@4`), chargé dans `extra_js` (pas globalement) ; données passées via
+  `json_script` (id = id du widget).
+- **Perf** : on ne calcule que les widgets visibles ; counts/sommes DB via `aggregate` ;
+  les sommes de `total_brut` (méthode Python) restent en boucle — dette déjà notée.
+- **Repli sidebar** : état sur `<html>` (`sb-collapsed`) pour appliquer avant peint (anti-flash),
+  mémorisé en `localStorage`.
+
+### Pièges rencontrés
+- `total_brut()` est une méthode Python (pas un champ) → impossible d'agréger en SQL pour le CA
+  et les graphiques de CA ; agrégation manuelle en Python (acceptable beta).
+- Repli sidebar : le `€` « Aides travaux » était un `<span>` (pas d'`<i>`) → converti en
+  `<i class="nav-euro">` pour être centré comme une icône en mode replié.
+- Hors-scope noté (tâche suivante) : colonne + filtre « Créateur » dans les listes Devis/Factures.
 
 ---
 
@@ -760,7 +826,9 @@ politique de rôle du bypass OTP.
 3. ~~**Champ Client** — adresse structurée (rue / CP / ville)~~ ✅ fait session 13
 4. **Changement de mot de passe depuis le profil** (attendre SMTP M365)
 5. **Statut devis "envoyé au client"** ✅ select dans la topbar (session 14), mais pas encore affiché dans la liste des devis
-6. **Dashboard — section suivi financements** : `LigneDevis.objects.filter(aide__isnull=False, devis__status='accepted')` prêt à requêter
+6. ~~**Dashboard — section suivi financements**~~ ✅ fait session 21 : widget `chart_financements`
+   (`LigneDevis.filter(aide__isnull=False, devis__status='accepted')`, regroupé par organisme).
+   Tableau de bord entièrement refondu en widgets personnalisables (session 21).
 7. **PDF WeasyPrint — Phase 3**
 8. **🔴 Emails — correctif durable : authentification DNS du domaine dans Brevo, à faire par
    l'IT nationale** (SPF `include:spf.brevo.com` + DKIM Brevo + TXT de vérif sur
@@ -828,10 +896,14 @@ Pour supprimer proprement :
 - **Couverture session 14 manquante** — zone_financement (persistance), `aide_delete`.
   `aides_api_save` montant invalide : ✅ couvert session 17 (test `test_aides_api_save_montant_invalide_retourne_400`).
   Compta (factures structure/appel, avoirs, type_client) : ✅ couvert session 19 (`FactureComptaTests`).
-  **39 tests** au total.
+  Tableau de bord (rendu, gating compta, config, portée) : ✅ couvert session 21 (`DashboardTests`).
+  **47 tests** au total.
 
 ### Performance
-- **Dashboard** — remplacer les boucles Python par `aggregate(Sum(...))` — Phase 3.
+- **Dashboard** — counts et sommes sur champ DB (`Facture.montant`) passés en `aggregate`
+  (session 21) ; les sommes de `Devis.total_brut` (méthode Python, boucle sur les lignes)
+  restent en Python pour le CA et les graphiques de CA. Optimiser via un total dénormalisé
+  ou une annotation — Phase 3.
 
 ### Fonctionnel (à prévoir)
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.

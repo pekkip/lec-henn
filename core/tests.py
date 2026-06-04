@@ -534,3 +534,138 @@ class FactureComptaTests(TestCase):
         noms = [c.nom for c in resp.context['clients']]
         self.assertIn('Mairie de Brest', noms)
         self.assertNotIn('M. Dupont', noms)
+
+
+class DashboardTests(TestCase):
+    """Tableau de bord personnalisable : rendu, gating compta, config, portée."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr = Territoire.objects.create(nom='Bretagne')
+        service = Service.objects.create(territoire=terr, nom='Habitat')
+        cls.equipe = Equipe.objects.create(service=service, nom='Équipe A')
+
+        cls.tech = User.objects.create_user('tech', password='pw')
+        pt = ProfilUtilisateur.objects.create(user=cls.tech, role='technicien')
+        pt.equipes.set([cls.equipe])
+        cls.compta = User.objects.create_user('compta', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.compta, role='comptable')
+        cls.admin = User.objects.create_user('admin', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.autre = User.objects.create_user('autre', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.autre, role='technicien')
+
+        client = Client.objects.create(nom='Client Test')
+        # Devis de chantier (tech) + facture chantier
+        cls.devis = Devis.objects.create(
+            reference='DEV-2026-001', client=client, chantier='Chantier A',
+            equipe=cls.equipe, created_by=cls.tech, status='accepted',
+        )
+        cls.facture_chantier = Facture.objects.create(
+            devis=cls.devis, type_doc='facture', destinataire='Client Test',
+            status='validated', montant=500, created_by=cls.tech,
+        )
+        # Facture compta (sans devis) + avoir — créées par le comptable
+        cls.facture_compta = Facture.objects.create(
+            type_doc='structure', destinataire='Mairie', client=client,
+            status='validated', montant=800, created_by=cls.compta,
+        )
+        cls.avoir = Facture.objects.create(
+            devis=cls.devis, type_doc='avoir', destinataire='Client Test',
+            status='validated', montant=-100, created_by=cls.compta,
+        )
+        # Devis d'un autre utilisateur (pour la portée)
+        cls.devis_autre = Devis.objects.create(
+            reference='DEV-2026-002', client=client, chantier='Chantier B',
+            created_by=cls.autre, status='draft',
+        )
+
+    def test_dashboard_rend_pour_chaque_role(self):
+        for username in ('tech', 'compta', 'admin'):
+            self.client.login(username=username, password='pw')
+            resp = self.client.get(reverse('core:dashboard'))
+            self.assertEqual(resp.status_code, 200, username)
+            self.assertIn('widgets', resp.context)
+
+    def test_factures_recentes_exclut_compta(self):
+        from .dashboard_widgets import widget_data
+        data = widget_data('list_factures_recentes', self.admin, 'all')
+        factures = data['factures']
+        self.assertIn(self.facture_chantier, factures)
+        self.assertNotIn(self.facture_compta, factures)  # devis=None
+        self.assertNotIn(self.avoir, factures)            # type_doc=avoir
+
+    def test_widgets_compta_caches_hors_compta(self):
+        from .dashboard_widgets import resolve_dashboard
+        # Technicien : le widget avoirs (requires_compta) est absent partout.
+        profil_tech = self.tech.profil
+        visibles, dispos = resolve_dashboard(profil_tech, self.tech)
+        ids = {w['id'] for w in visibles} | {w['id'] for w in dispos}
+        self.assertNotIn('list_avoirs_recents', ids)
+        # Comptable : le widget est proposé (au moins dans les disponibles).
+        profil_compta = self.compta.profil
+        visibles_c, dispos_c = resolve_dashboard(profil_compta, self.compta)
+        ids_c = {w['id'] for w in visibles_c} | {w['id'] for w in dispos_c}
+        self.assertIn('list_avoirs_recents', ids_c)
+
+    def test_save_persiste_config(self):
+        self.client.login(username='tech', password='pw')
+        payload = {'widgets': [
+            {'id': 'kpi_ca', 'hidden': False, 'scope': 'mine'},
+            {'id': 'list_devis_recents', 'hidden': True, 'scope': 'all'},
+        ]}
+        resp = self.client.post(
+            reverse('core:dashboard-save'),
+            data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
+        self.tech.profil.refresh_from_db()
+        widgets = self.tech.profil.dashboard_config['widgets']
+        self.assertEqual(widgets[0], {'id': 'kpi_ca', 'hidden': False, 'scope': 'mine'})
+        self.assertEqual(widgets[1]['id'], 'list_devis_recents')
+        self.assertTrue(widgets[1]['hidden'])
+
+    def test_save_ignore_widget_inconnu(self):
+        self.client.login(username='tech', password='pw')
+        payload = {'widgets': [
+            {'id': 'kpi_ca', 'hidden': False, 'scope': 'all'},
+            {'id': 'widget_bidon', 'hidden': False, 'scope': 'all'},
+        ]}
+        resp = self.client.post(
+            reverse('core:dashboard-save'),
+            data=json.dumps(payload), content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
+        self.tech.profil.refresh_from_db()
+        ids = [w['id'] for w in self.tech.profil.dashboard_config['widgets']]
+        self.assertEqual(ids, ['kpi_ca'])
+
+    def test_save_ignore_widget_compta_hors_droit(self):
+        # Un technicien ne peut pas injecter un widget compta via le POST.
+        self.client.login(username='tech', password='pw')
+        payload = {'widgets': [
+            {'id': 'list_avoirs_recents', 'hidden': False, 'scope': 'all'},
+        ]}
+        self.client.post(
+            reverse('core:dashboard-save'),
+            data=json.dumps(payload), content_type='application/json')
+        self.tech.profil.refresh_from_db()
+        ids = [w['id'] for w in self.tech.profil.dashboard_config['widgets']]
+        self.assertNotIn('list_avoirs_recents', ids)
+
+    def test_widget_scope_mine(self):
+        from .dashboard_widgets import widget_data
+        data = widget_data('list_devis_recents', self.tech, 'mine')
+        refs = {d.reference for d in data['devis']}
+        self.assertIn('DEV-2026-001', refs)      # créé par tech
+        self.assertNotIn('DEV-2026-002', refs)   # créé par un autre
+
+    def test_dashboard_rend_tous_les_widgets(self):
+        # Affiche tous les widgets (admin) → vérifie chaque branche du template.
+        from .dashboard_widgets import WIDGETS
+        self.admin.profil.dashboard_config = {'widgets': [
+            {'id': wid, 'hidden': False, 'scope': 'all'} for wid in WIDGETS
+        ]}
+        self.admin.profil.save()
+        self.client.login(username='admin', password='pw')
+        resp = self.client.get(reverse('core:dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['widgets']), len(WIDGETS))

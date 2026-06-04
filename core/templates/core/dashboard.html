@@ -4,69 +4,368 @@
 {% block topbar_title %}Tableau de bord{% endblock %}
 
 {% block content %}
+<style>
+.dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.dash-widget{position:relative}
+.dash-widget.span-full{grid-column:1 / -1}
+.dash-widget .card,.dash-widget .stat{margin-bottom:0;height:100%}
+.dash-kpi-top{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:4px}
+.dash-kpi-top .stat-lbl{margin-bottom:0}
+.dash-scope{font-size:11px;padding:2px 4px;border:1px solid var(--gray-bd);border-radius:var(--r);background:var(--white);color:var(--gray-md);cursor:pointer}
+.dash-card-tools{display:flex;align-items:center;gap:7px}
+.dash-w-edit{position:absolute;top:5px;right:5px;display:none;gap:3px;z-index:6}
+.dash-grid.editing .dash-w-edit{display:flex}
+.dash-grid.editing .dash-widget{outline:1px dashed var(--gray-bd);outline-offset:2px;cursor:grab;border-radius:var(--r)}
+.dash-grid.editing .dash-widget.drag-over{outline:2px dashed var(--teal);background:var(--teal-lt)}
+.dash-grid.editing .dash-scope{pointer-events:none;opacity:.5}
+.dash-w-edit .ico-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--gray-bd);background:var(--white);border-radius:var(--r);color:var(--gray-md);cursor:pointer}
+.dash-w-edit .ico-btn:hover{color:var(--prune);border-color:var(--prune)}
+.dash-w-edit .handle{cursor:grab}
+.dash-empty{padding:1.5rem;text-align:center;color:var(--gray-md);font-size:12px}
+.dash-add-panel{margin-top:1rem}
+.dash-add-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.dash-add-item{display:flex;align-items:center;gap:6px;padding:7px 11px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);background:var(--white);color:var(--gray);cursor:pointer}
+.dash-add-item:hover{border-color:var(--teal);color:var(--teal-dk)}
+.dash-add-item i{font-size:15px;color:var(--gray-md)}
+.dash-w-canvas{padding:14px 1rem 1rem;height:230px}
+.dash-act-list{list-style:none;margin:0;padding:0}
+.dash-act-item{display:flex;gap:9px;padding:8px 1rem;border-bottom:1px solid var(--gray-bd);font-size:12px;align-items:flex-start}
+.dash-act-item:last-child{border-bottom:none}
+.dash-act-ic{color:var(--gray-md);margin-top:1px}
+.dash-act-meta{font-size:10px;color:var(--gray-md);margin-top:2px}
+@media(max-width:900px){.dash-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+
 <div class="page-hd">
   <div><div class="page-title">Tableau de bord</div><div class="page-sub">Compagnons Bâtisseurs Bretagne</div></div>
+  <div>
+    <button id="dash-edit-btn" class="btn btn-sm" onclick="dashToggleEdit()"><i class="ti ti-adjustments"></i> Personnaliser</button>
+  </div>
 </div>
+
 <div class="page-body">
-  <div class="stats-grid">
-    <div class="stat"><div class="stat-lbl">CA accepté</div><div class="stat-val" style="color:var(--prune)">{{ stats.ca|floatformat:0 }} €</div><div class="stat-sub">devis acceptés</div></div>
-    <div class="stat"><div class="stat-lbl">Factures en attente</div><div class="stat-val" style="color:var(--amber)">{{ stats.en_attente|floatformat:0 }} €</div></div>
-    <div class="stat"><div class="stat-lbl">Devis en cours</div><div class="stat-val">{{ stats.en_cours }}</div><div class="stat-sub">brouillon ou envoyé</div></div>
-    <div class="stat"><div class="stat-lbl">Taux d'acceptation</div><div class="stat-val" style="color:var(--teal-dk)">{{ stats.taux }} %</div><div class="stat-sub">{{ stats.total_devis }} devis total</div></div>
+  <div id="dash-grid" class="dash-grid">
+    {% for w in widgets %}
+    <div class="dash-widget {% if w.type != 'kpi' %}span-full{% endif %}" data-id="{{ w.id }}" data-scope="{{ w.scope }}" data-type="{{ w.type }}" data-title="{{ w.title }}" data-icon="{{ w.icon }}" data-supports-scope="{{ w.supports_scope|yesno:'1,0' }}">
+      <div class="dash-w-edit">
+        <span class="ico-btn handle" title="Déplacer"><i class="ti ti-grip-vertical"></i></span>
+        <button type="button" class="ico-btn" title="Masquer ce widget" onclick="dashHide(this)"><i class="ti ti-eye-off"></i></button>
+      </div>
+
+      {% if w.type == 'kpi' %}
+      <div class="stat">
+        <div class="dash-kpi-top">
+          <span class="stat-lbl">{{ w.title }}</span>
+        </div>
+        <div class="stat-val" style="color:{{ w.data.color }}">{{ w.data.value|floatformat:0 }}{% if w.data.unit %} {{ w.data.unit }}{% endif %}</div>
+        <div class="stat-sub">{{ w.data.sub }}</div>
+      </div>
+
+      {% else %}
+      <div class="card">
+        <div class="card-hd">
+          <span class="card-title"><i class="ti {{ w.icon }}" style="color:var(--teal)"></i>{{ w.title }}</span>
+          <div class="dash-card-tools">
+            {% if w.supports_scope %}
+            <select class="dash-scope" onchange="dashScope(this)" title="Portée des données">
+              <option value="all" {% if w.scope == 'all' %}selected{% endif %}>Tous</option>
+              <option value="mine" {% if w.scope == 'mine' %}selected{% endif %}>Mes données</option>
+              <option value="team" {% if w.scope == 'team' %}selected{% endif %}>Mon équipe</option>
+            </select>
+            {% endif %}
+            {% if w.id == 'list_devis_recents' %}<a href="{% url 'core:devis-list' %}" class="btn btn-sm">Voir tout →</a>
+            {% elif w.id == 'list_factures_recentes' %}<a href="{% url 'core:factures-list' %}" class="btn btn-sm">Voir tout →</a>
+            {% elif w.id == 'list_avoirs_recents' %}<a href="{% url 'core:avoirs-list' %}" class="btn btn-sm">Voir tout →</a>{% endif %}
+          </div>
+        </div>
+
+        {% comment %} ——— LISTES ——— {% endcomment %}
+        {% if w.id == 'list_devis_recents' %}
+        <table>
+          <thead><tr><th>Référence</th><th>Client</th><th>Chantier</th><th class="num">Brut HT</th><th>Statut</th><th class="num">Reste à fact.</th></tr></thead>
+          <tbody>
+            {% for d in w.data.devis %}
+            <tr style="cursor:pointer" onclick="location='{% url 'core:devis-detail' d.pk %}'">
+              <td><span class="mono">{{ d.reference }}</span></td>
+              <td>{{ d.client }}</td>
+              <td>{{ d.chantier }}</td>
+              <td class="num">{{ d.total_brut|floatformat:2 }} €</td>
+              <td><span class="badge b-{{ d.status }}"><span class="dot dot-{{ d.status }}"></span>{{ d.get_status_display }}</span></td>
+              <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% else %}var(--teal-dk){% endif %}">{{ d.rtf|floatformat:2 }} €</td>
+            </tr>
+            {% empty %}<tr><td colspan="6" class="dash-empty">Aucun devis</td></tr>{% endfor %}
+          </tbody>
+        </table>
+
+        {% elif w.id == 'list_factures_a_valider' %}
+        <table>
+          <thead><tr><th>Référence</th><th>Destinataire</th><th>Type</th><th class="num">Montant</th></tr></thead>
+          <tbody>
+            {% for f in w.data.factures %}
+            <tr {% if f.devis %}style="cursor:pointer" onclick="location='{% url 'core:devis-detail' f.devis.pk %}'"{% endif %}>
+              <td><span class="mono">{{ f.get_reference }}</span></td>
+              <td>{{ f.destinataire }}</td>
+              <td>{{ f.get_type_doc_display }}</td>
+              <td class="num">{{ f.montant|floatformat:2 }} €</td>
+            </tr>
+            {% empty %}<tr><td colspan="4" class="dash-empty">Aucune facture à valider</td></tr>{% endfor %}
+          </tbody>
+        </table>
+
+        {% elif w.id == 'list_factures_impayees' %}
+        <table>
+          <thead><tr><th>Référence</th><th>Destinataire</th><th>Échéance</th><th class="num">Montant</th></tr></thead>
+          <tbody>
+            {% for f in w.data.factures %}
+            <tr>
+              <td><span class="mono">{{ f.get_reference }}</span></td>
+              <td>{{ f.destinataire }}</td>
+              <td style="{% if f.en_retard %}color:var(--red);font-weight:500{% endif %}">{{ f.date_echeance|date:"d/m/Y"|default:"—" }}{% if f.en_retard %} ⚠{% endif %}</td>
+              <td class="num">{{ f.montant|floatformat:2 }} €</td>
+            </tr>
+            {% empty %}<tr><td colspan="4" class="dash-empty">Aucune facture impayée</td></tr>{% endfor %}
+          </tbody>
+        </table>
+
+        {% elif w.id == 'list_factures_recentes' %}
+        <table>
+          <thead><tr><th>Référence</th><th>Destinataire</th><th>Devis</th><th class="num">Montant</th><th>Statut</th></tr></thead>
+          <tbody>
+            {% for f in w.data.factures %}
+            <tr style="cursor:pointer" onclick="location='{% url 'core:devis-detail' f.devis.pk %}'">
+              <td><span class="mono">{{ f.get_reference }}</span></td>
+              <td>{{ f.destinataire }}</td>
+              <td><span class="mono">{{ f.devis.reference }}</span></td>
+              <td class="num">{{ f.montant|floatformat:2 }} €</td>
+              <td><span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span></td>
+            </tr>
+            {% empty %}<tr><td colspan="5" class="dash-empty">Aucune facture</td></tr>{% endfor %}
+          </tbody>
+        </table>
+
+        {% elif w.id == 'list_avoirs_recents' %}
+        <table>
+          <thead><tr><th>Référence</th><th>Destinataire</th><th>Origine</th><th class="num">Montant</th></tr></thead>
+          <tbody>
+            {% for f in w.data.avoirs %}
+            <tr style="cursor:pointer" onclick="location='{% url 'core:compta-facture-detail' f.pk %}'">
+              <td><span class="mono">{{ f.get_reference }}</span></td>
+              <td>{{ f.get_client|default:f.destinataire }}</td>
+              <td>{% if f.facture_origine %}<span class="mono">{{ f.facture_origine.get_reference }}</span>{% else %}—{% endif %}</td>
+              <td class="num">{{ f.montant|floatformat:2 }} €</td>
+            </tr>
+            {% empty %}<tr><td colspan="4" class="dash-empty">Aucun avoir</td></tr>{% endfor %}
+          </tbody>
+        </table>
+
+        {% comment %} ——— GRAPHIQUES ——— {% endcomment %}
+        {% elif w.type == 'chart' %}
+        {{ w.data|json_script:w.id }}
+        <div class="dash-w-canvas"><canvas data-chart-id="{{ w.id }}"></canvas></div>
+
+        {% comment %} ——— ACTIVITÉ ——— {% endcomment %}
+        {% elif w.type == 'activity' %}
+        <ul class="dash-act-list">
+          {% for e in w.data.events %}
+          <li class="dash-act-item">
+            <span class="dash-act-ic"><i class="ti {% if e.bypass %}ti-bolt{% elif e.facture %}ti-receipt{% elif e.devis %}ti-calculator{% else %}ti-point{% endif %}"></i></span>
+            <div>
+              <div>{{ e.action }}</div>
+              <div class="dash-act-meta">{{ e.created_at|date:"d/m/Y H:i" }}{% if e.user %} · {{ e.user.get_full_name|default:e.user.username }}{% endif %}</div>
+            </div>
+          </li>
+          {% empty %}<li class="dash-empty">Aucune activité récente</li>{% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% empty %}
+    <div class="span-full dash-empty card" style="padding:2rem">
+      Aucun widget affiché. Cliquez sur <strong>Personnaliser</strong> pour en ajouter.
+    </div>
+    {% endfor %}
   </div>
 
-  <div class="card">
-    <div class="card-hd">
-      <span class="card-title"><i class="ti ti-file-text" style="color:var(--teal)"></i>Derniers devis</span>
-      <a href="{% url 'core:devis-list' %}" class="btn btn-sm">Voir tout →</a>
-    </div>
-    <table>
-      <thead><tr><th>Référence</th><th>Client</th><th>Chantier</th><th>Date</th><th class="num">Brut HT</th><th>Statut</th><th class="num">Reste à fact.</th></tr></thead>
-      <tbody>
-        {% for d in devis_recents %}
-        <tr style="cursor:pointer" onclick="location='{% url 'core:devis-detail' d.pk %}'">
-          <td><span class="mono">{{ d.reference }}</span></td>
-          <td>{{ d.client }}</td>
-          <td>{{ d.chantier }}</td>
-          <td>{{ d.date_creation|date:"d M Y" }}</td>
-          <td class="num">{{ d.total_brut|floatformat:2 }} €</td>
-          <td>
-            <span class="badge b-{{ d.status }}"><span class="dot dot-{{ d.status }}"></span>{{ d.get_status_display }}</span>
-          </td>
-          <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% else %}var(--teal-dk){% endif %}">
-            {{ d.rtf|floatformat:2 }} €
-          </td>
-        </tr>
+  {# ——— Panneau « Ajouter un widget » (mode édition) ——— #}
+  <div id="dash-add-panel" class="dash-add-panel card" style="display:none">
+    <div class="card-hd"><span class="card-title"><i class="ti ti-plus" style="color:var(--teal)"></i>Ajouter un widget</span></div>
+    <div class="card-body">
+      <div id="dash-add-grid" class="dash-add-grid">
+        {% for w in widgets_disponibles %}
+        <button type="button" class="dash-add-item" data-id="{{ w.id }}" data-title="{{ w.title }}" data-icon="{{ w.icon }}" data-type="{{ w.type }}" onclick="dashAdd(this)">
+          <i class="ti {{ w.icon }}"></i>{{ w.title }}
+        </button>
         {% empty %}
-        <tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--gray-md)">
-          Aucun devis — <a href="{% url 'core:devis-create' %}" class="btn btn-sm btn-prune">Créer le premier</a>
-        </td></tr>
+        <div class="dash-empty">Tous les widgets disponibles sont déjà affichés.</div>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  {% if factures_recentes %}
-  <div class="card">
-    <div class="card-hd">
-      <span class="card-title"><i class="ti ti-receipt" style="color:var(--teal)"></i>Dernières factures</span>
-      <a href="{% url 'core:factures-list' %}" class="btn btn-sm">Voir tout →</a>
+      </div>
     </div>
-    <table>
-      <thead><tr><th>Référence</th><th>Destinataire</th><th>Devis</th><th class="num">Montant</th><th>Statut</th></tr></thead>
-      <tbody>
-        {% for f in factures_recentes %}
-        <tr>
-          <td><span class="mono">{{ f.get_reference }}</span></td>
-          <td>{{ f.destinataire }}</td>
-          <td><span class="mono">{{ f.devis.reference }}</span></td>
-          <td class="num">{{ f.montant|floatformat:2 }} €</td>
-          <td><span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
   </div>
-  {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script>
+const DASH_CSRF = '{{ csrf_token }}';
+const DASH_SAVE_URL = "{% url 'core:dashboard-save' %}";
+const PRUNE = '#67123A', TEAL = '#00AA8D', AMBER = '#F7A600';
+
+// ——— Graphiques ———
+const CHART_TYPES = {
+  chart_ca_mensuel: 'line',
+  chart_devis_statut: 'doughnut',
+  chart_top_clients: 'bar',
+  chart_financements: 'bar',
+};
+function dashRenderCharts(){
+  if (typeof Chart === 'undefined') return;
+  document.querySelectorAll('canvas[data-chart-id]').forEach(cv => {
+    const id = cv.dataset.chartId;
+    const el = document.getElementById(id);
+    if (!el) return;
+    let d; try { d = JSON.parse(el.textContent); } catch(e){ return; }
+    const type = CHART_TYPES[id] || 'bar';
+    const horizontal = (id === 'chart_top_clients' || id === 'chart_financements');
+    const colors = d.colors || (type === 'doughnut'
+      ? [PRUNE, TEAL, AMBER, '#9CA3AF', '#E0575B', '#185FA5']
+      : TEAL);
+    new Chart(cv, {
+      type: type,
+      data: {
+        labels: d.labels,
+        datasets: [{
+          label: '',
+          data: d.values,
+          backgroundColor: type === 'line' ? 'rgba(0,170,141,.12)' : colors,
+          borderColor: type === 'line' ? TEAL : (type === 'doughnut' ? '#fff' : colors),
+          borderWidth: type === 'doughnut' ? 2 : (type === 'line' ? 2 : 0),
+          tension: .3, fill: type === 'line', borderRadius: type === 'bar' ? 4 : 0,
+        }]
+      },
+      options: {
+        indexAxis: horizontal ? 'y' : 'x',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: type === 'doughnut', position: 'bottom',
+                   labels: { boxWidth: 12, font: { size: 11 } } } },
+        scales: type === 'doughnut' ? {} : {
+          x: { ticks: { font: { size: 10 } }, grid: { display: !horizontal } },
+          y: { ticks: { font: { size: 10 } }, grid: { display: horizontal } },
+        },
+      }
+    });
+  });
+}
+
+// ——— Sauvegarde de la configuration ———
+function dashCollectConfig(){
+  const widgets = [];
+  document.querySelectorAll('#dash-grid .dash-widget').forEach(el => {
+    widgets.push({ id: el.dataset.id, hidden: false, scope: el.dataset.scope || 'all' });
+  });
+  document.querySelectorAll('#dash-add-grid .dash-add-item').forEach(el => {
+    widgets.push({ id: el.dataset.id, hidden: true, scope: 'all' });
+  });
+  return widgets;
+}
+function dashSave(reload){
+  return fetch(DASH_SAVE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': DASH_CSRF },
+    body: JSON.stringify({ widgets: dashCollectConfig() }),
+  }).then(() => { if (reload) location.reload(); });
+}
+
+// ——— Mode édition ———
+function dashSetEdit(on){
+  const grid = document.getElementById('dash-grid');
+  grid.classList.toggle('editing', on);
+  document.getElementById('dash-add-panel').style.display = on ? '' : 'none';
+  const btn = document.getElementById('dash-edit-btn');
+  btn.innerHTML = on ? '<i class="ti ti-lock"></i> Verrouiller'
+                     : '<i class="ti ti-adjustments"></i> Personnaliser';
+  btn.classList.toggle('btn-prune', on);
+  grid.querySelectorAll('.dash-widget').forEach(el => el.setAttribute('draggable', on ? 'true' : 'false'));
+}
+function dashToggleEdit(){
+  const editing = document.getElementById('dash-grid').classList.contains('editing');
+  if (editing) { dashSave(false); sessionStorage.removeItem('dash-edit'); dashSetEdit(false); }
+  else { dashSetEdit(true); }
+}
+
+function dashHide(btn){
+  const widget = btn.closest('.dash-widget');
+  const d = widget.dataset;
+  widget.remove();
+  const grid = document.getElementById('dash-add-grid');
+  const empty = grid.querySelector('.dash-empty'); if (empty) empty.remove();
+  const item = document.createElement('button');
+  item.type = 'button'; item.className = 'dash-add-item';
+  item.dataset.id = d.id; item.dataset.title = d.title;
+  item.dataset.icon = d.icon; item.dataset.type = d.type;
+  item.setAttribute('onclick', 'dashAdd(this)');
+  item.innerHTML = '<i class="ti ' + d.icon + '"></i>' + d.title;
+  grid.appendChild(item);
+  dashSave(false);
+}
+
+function dashAdd(btn){
+  // Le rendu des données se fait côté serveur → on sauvegarde puis on recharge.
+  const id = btn.dataset.id;
+  const widgets = dashCollectConfig().filter(w => w.id !== id);
+  widgets.push({ id: id, hidden: false, scope: 'all' });
+  sessionStorage.setItem('dash-edit', '1');
+  fetch(DASH_SAVE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': DASH_CSRF },
+    body: JSON.stringify({ widgets: widgets }),
+  }).then(() => location.reload());
+}
+
+function dashScope(sel){
+  const widget = sel.closest('.dash-widget');
+  widget.dataset.scope = sel.value;
+  if (document.getElementById('dash-grid').classList.contains('editing'))
+    sessionStorage.setItem('dash-edit', '1');
+  dashSave(true);
+}
+
+// ——— Glisser-déposer (réordonner) ———
+let dashDragEl = null;
+document.addEventListener('dragstart', e => {
+  const w = e.target.closest && e.target.closest('.dash-widget');
+  if (!w || !document.getElementById('dash-grid').classList.contains('editing')) return;
+  dashDragEl = w; e.dataTransfer.effectAllowed = 'move';
+});
+document.addEventListener('dragover', e => {
+  if (!dashDragEl) return;
+  const w = e.target.closest && e.target.closest('.dash-widget');
+  if (!w || w === dashDragEl) return;
+  e.preventDefault();
+  document.querySelectorAll('.dash-widget.drag-over').forEach(x => x.classList.remove('drag-over'));
+  w.classList.add('drag-over');
+});
+document.addEventListener('drop', e => {
+  if (!dashDragEl) return;
+  const w = e.target.closest && e.target.closest('.dash-widget');
+  if (w && w !== dashDragEl){
+    e.preventDefault();
+    const grid = document.getElementById('dash-grid');
+    const items = [...grid.querySelectorAll('.dash-widget')];
+    const from = items.indexOf(dashDragEl), to = items.indexOf(w);
+    if (from < to) w.after(dashDragEl); else w.before(dashDragEl);
+    dashSave(false);
+  }
+});
+document.addEventListener('dragend', () => {
+  document.querySelectorAll('.dash-widget.drag-over').forEach(x => x.classList.remove('drag-over'));
+  dashDragEl = null;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  dashRenderCharts();
+  if (sessionStorage.getItem('dash-edit') === '1'){ dashSetEdit(true); }
+});
+</script>
 {% endblock %}

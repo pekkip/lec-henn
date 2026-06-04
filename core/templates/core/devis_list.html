@@ -25,6 +25,10 @@
     <option value="">Toutes les équipes</option>
     {% for e in equipes %}<option value="{{ e.pk }}" {% if equipe_filter == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.nom }}</option>{% endfor %}
   </select>
+  <select class="sel" name="auteur" onchange="this.form.submit()">
+    <option value="">Tous les auteurs</option>
+    {% for a in auteurs %}<option value="{{ a.pk }}" {% if auteur_filter == a.pk|stringformat:'s' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
+  </select>
   <select class="sel" name="status" onchange="this.form.submit()" style="min-width:110px">
     <option value="">Tous les statuts</option>
     <option value="draft" {% if status_filter == 'draft' %}selected{% endif %}>Brouillon</option>
@@ -41,19 +45,21 @@
 <div style="flex:1;overflow-y:auto">
 <table>
   <thead><tr>
-    <th style="width:11%">Référence</th>
-    <th style="width:15%">Client</th>
-    <th style="width:14%">Chantier</th>
-    <th style="width:10%">Équipe</th>
-    <th style="width:9%">Date</th>
-    <th class="num" style="width:10%">Brut HT</th>
+    <th style="width:10%">Auteur</th>
+    <th style="width:10%">Référence</th>
+    <th style="width:13%">Client</th>
+    <th style="width:12%">Chantier</th>
+    <th style="width:9%">Équipe</th>
+    <th style="width:8%">Date</th>
+    <th class="num" style="width:9%">Brut HT</th>
     <th style="width:10%">Statut</th>
-    <th class="num" style="width:11%">Reste à fact.</th>
+    <th class="num" style="width:10%">Reste à fact.</th>
     <th style="width:5%"></th>
   </tr></thead>
   <tbody>
     {% for d in devis %}
     <tr style="cursor:pointer" onclick="location='{% url 'core:devis-detail' d.pk %}'">
+      <td>{{ d.created_by.get_full_name|default:d.created_by.username|default:"—" }}</td>
       <td><span class="mono">{{ d.reference }}</span></td>
       <td>{{ d.client }}</td>
       <td>{{ d.chantier }}</td>
@@ -79,7 +85,7 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--gray-md)">
+    <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--gray-md)">
       Aucun devis. <a href="{% url 'core:devis-create' %}" class="btn btn-sm btn-prune" style="margin-left:8px">Créer le premier</a>
     </td></tr>
     {% endfor %}

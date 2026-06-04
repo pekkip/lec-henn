@@ -7,9 +7,21 @@
 <div class="page-hd">
   <div><div class="page-title">Factures</div><div class="page-sub">{{ factures|length }} factures</div></div>
 </div>
+
+<form method="get">
+<div class="toolbar">
+  <select class="sel" name="auteur" onchange="this.form.submit()">
+    <option value="">Tous les auteurs</option>
+    {% for a in auteurs %}<option value="{{ a.pk }}" {% if auteur_filter == a.pk|stringformat:'s' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
+  </select>
+  {% if auteur_filter %}<a href="{% url 'core:factures-list' %}" class="btn">Réinitialiser</a>{% endif %}
+</div>
+</form>
+
 <div style="flex:1;overflow-y:auto">
   <table>
     <thead><tr>
+      <th>Auteur</th>
       <th>Référence</th>
       <th>Devis</th>
       <th>Destinataire</th>
@@ -22,6 +34,7 @@
     <tbody>
       {% for f in factures %}
       <tr>
+        <td>{{ f.created_by.get_full_name|default:f.created_by.username|default:"—" }}</td>
         <td><span class="mono">{{ f.get_reference }}</span></td>
         <td>
           <a href="{% url 'core:devis-detail' f.devis.pk %}" style="color:var(--prune);font-family:var(--fm);font-size:11px">
@@ -72,7 +85,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-md)">
+      <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--gray-md)">
         Aucune facture.
       </td></tr>
       {% endfor %}

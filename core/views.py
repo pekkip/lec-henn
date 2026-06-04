@@ -36,6 +36,7 @@ from .permissions import (
     peut_gerer_utilisateurs, peut_gerer_cet_utilisateur,
     get_collegues_ids, peut_acceder_compta,
 )
+from .dashboard_widgets import resolve_dashboard, sanitize_config
 # ══════════════════════════════════════════
 #  HELPERS
 # ══════════════════════════════════════════
@@ -320,29 +321,32 @@ def profil_view(request):
 @login_required
 def dashboard(request):
     profil = get_profil(request.user)
-    devis_recents = Devis.objects.select_related('client', 'equipe').all()[:5]
-    factures_recentes = Facture.objects.select_related('devis').all()[:5]
-    stats = {
-        'ca': sum(d.total_brut() for d in Devis.objects.filter(status='accepted')),
-        'en_attente': sum(
-            f.montant for f in Facture.objects.filter(
-                type_doc='facture'
-            ).exclude(status='paid')
-        ),
-        'en_cours': Devis.objects.filter(status__in=['draft', 'sent']).count(),
-        'total_devis': Devis.objects.count(),
-    }
-    stats['taux'] = round(
-        Devis.objects.filter(status='accepted').count() / stats['total_devis'] * 100
-    ) if stats['total_devis'] else 0
-    for d in devis_recents:
-        d.rtf = d.reste_a_facturer()
+    visibles, disponibles = resolve_dashboard(profil, request.user)
     return render(request, 'core/dashboard.html', {
-        'devis_recents': devis_recents,
-        'factures_recentes': factures_recentes,
-        'stats': stats,
+        'widgets': visibles,
+        'widgets_disponibles': disponibles,
         'profil': profil,
     })
+
+
+@login_required
+@require_POST
+def dashboard_save(request):
+    """Enregistre la disposition du tableau de bord (ordre + hidden + scope).
+
+    Ignore les ids inconnus et les widgets compta si l'utilisateur n'y a pas
+    droit (cf. sanitize_config). Renvoie du JSON.
+    """
+    profil = get_profil(request.user)
+    try:
+        payload = json.loads(request.body)
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    widgets = sanitize_config(payload.get('widgets'), request.user)
+    profil.dashboard_config = {'widgets': widgets}
+    profil.save(update_fields=['dashboard_config'])
+    return JsonResponse({'ok': True})
 
 
 # ══════════════════════════════════════════
@@ -597,7 +601,7 @@ def aide_delete(request, pk):
 @login_required
 def devis_list(request):
     profil = get_profil(request.user)
-    qs = Devis.objects.select_related('client', 'equipe__service__territoire').all()
+    qs = Devis.objects.select_related('client', 'equipe__service__territoire', 'created_by').all()
 
     # Filtres
     status = request.GET.get('status', '')
@@ -605,6 +609,7 @@ def devis_list(request):
     equipe_id = request.GET.get('equipe', '')
     service_id = request.GET.get('service', '')
     territoire_id = request.GET.get('territoire', '')
+    auteur_id = request.GET.get('auteur', '')
     q = request.GET.get('q', '')
 
     if status:
@@ -617,6 +622,8 @@ def devis_list(request):
         qs = qs.filter(equipe__service_id=service_id)
     if territoire_id:
         qs = qs.filter(equipe__service__territoire_id=territoire_id)
+    if auteur_id:
+        qs = qs.filter(created_by_id=auteur_id)
     if q:
         qs = qs.filter(
             chantier__icontains=q
@@ -635,12 +642,14 @@ def devis_list(request):
         'equipes': Equipe.objects.select_related('service__territoire').all(),
         'services': Service.objects.select_related('territoire').all(),
         'territoires': Territoire.objects.all(),
+        'auteurs': User.objects.filter(devis_crees__isnull=False).distinct().order_by('first_name', 'username'),
         'profil': profil,
         'status_filter': status,
         'client_filter': client_id,
         'equipe_filter': equipe_id,
         'service_filter': service_id,
         'territoire_filter': territoire_id,
+        'auteur_filter': auteur_id,
         'q': q,
         'peut_supprimer': {d.pk: peut_supprimer_devis(request.user, d) for d in qs},  # ← ici
     })
@@ -1424,9 +1433,20 @@ def factures_list(request):
     # Factures de chantier uniquement (liées à un devis, hors avoirs).
     # Les factures compta (structure/appel) et les avoirs ont leurs propres listes.
     factures = Facture.objects.select_related(
-        'devis', 'devis__client', 'devis__equipe'
+        'devis', 'devis__client', 'devis__equipe', 'created_by'
     ).prefetch_related('avoirs').filter(devis__isnull=False).exclude(type_doc='avoir')
-    return render(request, 'core/factures_list.html', {'factures': factures})
+
+    auteur_id = request.GET.get('auteur', '')
+    if auteur_id:
+        factures = factures.filter(created_by_id=auteur_id)
+
+    return render(request, 'core/factures_list.html', {
+        'factures': factures,
+        'auteurs': User.objects.filter(
+            factures_creees__devis__isnull=False
+        ).exclude(factures_creees__type_doc='avoir').distinct().order_by('first_name', 'username'),
+        'auteur_filter': auteur_id,
+    })
 
 
 @login_required
@@ -1438,7 +1458,7 @@ def avoirs_list(request):
     accessible à l'utilisateur.
     """
     avoirs = Facture.objects.filter(type_doc='avoir').select_related(
-        'devis', 'client', 'facture_origine'
+        'devis', 'client', 'facture_origine', 'created_by'
     ).order_by('-created_at')
     if not peut_acceder_compta(request.user):
         avoirs = avoirs.filter(devis__isnull=False)
@@ -2337,7 +2357,7 @@ def factures_compta_list(request, type_doc):
     factures = Facture.objects.filter(
         Q(type_doc=type_doc, devis__isnull=True)
         | Q(type_doc='avoir', facture_origine__type_doc=type_doc)
-    ).select_related('client', 'facture_origine').prefetch_related('avoirs').order_by('-created_at')
+    ).select_related('client', 'facture_origine', 'created_by').prefetch_related('avoirs').order_by('-created_at')
 
     return render(request, 'core/facture_compta_list.html', {
         'factures': factures,

@@ -19,6 +19,7 @@
 <div style="flex:1;overflow-y:auto">
   <table>
     <thead><tr>
+      <th>Auteur</th>
       <th>Référence</th>
       <th>Client</th>
       <th>Objet</th>
@@ -30,6 +31,7 @@
     <tbody>
       {% for f in factures %}
       <tr>
+        <td>{{ f.created_by.get_full_name|default:f.created_by.username|default:"—" }}</td>
         <td>
           <span class="mono">{{ f.get_reference }}</span>
           {% if f.type_doc == 'avoir' %}<span class="badge b-refused" style="margin-left:4px">Avoir</span>{% endif %}
@@ -61,7 +63,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray-md)">
+      <tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--gray-md)">
         Aucun document.
       </td></tr>
       {% endfor %}

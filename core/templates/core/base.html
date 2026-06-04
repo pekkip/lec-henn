@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>{% block title %}CB Bretagne{% endblock %} — Devis & Facturation</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<script>
+  // Applique l'état replié de la sidebar avant le rendu (évite le flash).
+  try { if (localStorage.getItem('sidebar-collapsed') === '1')
+    document.documentElement.classList.add('sb-collapsed'); } catch(e){}
+</script>
 <style>
 :root{
   --prune:#6B1F3A;--prune-dk:#4E1529;--prune-lt:#F5EEF1;--prune-bd:#D4A3B5;
@@ -43,6 +48,17 @@ a{color:inherit;text-decoration:none}
 .nav-item.active{color:var(--prune);background:var(--prune-lt);border-left-color:var(--prune);font-weight:500}
 .nav-item i{font-size:16px}
 .nav-badge{margin-left:auto;background:var(--prune-lt);color:var(--prune);border-radius:99px;padding:1px 7px;font-size:10px;font-weight:500}
+.nav-collapse-btn{margin-top:auto;display:flex;align-items:center;gap:8px;padding:8px 1rem;font-size:12px;color:var(--gray-md);background:transparent;border:none;border-top:1px solid var(--gray-bd);width:100%;text-align:left}
+.nav-collapse-btn:hover{background:var(--gray-lt);color:var(--gray)}
+.nav-collapse-btn i{font-size:16px;pointer-events:none}
+/* Sidebar repliée — icônes seules */
+html.sb-collapsed .sidebar{width:56px}
+html.sb-collapsed .sidebar .nav-label{display:none}
+html.sb-collapsed .sidebar .nav-sect{display:none}
+html.sb-collapsed .sidebar .nav-item,
+html.sb-collapsed .sidebar .nav-collapse-btn{justify-content:center;gap:0;padding-left:0;padding-right:0}
+html.sb-collapsed .sidebar .nav-item{border-left-width:3px}
+html.sb-collapsed .sidebar .nav-collapse-btn i{transform:rotate(180deg)}
 
 /* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;font-size:12px;border-radius:var(--r);border:1px solid var(--gray-bd);background:transparent;color:var(--gray);cursor:pointer;text-decoration:none}
@@ -177,35 +193,38 @@ tbody tr:hover td{background:#FAFAF8}
 </div>
 
 <div class="body-wrap">
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
     <div class="nav-sect">Principal</div>
-    <a href="{% url 'core:dashboard' %}" class="nav-item {% block nav_dashboard %}{% endblock %}"><i class="ti ti-layout-dashboard"></i>Tableau de bord</a>
-    <a href="{% url 'core:devis-list' %}" class="nav-item {% block nav_devis %}{% endblock %}"><i class="ti ti-file-text"></i>Devis</a>
-    <a href="{% url 'core:factures-list' %}" class="nav-item {% block nav_factures %}{% endblock %}"><i class="ti ti-receipt"></i>Factures</a>
-    <a href="{% url 'core:avoirs-list' %}" class="nav-item {% block nav_avoirs %}{% endblock %}"><i class="ti ti-receipt-refund"></i>Avoirs</a>
-    <a href="{% url 'core:clients' %}" class="nav-item {% block nav_clients %}{% endblock %}"><i class="ti ti-users"></i>Clients</a>
+    <a href="{% url 'core:dashboard' %}" title="Tableau de bord" class="nav-item {% block nav_dashboard %}{% endblock %}"><i class="ti ti-layout-dashboard"></i><span class="nav-label">Tableau de bord</span></a>
+    <a href="{% url 'core:devis-list' %}" title="Devis" class="nav-item {% block nav_devis %}{% endblock %}"><i class="ti ti-calculator"></i><span class="nav-label">Devis</span></a>
+    <a href="{% url 'core:factures-list' %}" title="Factures" class="nav-item {% block nav_factures %}{% endblock %}"><i class="ti ti-cash"></i><span class="nav-label">Factures</span></a>
+    <a href="{% url 'core:avoirs-list' %}" title="Avoirs" class="nav-item {% block nav_avoirs %}{% endblock %}"><i class="ti ti-receipt-refund"></i><span class="nav-label">Avoirs</span></a>
+    <a href="{% url 'core:clients' %}" title="Clients" class="nav-item {% block nav_clients %}{% endblock %}"><i class="ti ti-users"></i><span class="nav-label">Clients</span></a>
     <div class="nav-sect">Configuration</div>
-    <a href="{% url 'core:biblio' %}" class="nav-item {% block nav_biblio %}{% endblock %}"><i class="ti ti-books"></i>Bibliothèque</a>
-    <a href="{% url 'core:aides-page' %}" class="nav-item {% block nav_aides %}{% endblock %}"><span style="font-weight:700;margin-right:6px;font-style:normal">€</span>Aides travaux</a>
-    <a href="{% url 'core:aide' %}" class="nav-item {% block nav_aide %}{% endblock %}"><i class="ti ti-help"></i>Manuel</a>
+    <a href="{% url 'core:biblio' %}" title="Bibliothèque" class="nav-item {% block nav_biblio %}{% endblock %}"><i class="ti ti-books"></i><span class="nav-label">Bibliothèque</span></a>
+    <a href="{% url 'core:aides-page' %}" title="Aides travaux" class="nav-item {% block nav_aides %}{% endblock %}"><i class="ti ti-gift"></i><span class="nav-label">Aides travaux</span></a>
+    <a href="{% url 'core:aide' %}" title="Manuel" class="nav-item {% block nav_aide %}{% endblock %}"><i class="ti ti-help"></i><span class="nav-label">Manuel</span></a>
     {% if request.user.is_authenticated %}
       {% with role=request.user.profil.role %}
         {% if role == 'admin' or role == 'responsable' %}
-        <a href="{% url 'core:utilisateurs-list' %}" class="nav-item {% block nav_users %}{% endblock %}">
-          <i class="ti ti-users-group"></i>Utilisateurs
+        <a href="{% url 'core:utilisateurs-list' %}" title="Utilisateurs" class="nav-item {% block nav_users %}{% endblock %}">
+          <i class="ti ti-users-group"></i><span class="nav-label">Utilisateurs</span>
         </a>
         {% endif %}
         {% if role == 'admin' or role == 'comptable' %}
         <div class="nav-sect">Outils compta</div>
-        <a href="{% url 'core:compta-structures-list' %}" class="nav-item {% block nav_compta_struct %}{% endblock %}">
-          <i class="ti ti-building-bank"></i>Factures Structure
+        <a href="{% url 'core:compta-structures-list' %}" title="Factures Structure" class="nav-item {% block nav_compta_struct %}{% endblock %}">
+          <i class="ti ti-building-bank"></i><span class="nav-label">Factures Structure</span>
         </a>
-        <a href="{% url 'core:compta-appels-list' %}" class="nav-item {% block nav_compta_appel %}{% endblock %}">
-          <i class="ti ti-file-invoice"></i>Appels de convention
+        <a href="{% url 'core:compta-appels-list' %}" title="Appels de convention" class="nav-item {% block nav_compta_appel %}{% endblock %}">
+          <i class="ti ti-phone-ringing"></i><span class="nav-label">Appels de convention</span>
         </a>
         {% endif %}
       {% endwith %}
     {% endif %}
+    <button type="button" class="nav-collapse-btn" id="sidebar-toggle" title="Replier le menu" onclick="toggleSidebar()">
+      <i class="ti ti-chevron-left"></i><span class="nav-label">Replier</span>
+    </button>
   </div>
 
   <div class="main">
@@ -255,6 +274,14 @@ async function remplirVilleDepuisCP(cpInput, villeInput) {
   } catch (e) {
     /* hors-ligne / API injoignable : saisie manuelle conservée */
   }
+}
+
+/* Repli de la sidebar (icônes seules), mémorisé en localStorage. */
+function toggleSidebar() {
+  const collapsed = document.documentElement.classList.toggle('sb-collapsed');
+  try { localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0'); } catch (e) {}
+  const btn = document.getElementById('sidebar-toggle');
+  if (btn) btn.title = collapsed ? 'Déplier le menu' : 'Replier le menu';
 }
 </script>
 {% block extra_js %}{% endblock %}

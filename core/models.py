@@ -101,6 +101,10 @@ class ProfilUtilisateur(models.Model):
         default=list, blank=True,
         help_text="Ordre et visibilité des catégories dans la bibliothèque"
     )
+    dashboard_config = models.JSONField(
+        default=dict, blank=True,
+        help_text="Disposition du tableau de bord (widgets, ordre, portée)"
+    )
     invitation_envoyee = models.BooleanField(
         default=False,
         help_text="Email d'invitation envoyé avec succès"
