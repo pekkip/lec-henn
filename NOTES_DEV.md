@@ -223,6 +223,9 @@ logs Brevo.
   nationale) reste à demander — voir § Infra.
 - Pas touché au durcissement `settings.py` (erreur si clé vide en prod) — proposé, non retenu
   pour l'instant (la clé est bien présente sur Railway).
+- **Correctif durable** (rappel) : authentification DNS du domaine dans Brevo, **à faire par
+  l'IT nationale** — voir § Infra et § Prochaines étapes (point 8).
+- Commité + poussé sur `main` (déploiement Railway prod).
 
 ---
 
@@ -759,6 +762,11 @@ politique de rôle du bypass OTP.
 5. **Statut devis "envoyé au client"** ✅ select dans la topbar (session 14), mais pas encore affiché dans la liste des devis
 6. **Dashboard — section suivi financements** : `LigneDevis.objects.filter(aide__isnull=False, devis__status='accepted')` prêt à requêter
 7. **PDF WeasyPrint — Phase 3**
+8. **🔴 Emails — correctif durable : authentification DNS du domaine dans Brevo, à faire par
+   l'IT nationale** (SPF `include:spf.brevo.com` + DKIM Brevo + TXT de vérif sur
+   `compagnonsbatisseurs.eu`). Tant que ce n'est pas fait, les invitations vers
+   `@compagnonsbatisseurs.eu` rebondissent (soft bounce « Access denied ») ; contournement =
+   message d'invitation affiché à l'écran à la création (session 20). Voir § Infra.
 
 ---
 
@@ -839,9 +847,10 @@ Pour supprimer proprement :
   vers les adresses internes `@compagnonsbatisseurs.eu` **rebondissent** en *soft bounce
   « Access denied »*. Cause : on envoie **depuis** `@compagnonsbatisseurs.eu` **via Brevo**,
   or Brevo n'est pas autorisé dans le DNS du domaine → le **Microsoft 365 de l'association
-  rejette comme usurpation** (SPF/DKIM/DMARC non alignés). **Correctif propre = authentifier
-  le domaine dans Brevo** (DKIM + `include:spf.brevo.com` + TXT de vérif), mais le **DNS est
-  géré par l'association nationale** (pas d'accès direct). Alternatives : (A) demander les
+  rejette comme usurpation** (SPF/DKIM/DMARC non alignés). **🔴 Correctif durable = authentifier
+  le domaine `compagnonsbatisseurs.eu` dans Brevo** (DKIM + `include:spf.brevo.com` + TXT de
+  vérif), **à faire par l'IT nationale** car le **DNS est géré par l'association nationale**
+  (pas d'accès direct). Alternatives si l'IT ne peut/veut pas : (A) demander les
   enregistrements à l'IT nationale ; (B) envoyer depuis un domaine dédié qu'on contrôle
   (Reply-To `@compagnonsbatisseurs.eu`) ; (C) API Microsoft Graph (HTTPS, tenant M365).
   **Contournement actif (session 20)** : `utilisateur_create` affiche **toujours** le mot de
