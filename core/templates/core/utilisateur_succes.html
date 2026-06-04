@@ -17,10 +17,10 @@
     </div>
   </div>
 
-  {% if infos.email_erreur %}
+  {% if infos.email_statut %}
   <div class="mdp-warning" style="margin-bottom:1rem">
     <i class="ti ti-alert-triangle"></i>
-    {{ infos.email_erreur }}
+    {{ infos.email_statut }}
   </div>
   {% endif %}
 
@@ -32,10 +32,20 @@
         <i class="ti ti-copy"></i> Copier
       </button>
     </div>
+  </div>
+
+  <div class="mdp-block">
+    <div class="msg-label-row">
+      <p class="mdp-label" style="margin:0">Message d'invitation à transmettre</p>
+      <button class="btn btn-sm" onclick="copyMsg()" id="copy-msg-btn">
+        <i class="ti ti-copy"></i> Copier le message
+      </button>
+    </div>
+    <pre id="msg-code" class="msg-pre">{{ infos.message }}</pre>
     <p class="mdp-warning">
       <i class="ti ti-alert-triangle"></i>
-      Ce mot de passe ne sera plus affiché après avoir quitté cette page.
-      Communiquez-le à l'utilisateur pour sa première connexion.
+      Ces informations ne seront plus affichées après avoir quitté cette page.
+      Copiez le message et envoyez-le à l'utilisateur (Teams, votre messagerie…).
     </p>
   </div>
 </div>
@@ -56,17 +66,26 @@
   .mdp-value { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
   .mdp-value code { font-size: 20px; letter-spacing: 0.08em; padding: 8px 16px; background: var(--color-background-secondary); border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary); }
   .mdp-warning { font-size: 13px; color: var(--color-text-warning); display: flex; align-items: flex-start; gap: 6px; margin: 0; background: var(--color-background-warning); padding: 10px 12px; border-radius: var(--border-radius-md); }
+  .mdp-block + .mdp-block { margin-top: 1.5rem; }
+  .msg-label-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .msg-pre { font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; padding: 12px 14px; margin: 0 0 12px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); }
   .form-actions { display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 
 <script>
-function copyMdp() {
-  const code = document.getElementById('mdp-code').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    const btn = document.getElementById('copy-btn');
+function copyText(text, btn, labelDefaut) {
+  navigator.clipboard.writeText(text).then(() => {
     btn.innerHTML = '<i class="ti ti-check"></i> Copié';
-    setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> Copier'; }, 2000);
+    setTimeout(() => { btn.innerHTML = '<i class="ti ti-copy"></i> ' + labelDefaut; }, 2000);
   });
+}
+function copyMdp() {
+  copyText(document.getElementById('mdp-code').textContent,
+           document.getElementById('copy-btn'), 'Copier');
+}
+function copyMsg() {
+  copyText(document.getElementById('msg-code').textContent,
+           document.getElementById('copy-msg-btn'), 'Copier le message');
 }
 </script>
 {% endblock %}

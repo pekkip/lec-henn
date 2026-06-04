@@ -2090,48 +2090,62 @@ def utilisateur_create(request):
         else:
             Bibliotheque.objects.create(user=user, lignes=[])
 
-        # Envoi de l'email d'invitation si une adresse est renseignée
+        # Envoi de l'email d'invitation (best-effort) + affichage du mot de passe.
+        # BETA : la délivrance vers les adresses @compagnonsbatisseurs.eu n'est pas
+        # fiable (M365 rejette les mails relayés par Brevo, faute d'authentification
+        # DNS du domaine — voir NOTES_DEV § Infra). On affiche donc TOUJOURS le mot
+        # de passe temporaire pour communication manuelle, et l'email reste un bonus
+        # (utile pour d'éventuelles adresses externes).
         nom_affiche = f'{first_name} {last_name}'.strip() or username
-        email_envoye = False
-        email_erreur = None
+        email_statut = None
+
+        # Texte d'invitation construit une seule fois : sert à l'envoi ET à
+        # l'affichage à l'écran (copier-coller pour communication manuelle).
+        message_invitation = (
+            f'Bonjour {first_name or username},\n\n'
+            f'Votre compte CB Bretagne a été créé.\n\n'
+            f'Identifiant : {username}\n'
+            f'Mot de passe temporaire : {mdp_temp}\n\n'
+            f'Connectez-vous ici : {settings.SITE_URL}/login/\n\n'
+            f'Merci de changer votre mot de passe dès votre première connexion.\n\n'
+            f'Un manuel utilisateur est disponible directement sur le site : {settings.SITE_URL}/aide/\n\n'
+            f'CB Bretagne'
+        )
 
         if email:
             try:
                 send_mail(
                     subject='Votre compte CB Bretagne',
-                    message=(
-                        f'Bonjour {first_name or username},\n\n'
-                        f'Votre compte CB Bretagne a été créé.\n\n'
-                        f'Identifiant : {username}\n'
-                        f'Mot de passe temporaire : {mdp_temp}\n\n'
-                        f'Connectez-vous ici : {settings.SITE_URL}/login/\n\n'
-                        f'Merci de changer votre mot de passe dès votre première connexion.\n\n'
-                        f'Un manuel utilisateur est disponible directement sur le site : {settings.SITE_URL}/aide/\n\n'
-                        f'CB Bretagne'
-                    ),
+                    message=message_invitation,
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[email],
                     fail_silently=False,
                 )
-                email_envoye = True
+                nouveau_profil.invitation_envoyee = True
+                nouveau_profil.save(update_fields=['invitation_envoyee'])
+                email_statut = (
+                    f"Un email d'invitation a été envoyé à {email}. ⚠️ En beta, la "
+                    f"délivrance vers les adresses @compagnonsbatisseurs.eu n'est pas "
+                    f"garantie : copiez le message ci-dessous et envoyez-le par un autre "
+                    f"canal (Teams, votre messagerie)."
+                )
             except Exception as e:
                 logger.error('Invitation email error (user %s): %s', username, e)
-                email_erreur = "L'email d'invitation n'a pas pu être envoyé (erreur SMTP)."
+                email_statut = (
+                    f"L'email d'invitation vers {email} n'a pas pu être envoyé — "
+                    f"copiez le message ci-dessous et transmettez-le manuellement."
+                )
         else:
-            email_erreur = 'Aucune adresse email renseignée — communiquez le mot de passe manuellement.'
+            email_statut = 'Aucune adresse email renseignée — copiez le message ci-dessous et transmettez-le manuellement.'
 
-        if email_envoye:
-            nouveau_profil.invitation_envoyee = True
-            nouveau_profil.save(update_fields=['invitation_envoyee'])
-            messages.success(request, f'Utilisateur {username} créé. Email d\'invitation envoyé à {email}.')
-            return redirect('core:utilisateurs-list')
-
-        # Fallback : email non envoyé → afficher le mot de passe une seule fois
+        # Toujours afficher le message d'invitation complet (une seule fois)
         request.session['nouveau_user_mdp'] = {
             'username': username,
             'mdp': mdp_temp,
             'nom': nom_affiche,
-            'email_erreur': email_erreur,
+            'email': email,
+            'message': message_invitation,
+            'email_statut': email_statut,
         }
         return redirect('core:utilisateur-create-succes')
 

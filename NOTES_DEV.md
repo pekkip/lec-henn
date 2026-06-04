@@ -4,8 +4,10 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (04/06/2026 — session 19) :** en test beta, en attente de retours
-des collègues. **OUTILS COMPTA** ajoutés (session 19) : factures structure + appels de
+**État du projet (04/06/2026 — session 20) :** en test beta, en attente de retours
+des collègues. **Diag. emails** (session 20) : les invitations vers `@compagnonsbatisseurs.eu`
+rebondissent (M365 rejette Brevo, DNS non authentifié — voir § Infra) ; contournement = le mot de
+passe temporaire est **toujours** affiché à l'écran à la création (communication manuelle). **OUTILS COMPTA** ajoutés (session 19) : factures structure + appels de
 convention (facturation directe sans devis, réservée admin/comptable) et **avoirs** pour
 tous les types. Export Excel temporaire toujours présent pour la beta (voir § Fonctionnalités
 temporaires beta — à retirer). Email via **Brevo** (HTTP API) : invitations, bypass OTP et reset mot de
@@ -184,6 +186,43 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 20 — 04/06/2026 — Diagnostic envoi emails & contournement fallback MDP
+
+### Contexte
+Remontée : « les mails de création utilisateur ne partent pas ». Diagnostic mené avec les
+logs Brevo.
+
+### Diagnostic
+- Test d'envoi via `manage.py shell` : en **local**, `BREVO_API_KEY` est un placeholder
+  (`VOTRE_CLE…`) → 401, normal. La vraie clé est sur Railway.
+- En **prod**, l'écran affichait *« Email envoyé »* mais rien n'était reçu. Logs Brevo :
+  clé valide (Brevo accepte, 2xx, un mail *Delivered*) **mais soft bounce « Access denied »**
+  vers les adresses `@compagnonsbatisseurs.eu`.
+- **Cause racine** : envoi **depuis** `@compagnonsbatisseurs.eu` **via Brevo** → le M365 de
+  l'association rejette (anti-usurpation, DNS du domaine non authentifié auprès de Brevo).
+  Détails + alternatives (DNS via IT nationale / domaine dédié / Graph API) : **§ Infra**.
+
+### Fichiers modifiés
+- `core/views.py` — `utilisateur_create` : l'email devient **best-effort** ; le **texte
+  complet de l'invitation** (`message_invitation`, construit une seule fois, sert à l'envoi
+  ET à l'affichage) est **toujours** montré à la création pour copier-coller (plus de
+  redirection « Email envoyé » trompeuse). `invitation_envoyee` passé à True seulement si
+  Brevo a accepté. Champ session renommé `email_erreur` → `email_statut` ; ajout `email` +
+  `message` dans la session.
+- `core/templates/core/utilisateur_succes.html` — affiche le mot de passe + le **message
+  d'invitation complet** dans un `<pre>` avec bouton « Copier le message » ; `email_erreur`
+  → `email_statut`.
+- `NOTES_DEV.md` — § Infra (diagnostic + alternatives), ligne d'état, cette session.
+
+### Décisions actées
+- **Contournement beta = D** (fallback écran) : afficher toujours le MDP, communication
+  manuelle. Le vrai correctif (authentifier le domaine dans Brevo, action DNS de l'IT
+  nationale) reste à demander — voir § Infra.
+- Pas touché au durcissement `settings.py` (erreur si clé vide en prod) — proposé, non retenu
+  pour l'instant (la clé est bien présente sur Railway).
 
 ---
 
@@ -795,4 +834,16 @@ Pour supprimer proprement :
 
 ### Infra
 - ✅ ~~**SMTP Microsoft 365**~~ — abandonné (Railway bloque les ports SMTP). **Brevo HTTP API** en prod (`django-anymail[brevo]`, variable `BREVO_API_KEY`). M365 SMTP uniquement en local.
+- ⚠️ **Délivrance email vers @compagnonsbatisseurs.eu — bloquée (diag. session 20)** :
+  la clé `BREVO_API_KEY` est OK (Brevo accepte les envois, code 2xx) mais les mails
+  vers les adresses internes `@compagnonsbatisseurs.eu` **rebondissent** en *soft bounce
+  « Access denied »*. Cause : on envoie **depuis** `@compagnonsbatisseurs.eu` **via Brevo**,
+  or Brevo n'est pas autorisé dans le DNS du domaine → le **Microsoft 365 de l'association
+  rejette comme usurpation** (SPF/DKIM/DMARC non alignés). **Correctif propre = authentifier
+  le domaine dans Brevo** (DKIM + `include:spf.brevo.com` + TXT de vérif), mais le **DNS est
+  géré par l'association nationale** (pas d'accès direct). Alternatives : (A) demander les
+  enregistrements à l'IT nationale ; (B) envoyer depuis un domaine dédié qu'on contrôle
+  (Reply-To `@compagnonsbatisseurs.eu`) ; (C) API Microsoft Graph (HTTPS, tenant M365).
+  **Contournement actif (session 20)** : `utilisateur_create` affiche **toujours** le mot de
+  passe temporaire à l'écran (communication manuelle), l'email reste best-effort.
 - **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés (logo, etc.).
