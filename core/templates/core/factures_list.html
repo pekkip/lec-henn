@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="page-hd">
-  <div><div class="page-title">Factures</div><div class="page-sub">{{ factures|length }} factures</div></div>
+  <div><div class="page-title">Factures</div><div class="page-sub">{{ page_obj.paginator.count }} factures</div></div>
 </div>
 
 <form method="get">
@@ -91,5 +91,6 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'core/_pagination.html' %}
 </div>
 {% endblock %}

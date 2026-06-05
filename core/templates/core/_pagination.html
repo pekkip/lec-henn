@@ -1,0 +1,30 @@
+{% comment %}
+Contrôles de pagination réutilisables.
+Attend `page_obj` (django.core.paginator.Page) et `base_qs` (query string
+courante sans `page`, déjà urlencodée). Inclure en bas d'une liste :
+  {% include 'core/_pagination.html' %}
+{% endcomment %}
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 2px;flex-wrap:wrap">
+  <div style="color:var(--gray-md);font-size:13px">
+    Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    — {{ page_obj.paginator.count }} au total
+  </div>
+  <div style="display:flex;gap:6px">
+    {% if page_obj.has_previous %}
+      <a href="?{% if base_qs %}{{ base_qs }}&{% endif %}page=1" class="btn" title="Première page">«</a>
+      <a href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.previous_page_number }}" class="btn">‹ Précédent</a>
+    {% else %}
+      <span class="btn" style="opacity:.4;pointer-events:none">«</span>
+      <span class="btn" style="opacity:.4;pointer-events:none">‹ Précédent</span>
+    {% endif %}
+    {% if page_obj.has_next %}
+      <a href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.next_page_number }}" class="btn">Suivant ›</a>
+      <a href="?{% if base_qs %}{{ base_qs }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="btn" title="Dernière page">»</a>
+    {% else %}
+      <span class="btn" style="opacity:.4;pointer-events:none">Suivant ›</span>
+      <span class="btn" style="opacity:.4;pointer-events:none">»</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}

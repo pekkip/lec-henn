@@ -2,14 +2,17 @@ import json
 from unittest.mock import patch
 
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
+from django.db import connection
 from django.urls import reverse
 from django.contrib.auth.models import User
 
 from datetime import date
+from decimal import Decimal
 
 from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
-    Client, ContactClient, Devis, Facture, LigneFacture,
+    Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
 )
 
 
@@ -669,3 +672,106 @@ class DashboardTests(TestCase):
         resp = self.client.get(reverse('core:dashboard'))
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.context['widgets']), len(WIDGETS))
+
+
+class ListesPerfTests(TestCase):
+    """
+    Optimisation des listes (session 23) : pagination + calcul des totaux
+    sans explosion N+1.
+
+    L'ancienne `devis_list` parcourait l'arbre des lignes de chaque devis en
+    frappant la base à chaque nœud (`enfants.all()`/`exists()`), et le total
+    brut était même recalculé une 2ᵉ fois dans le template. Ces tests
+    verrouillent (a) l'équivalence des totaux avec les méthodes du modèle,
+    (b) la pagination, (c) le caractère borné du nombre de requêtes.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr = Territoire.objects.create(nom='Bretagne')
+        service = Service.objects.create(territoire=terr, nom='Habitat')
+        cls.equipe = Equipe.objects.create(service=service, nom='Équipe')
+        cls.admin = User.objects.create_user('admin', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.client_obj = Client.objects.create(nom='Client')
+
+    def _devis_avec_arbre(self, ref):
+        """Devis avec un arbre de lignes : brut attendu = 350 €."""
+        d = Devis.objects.create(
+            reference=ref, client=self.client_obj, chantier='C',
+            equipe=self.equipe, created_by=self.admin,
+        )
+        titre = LigneDevis.objects.create(
+            devis=d, type_ligne='TITRE', description='Lot 1', ordre=0)
+        # Composite : quantité 2 × (1 × 100) = 200
+        comp = LigneDevis.objects.create(
+            devis=d, parent=titre, type_ligne='C', quantite=2, ordre=0)
+        LigneDevis.objects.create(
+            devis=d, parent=comp, type_ligne='MAT', quantite=1,
+            cout_unitaire=Decimal('100'), ordre=0)
+        # Ligne simple : 3 × 50 = 150
+        LigneDevis.objects.create(
+            devis=d, parent=titre, type_ligne='S', quantite=3,
+            cout_unitaire=Decimal('50'), ordre=1)
+        # FIN : exclue du brut
+        LigneDevis.objects.create(
+            devis=d, type_ligne='FIN', quantite=1,
+            cout_unitaire=Decimal('-80'), ordre=1)
+        return d
+
+    def test_totaux_identiques_aux_methodes_modele(self):
+        from .views import attacher_totaux_devis
+        d = self._devis_avec_arbre('DEV-2026-100')
+        Facture.objects.create(
+            devis=d, type_doc='facture', destinataire='x',
+            status='validated', montant=Decimal('100'), created_by=self.admin)
+
+        qs = list(Devis.objects.filter(pk=d.pk).prefetch_related('lignes', 'factures'))
+        attacher_totaux_devis(qs)
+
+        # Équivalence stricte avec les méthodes du modèle (non régression).
+        self.assertEqual(qs[0].brut, d.total_brut())
+        self.assertEqual(qs[0].rtf, d.reste_a_facturer())
+        # Valeurs attendues explicites.
+        self.assertEqual(qs[0].brut, Decimal('350'))
+        self.assertEqual(qs[0].rtf, Decimal('250'))
+
+    def test_pagination_devis(self):
+        for i in range(55):
+            Devis.objects.create(
+                reference=f'DEV-2026-2{i:02d}', client=self.client_obj,
+                chantier='C', equipe=self.equipe, created_by=self.admin)
+        self.client.login(username='admin', password='pw')
+
+        r1 = self.client.get(reverse('core:devis-list'))
+        self.assertEqual(r1.status_code, 200)
+        self.assertEqual(len(r1.context['devis']), 50)
+        self.assertEqual(r1.context['page_obj'].paginator.count, 55)
+
+        r2 = self.client.get(reverse('core:devis-list') + '?page=2')
+        self.assertEqual(len(r2.context['devis']), 5)
+
+    def test_pagination_conserve_les_filtres(self):
+        # base_qs doit transporter les filtres actifs (hors `page`).
+        self.client.login(username='admin', password='pw')
+        resp = self.client.get(reverse('core:devis-list') + '?status=draft&page=1')
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn('page=', resp.context['base_qs'])
+        self.assertIn('status=draft', resp.context['base_qs'])
+
+    def test_devis_list_requetes_bornees(self):
+        # 10 devis × ~5 lignes : avec l'ancien N+1, des centaines de requêtes.
+        # Le correctif (prefetch + calcul mémoire) borne le total.
+        for i in range(10):
+            self._devis_avec_arbre(f'DEV-2026-3{i:02d}')
+        self.client.login(username='admin', password='pw')
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(reverse('core:devis-list'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertLess(len(ctx.captured_queries), 30)
+
+        # Le chemin filtre `q` (recherche) doit rester borné lui aussi.
+        with CaptureQueriesContext(connection) as ctx2:
+            resp2 = self.client.get(reverse('core:devis-list') + '?q=C')
+        self.assertEqual(resp2.status_code, 200)
+        self.assertLess(len(ctx2.captured_queries), 30)

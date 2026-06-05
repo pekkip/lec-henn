@@ -13,6 +13,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST
@@ -54,6 +55,54 @@ def to_decimal(val, default=None):
         return Decimal(str(val))
     except (InvalidOperation, ValueError, TypeError):
         return default
+
+
+def paginer(request, queryset, par_page=50):
+    """Pagine un queryset et renvoie (page_obj, base_qs).
+
+    `base_qs` = la query string courante SANS le paramètre `page`, pour
+    construire des liens de pagination qui conservent les filtres actifs.
+    """
+    page_obj = Paginator(queryset, par_page).get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
+    return page_obj, params.urlencode()
+
+
+def attacher_totaux_devis(devis_iterable):
+    """Calcule `brut` et `rtf` (reste à facturer) pour chaque devis à partir des
+    lignes et factures **préchargées** (prefetch_related), sans requête par nœud.
+
+    Remplace `Devis.total_brut()`/`reste_a_facturer()` dans les listes : ces
+    méthodes parcourent l'arbre des lignes en frappant la base à chaque nœud
+    (`enfants.all()` + `enfants.exists()`), soit des milliers de requêtes pour
+    quelques dizaines de devis. Ici, tout est calculé en mémoire.
+    """
+    for d in devis_iterable:
+        enfants = {}
+        for l in d.lignes.all():          # préchargé via prefetch_related('lignes')
+            enfants.setdefault(l.parent_id, []).append(l)
+
+        def total(ligne):
+            sous = enfants.get(ligne.pk, [])
+            if ligne.type_ligne == 'TITRE':
+                return sum((total(e) for e in sous), Decimal('0'))
+            if sous:
+                return ligne.quantite * sum((total(e) for e in sous), Decimal('0'))
+            if ligne.cout_unitaire is not None:
+                return ligne.quantite * ligne.cout_unitaire
+            return Decimal('0')
+
+        racines = enfants.get(None, [])
+        brut = sum((total(l) for l in racines if l.type_ligne != 'FIN'), Decimal('0'))
+        # Factures préchargées : même règle que Devis.total_facture()
+        facture = sum(
+            (f.montant for f in d.factures.all()
+             if f.status != 'cancelled' and f.type_doc in ('facture', 'acompte', 'avoir')),
+            Decimal('0'),
+        )
+        d.brut = brut
+        d.rtf = brut - facture
 
 
 def gen_reference(prefix):
@@ -601,7 +650,9 @@ def aide_delete(request, pk):
 @login_required
 def devis_list(request):
     profil = get_profil(request.user)
-    qs = Devis.objects.select_related('client', 'equipe__service__territoire', 'created_by').all()
+    qs = Devis.objects.select_related(
+        'client', 'equipe__service__territoire', 'created_by'
+    )
 
     # Filtres
     status = request.GET.get('status', '')
@@ -626,18 +677,23 @@ def devis_list(request):
         qs = qs.filter(created_by_id=auteur_id)
     if q:
         qs = qs.filter(
-            chantier__icontains=q
-        ) | qs.filter(
-            client__nom__icontains=q
-        ) | qs.filter(
-            reference__icontains=q
+            Q(chantier__icontains=q)
+            | Q(client__nom__icontains=q)
+            | Q(reference__icontains=q)
         )
 
-    for d in qs:
-        d.rtf = d.reste_a_facturer()
+    # Prefetch posé sur le queryset final (après tous les filtres) pour que
+    # `attacher_totaux_devis` calcule les totaux en mémoire, sans N+1.
+    qs = qs.prefetch_related('lignes', 'factures')
+
+    page_obj, base_qs = paginer(request, qs)
+    # Totaux calculés en mémoire sur la page courante uniquement (pas de N+1).
+    attacher_totaux_devis(page_obj.object_list)
 
     return render(request, 'core/devis_list.html', {
-        'devis': qs,
+        'devis': page_obj,
+        'page_obj': page_obj,
+        'base_qs': base_qs,
         'clients': Client.objects.all(),
         'equipes': Equipe.objects.select_related('service__territoire').all(),
         'services': Service.objects.select_related('territoire').all(),
@@ -651,7 +707,7 @@ def devis_list(request):
         'territoire_filter': territoire_id,
         'auteur_filter': auteur_id,
         'q': q,
-        'peut_supprimer': {d.pk: peut_supprimer_devis(request.user, d) for d in qs},  # ← ici
+        'peut_supprimer': {d.pk: peut_supprimer_devis(request.user, d) for d in page_obj},
     })
 
 
@@ -1440,8 +1496,12 @@ def factures_list(request):
     if auteur_id:
         factures = factures.filter(created_by_id=auteur_id)
 
+    page_obj, base_qs = paginer(request, factures)
+
     return render(request, 'core/factures_list.html', {
-        'factures': factures,
+        'factures': page_obj,
+        'page_obj': page_obj,
+        'base_qs': base_qs,
         'auteurs': User.objects.filter(
             factures_creees__devis__isnull=False
         ).exclude(factures_creees__type_doc='avoir').distinct().order_by('first_name', 'username'),
@@ -1462,7 +1522,12 @@ def avoirs_list(request):
     ).order_by('-created_at')
     if not peut_acceder_compta(request.user):
         avoirs = avoirs.filter(devis__isnull=False)
-    return render(request, 'core/avoirs_list.html', {'avoirs': avoirs})
+    page_obj, base_qs = paginer(request, avoirs)
+    return render(request, 'core/avoirs_list.html', {
+        'avoirs': page_obj,
+        'page_obj': page_obj,
+        'base_qs': base_qs,
+    })
 
 
 @login_required
@@ -2359,8 +2424,12 @@ def factures_compta_list(request, type_doc):
         | Q(type_doc='avoir', facture_origine__type_doc=type_doc)
     ).select_related('client', 'facture_origine', 'created_by').prefetch_related('avoirs').order_by('-created_at')
 
+    page_obj, base_qs = paginer(request, factures)
+
     return render(request, 'core/facture_compta_list.html', {
-        'factures': factures,
+        'factures': page_obj,
+        'page_obj': page_obj,
+        'base_qs': base_qs,
         'type_doc': type_doc,
         'meta': meta,
     })

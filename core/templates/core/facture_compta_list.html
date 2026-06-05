@@ -8,7 +8,7 @@
 <div class="page-hd">
   <div>
     <div class="page-title">{{ meta.titre }}</div>
-    <div class="page-sub">{{ factures|length }} document{{ factures|length|pluralize }}</div>
+    <div class="page-sub">{{ page_obj.paginator.count }} document{{ page_obj.paginator.count|pluralize }}</div>
   </div>
   {% if type_doc == 'structure' %}
   <a href="{% url 'core:compta-structure-create' %}" class="btn btn-prune"><i class="ti ti-plus"></i> Nouvelle facture</a>
@@ -69,5 +69,6 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'core/_pagination.html' %}
 </div>
 {% endblock %}

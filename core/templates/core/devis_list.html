@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="page-hd">
-  <div><div class="page-title">Devis</div><div class="page-sub">{{ devis|length }} devis</div></div>
+  <div><div class="page-title">Devis</div><div class="page-sub">{{ page_obj.paginator.count }} devis</div></div>
   <a href="{% url 'core:devis-create' %}" class="btn btn-prune"><i class="ti ti-plus"></i> Nouveau devis</a>
 </div>
 
@@ -69,7 +69,7 @@
         {% else %}—{% endif %}
       </td>
       <td>{{ d.date_creation|date:"d/m/Y" }}</td>
-      <td class="num">{{ d.total_brut|floatformat:2 }} €</td>
+      <td class="num">{{ d.brut|floatformat:2 }} €</td>
       <td><span class="badge b-{{ d.status }}"><span class="dot dot-{{ d.status }}"></span>{{ d.get_status_display }}</span></td>
       <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% elif d.rtf < 0 %}var(--red){% else %}var(--teal-dk){% endif %}">
         {% if d.rtf < 0 %}−{% endif %}{{ d.rtf|floatformat:2 }} €
@@ -91,5 +91,6 @@
     {% endfor %}
   </tbody>
 </table>
+{% include 'core/_pagination.html' %}
 </div>
 {% endblock %}
