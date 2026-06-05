@@ -38,6 +38,7 @@ from .permissions import (
     get_collegues_ids, peut_acceder_compta,
 )
 from .dashboard_widgets import resolve_dashboard, sanitize_config
+from .totaux import attacher_totaux_devis
 # ══════════════════════════════════════════
 #  HELPERS
 # ══════════════════════════════════════════
@@ -67,42 +68,6 @@ def paginer(request, queryset, par_page=50):
     params = request.GET.copy()
     params.pop('page', None)
     return page_obj, params.urlencode()
-
-
-def attacher_totaux_devis(devis_iterable):
-    """Calcule `brut` et `rtf` (reste à facturer) pour chaque devis à partir des
-    lignes et factures **préchargées** (prefetch_related), sans requête par nœud.
-
-    Remplace `Devis.total_brut()`/`reste_a_facturer()` dans les listes : ces
-    méthodes parcourent l'arbre des lignes en frappant la base à chaque nœud
-    (`enfants.all()` + `enfants.exists()`), soit des milliers de requêtes pour
-    quelques dizaines de devis. Ici, tout est calculé en mémoire.
-    """
-    for d in devis_iterable:
-        enfants = {}
-        for l in d.lignes.all():          # préchargé via prefetch_related('lignes')
-            enfants.setdefault(l.parent_id, []).append(l)
-
-        def total(ligne):
-            sous = enfants.get(ligne.pk, [])
-            if ligne.type_ligne == 'TITRE':
-                return sum((total(e) for e in sous), Decimal('0'))
-            if sous:
-                return ligne.quantite * sum((total(e) for e in sous), Decimal('0'))
-            if ligne.cout_unitaire is not None:
-                return ligne.quantite * ligne.cout_unitaire
-            return Decimal('0')
-
-        racines = enfants.get(None, [])
-        brut = sum((total(l) for l in racines if l.type_ligne != 'FIN'), Decimal('0'))
-        # Factures préchargées : même règle que Devis.total_facture()
-        facture = sum(
-            (f.montant for f in d.factures.all()
-             if f.status != 'cancelled' and f.type_doc in ('facture', 'acompte', 'avoir')),
-            Decimal('0'),
-        )
-        d.brut = brut
-        d.rtf = brut - facture
 
 
 def gen_reference(prefix):

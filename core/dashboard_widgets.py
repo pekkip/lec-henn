@@ -13,12 +13,17 @@ admin/comptable (peut_acceder_compta), filtrés au rendu ET à la sauvegarde.
 """
 from collections import OrderedDict
 from datetime import date
+from decimal import Decimal
 
 from django.db.models import Sum, Count
 from django.utils import timezone
 
 from .models import Devis, Facture, AuditLog, LigneDevis
 from .permissions import get_collegues_ids, peut_acceder_compta
+from .totaux import (
+    total_brut_devis, total_facture_devis,
+    attacher_totaux_devis, totaux_lignes,
+)
 
 
 # ══════════════════════════════════════════
@@ -157,14 +162,16 @@ _C_GRAY = 'var(--gray)'
 
 
 def _kpi_ca(user, scope):
-    qs = scoped_devis(user, scope).filter(status='accepted')
-    total = sum(d.total_brut() for d in qs)
+    # Totaux calculés en mémoire (prefetch des lignes) — pas de N+1.
+    qs = scoped_devis(user, scope).filter(status='accepted').prefetch_related('lignes')
+    total = sum((total_brut_devis(d) for d in qs), Decimal('0'))
     return {'value': float(total), 'unit': '€', 'sub': 'devis acceptés', 'color': _C_PRUNE}
 
 
 def _kpi_reste_a_facturer(user, scope):
-    qs = scoped_devis(user, scope).filter(status='accepted')
-    total = sum(d.reste_a_facturer() for d in qs)
+    qs = (scoped_devis(user, scope).filter(status='accepted')
+          .prefetch_related('lignes', 'factures'))
+    total = sum((total_brut_devis(d) - total_facture_devis(d) for d in qs), Decimal('0'))
     return {'value': float(total), 'unit': '€', 'sub': 'devis acceptés', 'color': _C_AMBER}
 
 
@@ -197,9 +204,8 @@ def _kpi_taux(user, scope):
 
 def _list_devis_recents(user, scope):
     devis = list(scoped_devis(user, scope).select_related('client', 'equipe')
-                 .order_by('-created_at')[:6])
-    for d in devis:
-        d.rtf = d.reste_a_facturer()
+                 .prefetch_related('lignes', 'factures').order_by('-created_at')[:6])
+    attacher_totaux_devis(devis)
     return {'devis': devis}
 
 
@@ -258,11 +264,11 @@ def _chart_ca_mensuel(user, scope):
         buckets[ym] = 0.0
     depuis = date(months[-1][0], months[-1][1], 1)
     qs = scoped_devis(user, scope).filter(
-        status='accepted', date_creation__gte=depuis)
+        status='accepted', date_creation__gte=depuis).prefetch_related('lignes')
     for d in qs:
         key = (d.date_creation.year, d.date_creation.month)
         if key in buckets:
-            buckets[key] += float(d.total_brut())
+            buckets[key] += float(total_brut_devis(d))
     mois_fr = ['', 'Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin',
                'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc']
     labels = [f'{mois_fr[mm]} {yy % 100:02d}' for (yy, mm) in buckets]
@@ -285,12 +291,13 @@ def _chart_devis_statut(user, scope):
 
 def _chart_top_clients(user, scope):
     """Top 7 clients par CA accepté (total_brut Python → agrégation manuelle)."""
-    qs = scoped_devis(user, scope).filter(status='accepted').select_related('client')
+    qs = (scoped_devis(user, scope).filter(status='accepted')
+          .select_related('client').prefetch_related('lignes'))
     totaux = {}
     for d in qs:
         if not d.client_id:
             continue
-        totaux[d.client] = totaux.get(d.client, 0.0) + float(d.total_brut())
+        totaux[d.client] = totaux.get(d.client, 0.0) + float(total_brut_devis(d))
     top = sorted(totaux.items(), key=lambda kv: kv[1], reverse=True)[:7]
     return {
         'labels': [str(c) for c, _ in top],
@@ -305,10 +312,13 @@ def _chart_financements(user, scope):
         aide__isnull=False, devis__status='accepted'
     ).select_related('aide', 'devis')
     qs = _apply_scope(qs, user, scope, field='devis__created_by')
+    # Totaux des lignes calculés en mémoire (1 requête pour tous les sous-arbres).
+    lignes = list(qs)
+    total_par_ligne = totaux_lignes(lignes)
     totaux = {}
-    for ligne in qs:
+    for ligne in lignes:
         org = ligne.aide.organisme or 'Autre'
-        totaux[org] = totaux.get(org, 0.0) + float(ligne.total())
+        totaux[org] = totaux.get(org, 0.0) + float(total_par_ligne[ligne.pk])
     items = sorted(totaux.items(), key=lambda kv: kv[1], reverse=True)[:8]
     return {
         'labels': [org for org, _ in items],

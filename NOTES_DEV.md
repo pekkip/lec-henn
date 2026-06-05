@@ -5,13 +5,15 @@
 > `git pull` + lecture. Tenir à jour à chaque session.
 
 **État du projet (05/06/2026 — session 23) :** en test beta, en attente de retours
-des collègues. **PERF LISTES** (session 23) : la liste des devis ralentissait
-(~60 devis) à cause d'un N+1 — `reste_a_facturer()`/`total_brut()` parcourent l'arbre
-des lignes en frappant la base à chaque nœud, et le brut était recalculé une 2ᵉ fois
-dans le template. Corrigé : `prefetch_related('lignes','factures')` + calcul des totaux
-**en mémoire** (`attacher_totaux_devis`) → de ~milliers de requêtes à ~10. **Pagination**
-(50/page, helper `paginer` + partial `_pagination.html`) ajoutée aux 4 listes (devis,
-factures, compta, avoirs). **51 tests.** **TABLEAU DE BORD PERSONNALISABLE** (session 21) : dashboard modulaire par
+des collègues. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
+`total_brut()`/`reste_a_facturer()`/`LigneDevis.total()` parcourent l'arbre des lignes en
+frappant la base à chaque nœud. Sur les **listes** (devis) c'était aggravé par un 2ᵉ calcul
+dans le template ; sur le **dashboard**, plusieurs widgets (CA, reste à facturer, CA mensuel,
+top clients, financements) sommaient ces méthodes sur **tous** les devis acceptés. Corrigé :
+logique de totaux factorisée dans **`core/totaux.py`** (calcul **en mémoire** depuis des
+lignes préchargées) + `prefetch_related` partout → nombre de requêtes **constant** (ne croît
+plus avec le volume). **Pagination** (50/page, helper `paginer` + partial `_pagination.html`)
+ajoutée aux 4 listes (devis, factures, compta, avoirs). **52 tests.** **TABLEAU DE BORD PERSONNALISABLE** (session 21) : dashboard modulaire par
 utilisateur (widgets KPI / listes / graphiques Chart.js / activité), réordonnables en
 glisser-déposer, masquables, avec **portée par widget** (Tous / Mes données / Mon équipe) ;
 widgets compta réservés admin/comptable ; sidebar **repliable** (icônes seules). Icônes :
@@ -72,6 +74,7 @@ cb-bretagne/
     ├── views.py
     ├── urls.py
     ├── permissions.py
+    ├── totaux.py              — calcul des totaux de devis en mémoire (anti N+1), partagé views/dashboard
     ├── dashboard_widgets.py   — registre + fournisseurs de données des widgets du dashboard
     ├── management/commands/seed_demo.py  — jeu de démo (9 équipes, idempotent, marqué SEED_DEMO)
     ├── admin.py
@@ -208,12 +211,12 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 
 ---
 
-## Session 23 — 05/06/2026 — Performance des listes (N+1) & pagination
+## Session 23 — 05/06/2026 — Performance listes & dashboard (N+1) & pagination
 
 ### Contexte
 Remontée : la liste des devis met du temps à s'afficher dès ~60 devis (objectif :
-plusieurs centaines à terme). Diagnostic : ce n'est pas le volume mais une **explosion
-du nombre de requêtes SQL**.
+plusieurs centaines à terme), **puis le dashboard aussi**. Diagnostic : ce n'est pas
+le volume mais une **explosion du nombre de requêtes SQL** (même cause sur les deux).
 
 ### Diagnostic
 - `devis_list` faisait `for d in qs: d.rtf = d.reste_a_facturer()`.
@@ -224,15 +227,18 @@ du nombre de requêtes SQL**.
 - Bilan : ~100-150 requêtes **par devis**. 60 devis ≈ 6 000-9 000 requêtes ; 300 devis ≈
   30 000+ → page inutilisable.
 
-### Fichiers modifiés
+### Fichiers modifiés — Listes
+- **`core/totaux.py` (nouveau)** — source unique de la logique de totaux **en mémoire**,
+  partagée entre `views.py` et `dashboard_widgets.py` (placée à part pour éviter l'import
+  circulaire). Expose : `total_brut_devis(d)`, `total_facture_devis(d)`,
+  `attacher_totaux_devis(iterable)` (attache `brut`/`rtf`), `totaux_lignes(qs)`
+  (`{ligne_id: total}` pour un lot de lignes, sous-arbres chargés en 1 requête).
+  Réplique exactement `LigneDevis.total()` / `Devis.total_brut()` / `total_facture()`.
 - `core/views.py` :
   - **`paginer(request, queryset, par_page=50)`** (nouveau helper) — renvoie
     `(page_obj, base_qs)` ; `base_qs` = query string courante sans `page` (conserve les
     filtres dans les liens de pagination).
-  - **`attacher_totaux_devis(devis_iterable)`** (nouveau helper) — calcule `brut` et `rtf`
-    en **mémoire** depuis les lignes/factures préchargées (construit une map
-    `parent_id → enfants`, total récursif en Python). Même sémantique que
-    `total_brut()`/`total_facture()`.
+  - Importe `attacher_totaux_devis` depuis `totaux.py`.
   - `devis_list` — `prefetch_related('lignes','factures')` posé sur le **queryset final**
     (après filtres) ; filtre `q` réécrit avec `Q(...)|Q(...)` (au lieu de `qs.filter()|qs.filter()`
     qui pouvait perdre le prefetch) ; pagination ; totaux attachés à la page seulement.
@@ -244,24 +250,46 @@ du nombre de requêtes SQL**.
 - `devis_list.html` — compteur `{{ page_obj.paginator.count }}`, `d.total_brut` → `d.brut`,
   include du partial. `factures_list.html` / `facture_compta_list.html` / `avoirs_list.html` —
   compteur via `paginator.count` + include du partial.
-- `core/tests.py` — classe **`ListesPerfTests`** (4 tests) : équivalence des totaux avec les
-  méthodes du modèle, pagination (50/page + page 2), conservation des filtres dans `base_qs`,
-  **requêtes bornées** (`CaptureQueriesContext` < 30 requêtes pour 10 devis arborescents,
-  chemin normal **et** chemin filtre `q`). **51 tests au total.**
+### Fichiers modifiés — Dashboard
+- `core/dashboard_widgets.py` — providers réécrits pour utiliser `totaux.py` au lieu des
+  méthodes modèle appelées en boucle :
+  - `_kpi_ca` / `_kpi_reste_a_facturer` — `prefetch_related('lignes'[, 'factures'])` +
+    `total_brut_devis` / `total_facture_devis` (sommait `total_brut()`/`reste_a_facturer()`
+    sur **tous** les devis acceptés).
+  - `_chart_ca_mensuel` / `_chart_top_clients` — `prefetch_related('lignes')` + `total_brut_devis`.
+  - `_chart_financements` — `totaux_lignes(lignes)` (1 requête pour tous les sous-arbres) au
+    lieu de `ligne.total()` par ligne.
+  - `_list_devis_recents` — `prefetch_related('lignes','factures')` + `attacher_totaux_devis`.
+- `core/templates/core/dashboard.html` — **`d.total_brut` → `d.brut`** dans le widget
+  « Derniers devis » : le template rappelait la **méthode modèle** (re-parcours d'arbre avec
+  requête par nœud) sur les 6 devis affichés. Corrigé en lisant l'attribut préchargé.
+
+### Tests
+- `core/tests.py` — classe **`ListesPerfTests`** : équivalence des totaux avec les méthodes
+  du modèle, pagination (50/page + page 2), conservation des filtres dans `base_qs`,
+  **requêtes bornées** sur la liste devis (chemin normal + filtre `q`), et **absence de N+1
+  sur le dashboard** (`test_dashboard_pas_de_n_plus_un` : le nb de requêtes ne change pas en
+  passant de 4 à 20 devis acceptés, tous widgets affichés). **52 tests au total.**
 
 ### Décisions actées
 - **Calcul en mémoire** plutôt que dénormalisation d'un champ total (pas de migration, pas de
   risque de staleness en beta) ; la dénormalisation reste une option Phase 3 si besoin.
+- **`core/totaux.py`** = source unique de la logique de totaux, pour éviter de redévelopper
+  (et désynchroniser) le calcul d'arbre dans `views.py` ET `dashboard_widgets.py`.
 - **Pagination 50/page** sur les 4 listes — borne le coût et le poids HTML quel que soit le volume.
-- Helpers `paginer` / `attacher_totaux_devis` factorisés dans la section HELPERS de `views.py`.
-- `Devis.total_brut()`/`reste_a_facturer()` **conservées** (utilisées ailleurs, ex. devis_detail) ;
-  on ne les appelle simplement plus en boucle sur les listes.
+- `Devis.total_brut()`/`reste_a_facturer()`/`LigneDevis.total()` **conservées** (utilisées
+  ailleurs, ex. devis_detail, lignes_save) ; on ne les appelle simplement plus **en boucle**.
 
 ### Pièges rencontrés
 - `qs.filter(a) | qs.filter(b)` (ancien filtre `q`) risquait de **perdre le
   `prefetch_related`** → réécrit en `Q(a)|Q(b)` et prefetch déplacé après tous les filtres.
 - `prefetch_related('lignes')` ramène **tout** l'arbre (le related_name `lignes` couvre toutes
   les `LigneDevis` du devis, parents comme enfants) → une seule requête pour l'arbre complet.
+- **Piège subtil** : la 1ʳᵉ correction du dashboard laissait une croissance résiduelle des
+  requêtes. Cause = le **template** `dashboard.html` appelait encore `d.total_brut` (méthode)
+  sur les devis du widget « Derniers devis ». Diagnostic via `CaptureQueriesContext` (requêtes
+  `SELECT 1 ... WHERE parent_id=N LIMIT 1` = `enfants.exists()`). Toujours vérifier les
+  **templates**, pas seulement les vues.
 
 ---
 
@@ -999,18 +1027,19 @@ Pour supprimer proprement :
   `aides_api_save` montant invalide : ✅ couvert session 17 (test `test_aides_api_save_montant_invalide_retourne_400`).
   Compta (factures structure/appel, avoirs, type_client) : ✅ couvert session 19 (`FactureComptaTests`).
   Tableau de bord (rendu, gating compta, config, portée) : ✅ couvert session 21 (`DashboardTests`).
-  Perf listes (totaux, pagination, requêtes bornées) : ✅ couvert session 23 (`ListesPerfTests`).
-  **51 tests** au total.
+  Perf listes + dashboard (totaux, pagination, requêtes bornées, anti N+1) : ✅ couvert
+  session 23 (`ListesPerfTests`). **52 tests** au total.
 
 ### Performance
 - ✅ **Listes (devis/factures/compta/avoirs)** — réglé session 23 : N+1 du calcul des
   totaux supprimé (`prefetch_related` + `attacher_totaux_devis` en mémoire) + pagination
   50/page sur les 4 listes. ~milliers de requêtes → ~10.
-- **Dashboard** — counts et sommes sur champ DB (`Facture.montant`) passés en `aggregate`
-  (session 21) ; les sommes de `Devis.total_brut` (méthode Python, boucle sur les lignes)
-  restent en Python pour le CA et les graphiques de CA. Même cause racine que les listes
-  (total d'arbre non agrégeable en SQL) ; si le dashboard ralentit, appliquer le même
-  pattern mémoire ou un total dénormalisé — Phase 3.
+- ✅ **Dashboard** — réglé session 23 : les widgets CA / reste à facturer / CA mensuel /
+  top clients / financements sommaient `total_brut()`/`reste_a_facturer()`/`ligne.total()`
+  sur tous les devis acceptés (N+1). Migré sur `core/totaux.py` (calcul mémoire + prefetch).
+  Nombre de requêtes désormais **constant** (testé). Les sommes restent en Python (total
+  d'arbre non agrégeable en SQL) mais sans requête par nœud ; dénormalisation = option Phase 3
+  seulement si le volume l'exige.
 
 ### Fonctionnel (à prévoir)
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.

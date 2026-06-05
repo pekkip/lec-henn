@@ -775,3 +775,46 @@ class ListesPerfTests(TestCase):
             resp2 = self.client.get(reverse('core:devis-list') + '?q=C')
         self.assertEqual(resp2.status_code, 200)
         self.assertLess(len(ctx2.captured_queries), 30)
+
+    def _seed_dashboard_devis(self, debut, fin, aide):
+        for i in range(debut, fin):
+            d = self._devis_avec_arbre(f'DEV-2026-4{i:03d}')
+            d.status = 'accepted'
+            d.save(update_fields=['status'])
+            # Ligne de financement liée à une aide (exerce chart_financements).
+            LigneDevis.objects.create(
+                devis=d, type_ligne='FIN', quantite=1,
+                cout_unitaire=Decimal('-200'), aide=aide, ordre=2)
+
+    def _compter_requetes_dashboard(self):
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(reverse('core:dashboard'))
+        self.assertEqual(resp.status_code, 200)
+        return len(ctx.captured_queries)
+
+    def test_dashboard_pas_de_n_plus_un(self):
+        # Même cause racine que les listes : plusieurs widgets sommaient
+        # `total_brut()`/`reste_a_facturer()` sur TOUS les devis acceptés.
+        # Preuve d'absence de N+1 : le nombre de requêtes ne doit PAS croître
+        # avec le nombre de devis (prefetch → clauses IN, coût constant).
+        from .dashboard_widgets import WIDGETS
+        from .models import BibliothèqueAides
+
+        aide = BibliothèqueAides.objects.create(
+            description='ANAH', organisme='ANAH', created_by=self.admin)
+        # Affiche TOUS les widgets (cas le plus lourd).
+        self.admin.profil.dashboard_config = {'widgets': [
+            {'id': wid, 'hidden': False, 'scope': 'all'} for wid in WIDGETS
+        ]}
+        self.admin.profil.save()
+        self.client.login(username='admin', password='pw')
+
+        self._seed_dashboard_devis(0, 4, aide)
+        requetes_4 = self._compter_requetes_dashboard()
+
+        self._seed_dashboard_devis(4, 20, aide)   # 5× plus de devis
+        requetes_20 = self._compter_requetes_dashboard()
+
+        # Avec l'ancien N+1, requetes_20 aurait explosé (× nombre de devis).
+        # Ici l'écart doit rester nul (ou marginal).
+        self.assertLessEqual(requetes_20, requetes_4 + 2)

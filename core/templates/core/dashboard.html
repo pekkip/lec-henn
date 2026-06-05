@@ -89,7 +89,7 @@
               <td><span class="mono">{{ d.reference }}</span></td>
               <td>{{ d.client }}</td>
               <td>{{ d.chantier }}</td>
-              <td class="num">{{ d.total_brut|floatformat:2 }} €</td>
+              <td class="num">{{ d.brut|floatformat:2 }} €</td>
               <td><span class="badge b-{{ d.status }}"><span class="dot dot-{{ d.status }}"></span>{{ d.get_status_display }}</span></td>
               <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% else %}var(--teal-dk){% endif %}">{{ d.rtf|floatformat:2 }} €</td>
             </tr>
