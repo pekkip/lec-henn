@@ -1021,6 +1021,16 @@ Pour supprimer proprement :
 - **Context processor** — injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue).
 - **Modèle `BibliothèqueAides`** — nom de classe avec accent (non-ASCII), fragile pour imports/outils. Renommer en ASCII (`BibliothequeAides`) si on retouche le modèle.
 - **Auditer les templates** — chercher `f.reference` parasites (→ doit être `f.get_reference`).
+- **Calcul des totaux dupliqué (2 implémentations)** — le parcours d'arbre du total existe à
+  **deux endroits** : `core/totaux.py` (version **en mémoire**, anti N+1, utilisée par les
+  **listes ET le dashboard** via un import partagé) et `models.py` `LigneDevis.total()` /
+  `Devis.total_brut()` (version **une requête par nœud**, conservée pour l'affichage d'**un
+  seul** devis : `devis_detail`, réponse `lignes_save`, PDF…). C'est **volontaire** (inutile
+  de précharger pour un objet unique), mais les deux doivent rester **sémantiquement
+  identiques** — garde-fou : `test_totaux_identiques_aux_methodes_modele` (égalité stricte).
+  Consolidation possible (Phase 3, propreté seulement) : faire déléguer `models.py` à
+  `totaux.py` en préchargeant l'arbre du devis courant → une seule implémentation. Non requis
+  pour la perf.
 
 ### Tests
 - **Couverture session 14 manquante** — zone_financement (persistance), `aide_delete`.
