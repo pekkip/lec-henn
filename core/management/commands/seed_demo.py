@@ -292,8 +292,8 @@ TEAMS = [
     ('65-GORM',  'walls',          'Insertion 35', WALLS_RM,  ['ville_rennes']),
     ('61-GOSM',  'walls',          'Insertion 35', WALLS_SM,  ['ville_stmalo']),
     ('65-SORM',  'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola', 'rennes_metro']),
-    ('AQRM A',   'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola']),
-    ('AQRM B',   'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola']),
+    ('55-AQRM A', 'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola']),
+    ('55-AQRM B', 'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola']),
     ('58-AQSM',  'reno',           'Insertion 35', RENO_CH,   ['emeraude', 'mairie_sm', 'ecole_moulin']),
     ('Bricobus rural',  'bricobus_rural',  'Bricobus 35', BR_RURAL_CH,  ['p_rur1', 'p_rur2', 'p_rur3']),
     ('Bricobus urbain', 'bricobus_urbain', 'Bricobus 35', BR_URBAIN_CH, ['p_urb1', 'p_urb2', 'p_urb3']),
@@ -318,11 +318,11 @@ EQUIP_DEMO = {
         ('Rozenn', 'GUYADER'),     ('Yuna', 'PENNARUN'),    ('Talig', 'EVEN'),
         ('Naig', 'CROZON'),        ('Loeiz', 'PRIGENT'),    ('Gwenola', 'JARNO'),
     ],
-    'AQRM A': [
+    '55-AQRM A': [
         ('Gwenael', 'OLLIVIER'),   ('Mikael', 'KERGUELEN'), ('Perig', 'BOUDIC'),
         ('Denez', 'PLOUZANE'),     ('Enora', 'TANGUY'),
     ],
-    'AQRM B': [
+    '55-AQRM B': [
         ('Riwanon', 'ROPARS'),     ('Efflam', 'STEPHAN'),   ('Naig', 'DERIEN'),
         ('Gaetan', 'KERIVEL'),     ('Sterenn', 'PEREZ'),
     ],
