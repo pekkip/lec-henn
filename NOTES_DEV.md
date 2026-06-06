@@ -1114,9 +1114,4 @@ Pour supprimer proprement :
   **Contournement actif (session 20)** : `utilisateur_create` affiche **toujours** le mot de
   passe temporaire à l'écran (communication manuelle), l'email reste best-effort.
 - **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés (logo, etc.).
-- ⚠️ **Renommage équipes sur Railway (prod)** — les équipes d'insertion ont été renommées en local
-  (session 25 : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM, AQSM→58-AQSM, AQRM→AQRM A + AQRM B)
-  mais **pas encore en production Railway**. À faire manuellement : `railway run python manage.py shell`
-  puis `Equipe.objects.filter(nom='SORM').update(nom='65-SORM')` etc. (même script que local, adapter
-  les noms exacts visibles en prod via Django Admin). AQRM : renommer en AQRM A + créer AQRM B dans
-  le même service.
+- ✅ **Renommage équipes sur Railway (prod)** — fait session 27 : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM, AQSM→58-AQSM, AQRM→AQRM A + AQRM B.
