@@ -68,6 +68,16 @@
 
 /* ── Empty row ───────────────────────────────────────── */
 .tl-empty{grid-row:1;grid-column:1/-1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ccc;font-style:italic}
+
+/* ── Drag & drop ─────────────────────────────────────── */
+body.dragging-active .tl-bar{pointer-events:none}
+.tl-cell.drop-over{background:rgba(43,191,164,.28)!important;outline:2px dashed var(--teal);outline-offset:-2px}
+/* Bouton suppression sur barre */
+.tl-bar .bar-del{display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:inherit;font-size:15px;line-height:1;padding:0 3px;opacity:.6;z-index:3}
+.tl-bar:hover .bar-del{display:block}
+.tl-bar .bar-del:hover{opacity:1}
+.tl-bar[draggable="true"]{cursor:grab}
+.tl-bar[draggable="true"]:active{cursor:grabbing}
 </style>
 {% endblock %}
 
@@ -165,19 +175,20 @@
             </button>
             {% endif %}
           </div>
-          <div class="tl-track" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
-            {# Fond de cellules (auto-placed, une par jour) #}
+          <div class="tl-track" data-equipe="{{ ligne.equipe.pk }}" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
+            {# Fond de cellules (auto-placed, une par jour) — data-date pour le drop DnD #}
             {% for j in jours %}
-            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" style="grid-row:1"></div>
+            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" data-date="{{ j|date:'Y-m-d' }}" style="grid-row:1"></div>
             {% endfor %}
             {# Barres d'affectation (positionnées explicitement) #}
             {% for barre in ligne.barres %}
-            <a href="{% url 'core:emargement' %}?equipe={{ ligne.equipe.pk }}&debut={{ barre.lundi_em }}"
-               class="tl-bar {{ barre.color }}{% if barre.starts_before %} clip-left{% endif %}{% if barre.ends_after %} clip-right{% endif %}"
+            <div class="tl-bar {{ barre.color }}{% if barre.starts_before %} clip-left{% endif %}{% if barre.ends_after %} clip-right{% endif %}"
                style="grid-column:{{ barre.col_debut }}/{{ barre.col_fin_excl }}"
-               title="{{ barre.label }} · cliquer pour l'émargement">
+               title="{{ barre.label }}"
+               {% if ligne.peut_modifier %}draggable="true" data-aff="{{ barre.aff.pk }}" data-debut="{{ barre.aff.date_debut|date:'Y-m-d' }}" data-fin="{{ barre.aff.date_fin|date:'Y-m-d' }}" data-equipe="{{ ligne.equipe.pk }}"{% endif %}>
               {{ barre.label }}
-            </a>
+              {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button>{% endif %}
+            </div>
             {% endfor %}
             {% if not ligne.barres %}
             <div class="tl-empty">Aucun chantier planifié{% if ligne.peut_modifier %}&nbsp;— cliquer + pour affecter{% endif %}</div>
@@ -239,13 +250,98 @@
 
 {% block extra_js %}
 <script>
-const CSRF    = '{{ csrf_token }}';
-const URL_AFF = '{% url "core:affectation-save" %}';
+const CSRF     = '{{ csrf_token }}';
+const URL_AFF  = '{% url "core:affectation-save" %}';
+const URL_MOVE = '{% url "core:affectation-move" %}';
+const URL_DEL  = '{% url "core:affectation-delete" %}';
 const MODIFIABLES = new Set({{ equipes_modifiables_ids|safe }});
 const PEUT_GLOBAL = {{ peut_modifier_global|lower }};
 const DEVIS_MO  = {{ devis_mo_json|safe }};
 const EQ_EFF    = {{ equipe_effectifs_json|safe }};
 const TAUX_JOUR = 82.5;  // €/jour/équipier (base 4 j/semaine Lun-Jeu)
+
+// ── Drag & drop ────────────────────────────────────────
+let dragData = null;
+
+function daysBetween(a, b) {
+  return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+}
+function addCalendarDays(dateStr, n) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
+  bar.addEventListener('dragstart', e => {
+    dragData = {
+      affId: bar.dataset.aff,
+      dur:   daysBetween(bar.dataset.debut, bar.dataset.fin),
+    };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', bar.dataset.aff);
+    document.body.classList.add('dragging-active');
+    setTimeout(() => { bar.style.opacity = '.45'; }, 0);
+  });
+
+  bar.addEventListener('dragend', () => {
+    document.body.classList.remove('dragging-active');
+    bar.style.opacity = '';
+    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
+    dragData = null;
+  });
+});
+
+document.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
+  cell.addEventListener('dragover', e => {
+    if (!dragData) return;
+    const eq = parseInt(cell.closest('.tl-track').dataset.equipe);
+    if (!PEUT_GLOBAL && !MODIFIABLES.has(eq)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
+    cell.classList.add('drop-over');
+  });
+
+  cell.addEventListener('dragleave', () => {
+    cell.classList.remove('drop-over');
+  });
+
+  cell.addEventListener('drop', e => {
+    if (!dragData) return;
+    e.preventDefault();
+    const track    = cell.closest('.tl-track');
+    const newEquipe = parseInt(track.dataset.equipe);
+    if (!PEUT_GLOBAL && !MODIFIABLES.has(newEquipe)) return;
+    const newDebut = cell.dataset.date;
+    const newFin   = addCalendarDays(newDebut, dragData.dur);
+    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
+    fetch(URL_MOVE, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({aff_id: parseInt(dragData.affId), date_debut: newDebut, date_fin: newFin, equipe_id: newEquipe}),
+    })
+    .then(r => r.json())
+    .then(d => { if (d.ok) location.reload(); else alert(d.error || 'Erreur'); })
+    .catch(() => alert('Erreur réseau'));
+    dragData = null;
+  });
+});
+
+// ── Suppression ────────────────────────────────────────
+function deleteAff(e, affId) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (!confirm('Supprimer cette affectation ?')) return;
+  fetch(URL_DEL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({aff_id: affId}),
+  })
+  .then(r => r.json())
+  .then(d => { if (d.ok) location.reload(); else alert(d.error || 'Erreur'); })
+  .catch(() => alert('Erreur réseau'));
+}
 
 // Ajoute n jours Lun-Jeu (vendredi/week-end exclus) à partir de startStr (YYYY-MM-DD)
 function addWorkingDays(startStr, n) {
@@ -300,13 +396,15 @@ function submitAff() {
   const equipeId = document.getElementById('aff-equipe').value;
   const devisId  = document.getElementById('aff-devis').value;
   const debut    = document.getElementById('aff-debut').value;
-  const fin      = document.getElementById('aff-fin').value;
   const err      = document.getElementById('aff-err');
 
   if (!equipeId) { err.textContent = 'Sélectionnez une équipe.'; err.style.display = ''; return; }
   if (!devisId)  { err.textContent = 'Sélectionnez un chantier.'; err.style.display = ''; return; }
-  if (!debut || !fin) { err.textContent = 'Renseignez les dates.'; err.style.display = ''; return; }
-  if (fin < debut)    { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
+  if (!debut)    { err.textContent = 'Renseignez la date de début.'; err.style.display = ''; return; }
+  if (!document.getElementById('aff-fin').value) calcDateFin();
+  const fin = document.getElementById('aff-fin').value;
+  if (!fin)       { err.textContent = 'Renseignez la date de fin (aucune MO trouvée sur ce devis ?).'; err.style.display = ''; return; }
+  if (fin < debut) { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
   err.style.display = 'none';
 
   fetch(URL_AFF, {

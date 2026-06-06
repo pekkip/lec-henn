@@ -3185,6 +3185,75 @@ def affectation_save(request):
 
 @login_required
 @require_POST
+def affectation_move(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    aff_id    = data.get('aff_id')
+    debut_s   = (data.get('date_debut') or '').strip()
+    fin_s     = (data.get('date_fin') or '').strip()
+    equipe_id = data.get('equipe_id')
+
+    try:
+        aff = Affectation.objects.select_related('equipe').get(pk=aff_id)
+    except Affectation.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Affectation introuvable'}, status=404)
+
+    if not est_encadrant(request.user, aff.equipe):
+        return JsonResponse({'ok': False, 'error': 'Non autorisé sur cette équipe'}, status=403)
+
+    try:
+        date_debut = datetime.strptime(debut_s, '%Y-%m-%d').date()
+        date_fin   = datetime.strptime(fin_s,   '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Dates invalides'}, status=400)
+    if date_fin < date_debut:
+        return JsonResponse({'ok': False, 'error': 'Fin < début'}, status=400)
+
+    if equipe_id and int(equipe_id) != aff.equipe_id:
+        try:
+            new_equipe = Equipe.objects.get(pk=equipe_id, actif=True, service__module_planning=True)
+        except Equipe.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Équipe cible introuvable'}, status=404)
+        if not est_encadrant(request.user, new_equipe):
+            return JsonResponse({'ok': False, 'error': 'Non autorisé sur l\'équipe cible'}, status=403)
+        aff.equipe = new_equipe
+
+    aff.date_debut = date_debut
+    aff.date_fin   = date_fin
+    aff.save()
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@require_POST
+def affectation_delete(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    aff_id = data.get('aff_id')
+    try:
+        aff = Affectation.objects.select_related('equipe').get(pk=aff_id)
+    except Affectation.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Affectation introuvable'}, status=404)
+
+    if not est_encadrant(request.user, aff.equipe):
+        return JsonResponse({'ok': False, 'error': 'Non autorisé sur cette équipe'}, status=403)
+
+    aff.delete()
+    return JsonResponse({'ok': True})
+
+
+@login_required
+@require_POST
 def presence_save(request):
     if not peut_acceder_planning(request.user):
         return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)

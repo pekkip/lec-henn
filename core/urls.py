@@ -97,6 +97,8 @@ urlpatterns = [
     path('planning/',                            views.planning_mois,         name='planning'),
     path('planning/emargement/',                 views.emargement_view,       name='emargement'),
     path('planning/affectation/sauvegarder/',    views.affectation_save,      name='affectation-save'),
+    path('planning/affectation/deplacer/',       views.affectation_move,      name='affectation-move'),
+    path('planning/affectation/supprimer/',      views.affectation_delete,    name='affectation-delete'),
     path('planning/presence/sauvegarder/',       views.presence_save,         name='presence-save'),
 
     # Gestion utilisateurs
