@@ -3073,6 +3073,26 @@ def planning_mois(request):
     aff_color = {aff.pk: COLORS_AFF[aff.tranche.devis_id % len(COLORS_AFF)] for aff in affectations}
     equipes_modifiables_ids = {e.pk for e in equipes if est_encadrant(request.user, e)}
 
+    # MO des devis sur la grille (pour pct_consomme)
+    devis_dispo = list(
+        Devis.objects.filter(status='accepted')
+        .select_related('client')
+        .prefetch_related('lignes')
+        .order_by('client__nom')
+    )
+    devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
+    equipe_effectifs_json = {e.pk: e.nb_equipiers for e in equipes}
+
+    # Heures consommées par tranche (somme presences de toutes les équipes affectées)
+    from django.db.models import Sum as _DbSum
+    tranche_ids = list({aff.tranche_id for aff in affectations})
+    _rows = (
+        Presence.objects.filter(affectation__tranche_id__in=tranche_ids)
+        .values('affectation__tranche_id')
+        .annotate(total=_DbSum('heures'))
+    ) if tranche_ids else []
+    heures_par_tranche = {r['affectation__tranche_id']: float(r['total']) for r in _rows}
+
     def day_col(d):
         """Colonne 1-based dans la grille piste (sans colonne nom-équipe)."""
         return (d - debut_grille).days + 1
@@ -3091,30 +3111,28 @@ def planning_mois(request):
             col_f = day_col(d_fin)
             lundi_em = d_debut - timedelta(days=d_debut.weekday())
             label = aff.tranche.devis.chantier or aff.tranche.devis.client.nom
+            nb_jours = _count_working_days(aff.date_debut, aff.date_fin)
+            mo_eur = devis_mo_json.get(aff.tranche.devis_id, 0)
+            heures_budget = mo_eur / float(_TAUX_JOUR_PLANNING) * 7  # 7h/jour ouvré
+            heures_conso  = heures_par_tranche.get(aff.tranche_id, 0)
+            pct_consomme  = min(100, round(heures_conso / heures_budget * 100)) if heures_budget > 0 else 0
             barres.append({
                 'aff': aff,
                 'color': aff_color[aff.pk],
                 'label': label,
                 'col_debut': col_d,
-                'col_fin_excl': col_f + 1,   # end exclusif pour grid-column
+                'col_fin_excl': col_f + 1,
                 'starts_before': starts_before,
                 'ends_after': ends_after,
                 'lundi_em': lundi_em.isoformat(),
+                'nb_jours': nb_jours,
+                'pct_consomme': pct_consomme,
             })
         peut_modifier_ligne = peut_modifier_global or equipe.pk in equipes_modifiables_ids
         lignes.append({'equipe': equipe, 'barres': barres, 'peut_modifier': peut_modifier_ligne})
 
     prec_debut = (debut_grille - timedelta(weeks=4)).isoformat()
     suiv_debut = (debut_grille + timedelta(weeks=4)).isoformat()
-
-    devis_dispo = list(
-        Devis.objects.filter(status='accepted')
-        .select_related('client')
-        .prefetch_related('lignes')
-        .order_by('client__nom')
-    )
-    devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
-    equipe_effectifs_json = {e.pk: e.nb_equipiers for e in equipes}
 
     # Pour chaque devis déjà affiché sur la grille : liste des équipes déjà affectées
     devis_equipes: dict[int, list[int]] = {}
@@ -3149,6 +3167,16 @@ def planning_mois(request):
 
 
 _TAUX_JOUR_PLANNING = Decimal('82.5')  # €/jour/équipier, doit rester cohérent avec TAUX_JOUR dans planning.html
+
+
+def _count_working_days(start_date, end_date):
+    """Compte les jours ouvrés Lun-Jeu entre start_date et end_date inclus."""
+    n, d = 0, start_date
+    while d <= end_date:
+        if d.weekday() < 4:
+            n += 1
+        d += timedelta(days=1)
+    return n
 
 
 def _add_working_days(start_date, n_days):
