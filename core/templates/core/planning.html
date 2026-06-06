@@ -44,8 +44,8 @@
 .tl-day.today-hd b{color:var(--teal-dk)}
 
 /* ── Team track ──────────────────────────────────────── */
-.tl-track{display:grid;grid-template-rows:92px;height:92px}
-.tl-cell{grid-row:1;border-right:1px solid #EFEDEB}
+.tl-track{display:grid;grid-template-rows:18px 86px;height:104px}
+.tl-cell{grid-row:1/3;border-right:1px solid #EFEDEB}
 .tl-cell.mon-cell{border-left:2px solid var(--prune-bd)}
 .tl-cell.we-cell{background:#F5F3F1}
 .tl-cell.today-cell{background:rgba(43,191,164,.09);border-left:2px dashed rgba(43,191,164,.5);border-right:2px dashed rgba(43,191,164,.5)}
@@ -55,7 +55,7 @@
 .tl-cell.fri-cell{background:#F6F4F2}
 
 /* ── Affectation bars ────────────────────────────────── */
-.tl-bar{grid-row:1;position:relative;z-index:2;align-self:center;margin:0 2px;height:78px;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:6px 10px;min-width:0;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:box-shadow .1s,filter .1s}
+.tl-bar{grid-row:2;position:relative;z-index:2;align-self:center;margin:0 2px;height:78px;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:6px 10px;min-width:0;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:box-shadow .1s,filter .1s}
 .bar-top{display:flex;align-items:baseline;gap:5px;width:100%;min-width:0;overflow:hidden}
 .bar-ref{font-size:10px;font-weight:700;opacity:.65;flex-shrink:0;white-space:nowrap}
 .bar-lieu-inline{font-size:10px;opacity:.65;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
@@ -77,7 +77,13 @@
 .tl-bar.clip-right::after{content:'→';position:absolute;right:-11px;font-size:10px;opacity:.7}
 
 /* ── Empty row ───────────────────────────────────────── */
-.tl-empty{grid-row:1;grid-column:1/-1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ccc;font-style:italic}
+.tl-empty{grid-row:2;grid-column:1/-1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ccc;font-style:italic}
+/* ── Indicateur vendredi actif ──────────────────────── */
+.ven-ind{grid-row:1;align-self:center;justify-self:center;width:14px;height:14px;border-radius:50%;border:none;cursor:pointer;background:rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s}
+.ven-ind:disabled{cursor:default}
+.ven-ind i{font-size:9px;color:#b0aaa2;transition:color .15s}
+.ven-ind.ven-on{background:var(--teal-lt)}
+.ven-ind.ven-on i{color:var(--teal)}
 
 /* ── Drag & drop ─────────────────────────────────────── */
 body.dragging-active .tl-bar{pointer-events:none}
@@ -199,7 +205,17 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
           <div class="tl-track" data-equipe="{{ ligne.equipe.pk }}" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
             {# Fond de cellules (auto-placed, une par jour) — data-date pour le drop DnD #}
             {% for j in jours %}
-            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" data-date="{{ j|date:'Y-m-d' }}" style="grid-row:1;grid-column:{{ forloop.counter }}"></div>
+            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" data-date="{{ j|date:'Y-m-d' }}" style="grid-row:1/3;grid-column:{{ forloop.counter }}"></div>
+            {% endfor %}
+            {# Indicateurs vendredi actif (grid-row:2, uniquement sur les vendredis couverts) #}
+            {% for ven in ligne.vendredis %}
+            <button class="ven-ind{% if ven.actif %} ven-on{% endif %}"
+                    style="grid-column:{{ ven.col }}"
+                    data-aff="{{ ven.aff_pk }}"
+                    {% if ligne.peut_modifier %}onclick="toggleVendredi({{ ven.aff_pk }}, this)"{% else %}disabled{% endif %}
+                    title="Vendredi {% if ven.actif %}actif{% else %}inactif{% endif %}">
+              <i class="ti ti-sun{% if ven.actif %}-filled{% endif %}"></i>
+            </button>
             {% endfor %}
             {# Barres d'affectation (positionnées explicitement) #}
             {% for barre in ligne.barres %}
@@ -211,6 +227,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
                data-fin="{{ barre.aff.date_fin|date:'Y-m-d' }}"
                data-equipe="{{ ligne.equipe.pk }}"
                data-aff="{{ barre.aff.pk }}"
+               data-vendredi="{{ barre.aff.vendredi_actif|lower }}"
                {% if ligne.peut_modifier %}draggable="true"{% endif %}>
               {% if ligne.peut_modifier %}<span class="resize-l" draggable="true" data-side="left"></span>{% endif %}
               <div class="bar-top">
@@ -291,6 +308,7 @@ const CSRF     = '{{ csrf_token }}';
 const URL_AFF  = '{% url "core:affectation-save" %}';
 const URL_MOVE = '{% url "core:affectation-move" %}';
 const URL_DEL  = '{% url "core:affectation-delete" %}';
+const URL_VEN  = '{% url "core:vendredi-toggle" %}';
 const MODIFIABLES = new Set({{ equipes_modifiables_ids|safe }});
 const PEUT_GLOBAL = {{ peut_modifier_global|lower }};
 const DEVIS_MO      = {{ devis_mo_json|safe }};
@@ -302,16 +320,18 @@ const DEVIS_EQUIPES = {{ devis_equipes_json|safe }};  // {devis_pk: [equipe_pk, 
 let dragData = null;
 
 // Trouve la cellule la plus proche du point clientX dans un track
-// Snap vers le prochain jour ouvré (pour date_debut)
-function snapDebut(dateStr) {
+// JS: Sun=0,Mon=1,Tue=2,Wed=3,Thu=4,Fri=5,Sat=6
+function _weExcluded(vendredi) { return vendredi ? [0,6] : [0,5,6]; }
+function snapDebut(dateStr, vendredi) {
+  const ex = _weExcluded(vendredi);
   const d = new Date(dateStr + 'T12:00:00');
-  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() + 1);
+  while (ex.includes(d.getDay())) d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
 }
-// Snap vers le dernier jour ouvré précédent (pour date_fin)
-function snapFin(dateStr) {
+function snapFin(dateStr, vendredi) {
+  const ex = _weExcluded(vendredi);
   const d = new Date(dateStr + 'T12:00:00');
-  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() - 1);
+  while (ex.includes(d.getDay())) d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
 }
 
@@ -336,12 +356,14 @@ function clearDropOver() {
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
     if (e.target !== bar) return;
+    const ven = bar.dataset.vendredi === 'true';
     dragData = {
-      type:     'move',
-      affId:    bar.dataset.aff,
-      dur:      workingDays(bar.dataset.debut, bar.dataset.fin),
-      devisId:  parseInt(bar.dataset.devis),
-      equipeId: parseInt(bar.dataset.equipe),
+      type:         'move',
+      affId:        bar.dataset.aff,
+      dur:          workingDays(bar.dataset.debut, bar.dataset.fin, ven),
+      devisId:      parseInt(bar.dataset.devis),
+      equipeId:     parseInt(bar.dataset.equipe),
+      vendrediActif: ven,
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
@@ -410,23 +432,26 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
 
     let newDebut, newFin, newEquipe;
     if (dragData.type === 'move') {
-      newDebut  = snapDebut(cell.dataset.date); // snap Sat/Dim/Ven → Lun suivant
+      const ven = dragData.vendrediActif;
+      newDebut  = snapDebut(cell.dataset.date, ven);
       newEquipe = eq;
       if (newEquipe !== dragData.equipeId) {
         const mo   = DEVIS_MO[dragData.devisId] || 0;
         const nbEq = EQ_EFF[newEquipe] || 0;
         newFin = (mo > 0 && nbEq > 0)
-          ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)))
-          : addWorkingDays(newDebut, dragData.dur);
+          ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)), ven)
+          : addWorkingDays(newDebut, dragData.dur, ven);
       } else {
-        newFin = addWorkingDays(newDebut, dragData.dur);
+        newFin = addWorkingDays(newDebut, dragData.dur, ven);
       }
     } else {
+      const bar = document.querySelector(`.tl-bar[data-aff="${dragData.affId}"]`);
+      const ven = bar ? bar.dataset.vendredi === 'true' : false;
       if (dragData.side === 'right') {
         newDebut = dragData.otherDate;
-        newFin   = snapFin(cell.dataset.date);  // snap Sat/Dim/Ven → Jeu précédent
+        newFin   = snapFin(cell.dataset.date, ven);
       } else {
-        newDebut = snapDebut(cell.dataset.date);
+        newDebut = snapDebut(cell.dataset.date, ven);
         newFin   = dragData.otherDate;
       }
       newEquipe = parseInt(dragData.equipeId);
@@ -453,19 +478,22 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
 });
 
 // ── Indicateur durée divergente de la durée calculée ──
-function workingDays(debut, fin) {
+function workingDays(debut, fin, vendredi) {
+  const ex = _weExcluded(vendredi);
   let d = new Date(debut + 'T12:00:00'), end = new Date(fin + 'T12:00:00'), n = 0;
-  while (d <= end) { if (![0,5,6].includes(d.getDay())) n++; d.setDate(d.getDate()+1); }
+  while (d <= end) { if (!ex.includes(d.getDay())) n++; d.setDate(d.getDate()+1); }
   return n;
 }
 document.querySelectorAll('.tl-bar[data-devis]').forEach(bar => {
   const devisId  = parseInt(bar.dataset.devis);
-  const equipeId = parseInt(bar.dataset.equipe);
-  const mo   = DEVIS_MO[devisId]  || 0;
-  const nbEq = EQ_EFF[equipeId]   || 0;
-  if (!mo || !nbEq) return;
-  const calcJ   = Math.ceil(mo / (TAUX_JOUR * nbEq));
-  const actualJ = workingDays(bar.dataset.debut, bar.dataset.fin);
+  const vendredi = bar.dataset.vendredi === 'true';
+  const mo       = DEVIS_MO[devisId] || 0;
+  if (!mo) return;
+  const allEqs    = DEVIS_EQUIPES[devisId] || [parseInt(bar.dataset.equipe)];
+  const totalNbEq = allEqs.reduce((s, eid) => s + (EQ_EFF[eid] || 0), 0);
+  if (!totalNbEq) return;
+  const calcJ   = Math.ceil(mo / (TAUX_JOUR * totalNbEq));
+  const actualJ = workingDays(bar.dataset.debut, bar.dataset.fin, vendredi);
   if (Math.abs(actualJ - calcJ) > 1) {
     bar.classList.add('divergent');
     bar.title += ` · Durée calculée : ${calcJ} j, affectée : ${actualJ} j`;
@@ -493,15 +521,15 @@ function deleteAff(e, affId) {
   .catch(() => alert('Erreur réseau'));
 }
 
-// Ajoute n jours Lun-Jeu (vendredi/week-end exclus) à partir de startStr (YYYY-MM-DD)
-function addWorkingDays(startStr, n) {
+function addWorkingDays(startStr, n, vendredi) {
   if (n <= 0) return startStr;
+  const ex = _weExcluded(vendredi);
   let d = new Date(startStr + 'T12:00:00');
-  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() + 1); // aligner Lun-Jeu
+  while (ex.includes(d.getDay())) d.setDate(d.getDate() + 1);
   let rem = n - 1;
   while (rem > 0) {
     d.setDate(d.getDate() + 1);
-    if (![0, 5, 6].includes(d.getDay())) rem--;
+    if (!ex.includes(d.getDay())) rem--;
   }
   return d.toISOString().slice(0, 10);
 }
@@ -601,6 +629,24 @@ function submitAff() {
     }
   })
   .catch(() => { err.textContent = 'Erreur réseau'; err.style.display = ''; });
+}
+
+// ── Toggle vendredi actif ──────────────────────────────
+function toggleVendredi(affPk, btn) {
+  fetch(URL_VEN, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({aff_id: affPk}),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      if (d.recalculated && d.recalculated.length > 0)
+        sessionStorage.setItem('flashAff', JSON.stringify(d.recalculated));
+      location.reload();
+    } else { alert(d.error || 'Erreur'); }
+  })
+  .catch(() => alert('Erreur réseau'));
 }
 
 // Flash des barres recalculées après rechargement

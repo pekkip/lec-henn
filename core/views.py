@@ -3111,7 +3111,7 @@ def planning_mois(request):
             col_f = day_col(d_fin)
             lundi_em = d_debut - timedelta(days=d_debut.weekday())
             label = aff.tranche.devis.chantier or aff.tranche.devis.client.nom
-            nb_jours = _count_working_days(aff.date_debut, aff.date_fin)
+            nb_jours = _count_working_days(aff.date_debut, aff.date_fin, vendredi=aff.vendredi_actif)
             mo_eur = devis_mo_json.get(aff.tranche.devis_id, 0)
             heures_budget = mo_eur / float(_TAUX_JOUR_PLANNING) * 7  # 7h/jour ouvré
             heures_conso  = heures_par_tranche.get(aff.tranche_id, 0)
@@ -3132,8 +3132,26 @@ def planning_mois(request):
                 'nb_jours': nb_jours,
                 'pct_consomme': pct_consomme,
             })
+
+        # Vendredis couverts par une affectation de cette équipe (pour indicateurs)
+        vendredis = []
+        for aff in affectations:
+            if aff.equipe_id != equipe.pk:
+                continue
+            d = max(aff.date_debut, debut_grille)
+            end_d = min(aff.date_fin, fin_grille)
+            while d <= end_d:
+                if d.weekday() == 4:  # vendredi
+                    vendredis.append({
+                        'date': d.isoformat(),
+                        'col': day_col(d),
+                        'actif': aff.vendredi_actif,
+                        'aff_pk': aff.pk,
+                    })
+                d += timedelta(days=1)
+
         peut_modifier_ligne = peut_modifier_global or equipe.pk in equipes_modifiables_ids
-        lignes.append({'equipe': equipe, 'barres': barres, 'peut_modifier': peut_modifier_ligne})
+        lignes.append({'equipe': equipe, 'barres': barres, 'vendredis': vendredis, 'peut_modifier': peut_modifier_ligne})
 
     prec_debut = (debut_grille - timedelta(weeks=4)).isoformat()
     suiv_debut = (debut_grille + timedelta(weeks=4)).isoformat()
@@ -3173,25 +3191,29 @@ def planning_mois(request):
 _TAUX_JOUR_PLANNING = Decimal('82.5')  # €/jour/équipier, doit rester cohérent avec TAUX_JOUR dans planning.html
 
 
-def _count_working_days(start_date, end_date):
-    """Compte les jours ouvrés Lun-Jeu entre start_date et end_date inclus."""
+def _count_working_days(start_date, end_date, vendredi=False):
+    """Compte les jours ouvrés entre start_date et end_date inclus.
+    vendredi=True → semaine Lun-Ven (5j), sinon Lun-Jeu (4j)."""
+    limit = 5 if vendredi else 4  # weekday() exclusif: 0-3=LJ, 0-4=LV
     n, d = 0, start_date
     while d <= end_date:
-        if d.weekday() < 4:
+        if d.weekday() < limit:
             n += 1
         d += timedelta(days=1)
     return n
 
 
-def _add_working_days(start_date, n_days):
-    """Ajoute n_days jours ouvrés Lun-Jeu à start_date."""
+def _add_working_days(start_date, n_days, vendredi=False):
+    """Ajoute n_days jours ouvrés à start_date.
+    vendredi=True → semaine Lun-Ven (5j), sinon Lun-Jeu (4j)."""
+    limit = 5 if vendredi else 4
     d = start_date
-    while d.weekday() >= 4:   # Ven=4, Sam=5, Dim=6
+    while d.weekday() >= limit:
         d += timedelta(days=1)
     rem = n_days - 1
     while rem > 0:
         d += timedelta(days=1)
-        if d.weekday() < 4:
+        if d.weekday() < limit:
             rem -= 1
     return d
 
@@ -3209,12 +3231,40 @@ def _recalcul_durees_tranche(tranche, devis):
     n_jours = max(1, math.ceil(float(total_mo) / (float(_TAUX_JOUR_PLANNING) * total_nbEq)))
     updated = []
     for a in all_aff:
-        new_fin = _add_working_days(a.date_debut, n_jours)
+        new_fin = _add_working_days(a.date_debut, n_jours, vendredi=a.vendredi_actif)
         if a.date_fin != new_fin:
             a.date_fin = new_fin
             a.save(update_fields=['date_fin'])
             updated.append(a.pk)
     return updated
+
+
+@login_required
+@require_POST
+def vendredi_toggle(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    aff_id = data.get('aff_id')
+    try:
+        aff = (Affectation.objects
+               .select_related('equipe', 'tranche__devis')
+               .prefetch_related('tranche__devis__lignes')
+               .get(pk=aff_id))
+    except Affectation.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Affectation introuvable'}, status=404)
+
+    if not est_encadrant(request.user, aff.equipe):
+        return JsonResponse({'ok': False, 'error': 'Non autorisé'}, status=403)
+
+    aff.vendredi_actif = not aff.vendredi_actif
+    aff.save(update_fields=['vendredi_actif'])
+    recalculated = _recalcul_durees_tranche(aff.tranche, aff.tranche.devis)
+    return JsonResponse({'ok': True, 'actif': aff.vendredi_actif, 'recalculated': recalculated})
 
 
 @login_required
