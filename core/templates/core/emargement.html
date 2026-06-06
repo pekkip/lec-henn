@@ -525,6 +525,36 @@ function openAffModal() {
 function closeAffModal() { document.getElementById('modal-aff').classList.add('hidden'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAffModal(); });
 
+/* ── Tab colonne-majeur : M→A→M→A par jour, équipier par équipier ─── */
+let _TAB_ORDER = null;
+function getTabOrder() {
+  if (_TAB_ORDER) return _TAB_ORDER;
+  const seen = new Set(), eqIds = [];
+  document.querySelectorAll('.cell[data-equipier-id]').forEach(c => {
+    const id = c.dataset.equipierId;
+    if (!seen.has(id)) { seen.add(id); eqIds.push(id); }
+  });
+  _TAB_ORDER = [];
+  eqIds.forEach(eqId => {
+    const cells = [...document.querySelectorAll(`.cell[data-equipier-id="${eqId}"]`)];
+    cells.sort((a, b) => {
+      const dd = a.dataset.date.localeCompare(b.dataset.date);
+      return dd !== 0 ? dd : (a.dataset.creneau === 'matin' ? -1 : 1);
+    });
+    cells.forEach(cell => { const inp = cell.querySelector('.cinp'); if (inp) _TAB_ORDER.push(inp); });
+  });
+  return _TAB_ORDER;
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Tab' || !e.target.matches('.cinp')) return;
+  const order = getTabOrder();
+  const idx = order.indexOf(e.target);
+  if (idx === -1) return;
+  e.preventDefault();
+  const next = e.shiftKey ? order[idx - 1] : order[idx + 1];
+  if (next) next.focus();
+});
+
 function filterDevis(q) {
   q = q.toLowerCase();
   [...document.getElementById('aff-devis').options].forEach(opt => {
