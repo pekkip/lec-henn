@@ -1,0 +1,155 @@
+{% extends 'core/base.html' %}
+{% block title %}Équipiers{% endblock %}
+{% block nav_equipiers %}active{% endblock %}
+{% block topbar_title %}Équipiers{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <div class="page-title">Équipiers</div>
+    <div class="page-sub">{{ equipiers|length }} équipier{{ equipiers|length|pluralize }} · salariés en insertion à pointer</div>
+  </div>
+  <button onclick="openCreate()" class="btn btn-prune"><i class="ti ti-plus"></i> Nouvel équipier</button>
+</div>
+
+<form method="get" class="toolbar">
+  <div class="search-wrap" style="max-width:240px">
+    <i class="ti ti-search"></i>
+    <input class="search-inp" name="q" value="{{ f_q }}" placeholder="Nom, prénom, matricule…" autocomplete="off"/>
+  </div>
+  <select class="sel" name="equipe">
+    <option value="">Toutes les équipes</option>
+    {% for e in equipes %}
+    <option value="{{ e.pk }}" {% if f_equipe == e.pk|stringformat:'s' %}selected{% endif %}>{{ e.nom }}</option>
+    {% endfor %}
+  </select>
+  <select class="sel" name="statut">
+    <option value="actifs"   {% if f_statut == 'actifs' %}selected{% endif %}>Actifs</option>
+    <option value="inactifs" {% if f_statut == 'inactifs' %}selected{% endif %}>Inactifs</option>
+    <option value="tous"     {% if f_statut == 'tous' %}selected{% endif %}>Tous</option>
+  </select>
+  <button type="submit" class="btn btn-sm"><i class="ti ti-filter"></i> Filtrer</button>
+  <a href="{% url 'core:equipiers' %}" class="btn btn-sm">Réinitialiser</a>
+</form>
+
+<div style="flex:1;overflow-y:auto">
+  <table>
+    <thead><tr>
+      <th>Équipier</th><th>Équipe</th><th>Contrat</th><th class="num">H/sem</th><th>Visite méd.</th><th>Matricule</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for e in equipiers %}
+      <tr {% if not e.actif %}style="opacity:.5"{% endif %}>
+        <td style="font-weight:500">{{ e.prenom }} {{ e.nom }}
+          {% if not e.actif %}<span class="badge" style="background:var(--gray-lt);color:var(--gray-md);margin-left:4px">inactif</span>{% endif %}
+        </td>
+        <td>{{ e.equipe.nom|default:"—" }}</td>
+        <td>{{ e.type_contrat|default:"—" }}</td>
+        <td class="num">{{ e.heures_contrat_hebdo|floatformat:"-2" }}</td>
+        <td>{{ e.date_visite_medicale|date:"d/m/Y"|default:"—" }}</td>
+        <td class="mono">{{ e.matricule|default:"—" }}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button type="button" class="ico-btn" title="Modifier"
+            data-pk="{{ e.pk }}"
+            data-nom="{{ e.nom }}" data-prenom="{{ e.prenom }}"
+            data-equipe="{{ e.equipe.pk|default:'' }}"
+            data-matricule="{{ e.matricule }}" data-contrat="{{ e.type_contrat }}"
+            data-heures="{{ e.heures_contrat_hebdo|floatformat:'-2' }}"
+            data-debut="{{ e.date_debut_contrat|date:'Y-m-d' }}"
+            data-fin="{{ e.date_fin_contrat|date:'Y-m-d' }}"
+            data-visite="{{ e.date_visite_medicale|date:'Y-m-d' }}"
+            data-recup="{{ e.recup_base_heures|floatformat:'-2' }}"
+            data-recupdate="{{ e.recup_base_date|date:'Y-m-d' }}"
+            data-conges="{{ e.droit_conges_jours|floatformat:'-2' }}"
+            onclick="openEdit(this)"><i class="ti ti-pencil"></i></button>
+          <form method="post" action="{% url 'core:equipier-toggle-actif' e.pk %}" style="display:inline"
+                onsubmit="return confirm('{% if e.actif %}Désactiver{% else %}Réactiver{% endif %} {{ e.prenom }} {{ e.nom }} ?')">
+            {% csrf_token %}
+            <button type="submit" class="ico-btn {% if e.actif %}danger{% endif %}"
+              title="{% if e.actif %}Désactiver{% else %}Réactiver{% endif %}">
+              <i class="ti {% if e.actif %}ti-user-off{% else %}ti-user-check{% endif %}"></i>
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--gray-md)">
+        Aucun équipier. Clique sur « Nouvel équipier » pour commencer.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block modals %}
+<div id="modal-equipier" class="modal-bg hidden">
+  <div class="modal">
+    <div class="modal-title" id="eq-modal-title">Nouvel équipier</div>
+    <form method="post" action="{% url 'core:equipier-save' %}">
+      {% csrf_token %}
+      <input type="hidden" name="pk" id="eq-pk"/>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Prénom *</label><input class="input" name="prenom" id="eq-prenom" required/></div>
+        <div class="field"><label>Nom *</label><input class="input" name="nom" id="eq-nom" required/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
+        <div class="field"><label>Équipe « maison »</label>
+          <select class="input" name="equipe" id="eq-equipe">
+            <option value="">— Aucune —</option>
+            {% for e in equipes %}<option value="{{ e.pk }}">{{ e.nom }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field"><label>Matricule</label><input class="input" name="matricule" id="eq-matricule" placeholder="RH"/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
+        <div class="field"><label>Type de contrat</label><input class="input" name="type_contrat" id="eq-contrat" placeholder="CDDI - 26 heures"/></div>
+        <div class="field"><label>Heures / semaine</label><input class="input" name="heures_contrat_hebdo" id="eq-heures" inputmode="decimal" placeholder="26"/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="field"><label>Début contrat</label><input class="input" type="date" name="date_debut_contrat" id="eq-debut"/></div>
+        <div class="field"><label>Fin contrat</label><input class="input" type="date" name="date_fin_contrat" id="eq-fin"/></div>
+        <div class="field"><label>Visite médicale</label><input class="input" type="date" name="date_visite_medicale" id="eq-visite"/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="field"><label>Récup. de départ (h)</label><input class="input" name="recup_base_heures" id="eq-recup" inputmode="decimal" placeholder="0"/></div>
+        <div class="field"><label>… à la date</label><input class="input" type="date" name="recup_base_date" id="eq-recupdate"/></div>
+        <div class="field"><label>Droit congés (j)</label><input class="input" name="droit_conges_jours" id="eq-conges" inputmode="decimal" placeholder="0"/></div>
+      </div>
+      <div class="modal-acts">
+        <button type="button" class="btn" onclick="document.getElementById('modal-equipier').classList.add('hidden')">Annuler</button>
+        <button type="submit" class="btn btn-prune">Enregistrer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function openCreate(){
+  document.getElementById('eq-modal-title').textContent = 'Nouvel équipier';
+  document.querySelector('#modal-equipier form').reset();
+  document.getElementById('eq-pk').value = '';
+  document.getElementById('modal-equipier').classList.remove('hidden');
+}
+function openEdit(btn){
+  const d = btn.dataset;
+  document.getElementById('eq-modal-title').textContent = 'Modifier l’équipier';
+  document.getElementById('eq-pk').value        = d.pk || '';
+  document.getElementById('eq-prenom').value    = d.prenom || '';
+  document.getElementById('eq-nom').value       = d.nom || '';
+  document.getElementById('eq-equipe').value    = d.equipe || '';
+  document.getElementById('eq-matricule').value = d.matricule || '';
+  document.getElementById('eq-contrat').value   = d.contrat || '';
+  document.getElementById('eq-heures').value    = d.heures || '';
+  document.getElementById('eq-debut').value     = d.debut || '';
+  document.getElementById('eq-fin').value       = d.fin || '';
+  document.getElementById('eq-visite').value    = d.visite || '';
+  document.getElementById('eq-recup').value     = d.recup || '';
+  document.getElementById('eq-recupdate').value = d.recupdate || '';
+  document.getElementById('eq-conges').value    = d.conges || '';
+  document.getElementById('modal-equipier').classList.remove('hidden');
+}
+</script>
+{% endblock %}

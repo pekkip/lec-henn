@@ -13,7 +13,9 @@ from decimal import Decimal
 from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
     Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
+    Equipier,
 )
+from .permissions import peut_acceder_planning, est_encadrant
 
 
 class AccesDevisFactureTests(TestCase):
@@ -818,3 +820,109 @@ class ListesPerfTests(TestCase):
         # Avec l'ancien N+1, requetes_20 aurait explosé (× nombre de devis).
         # Ici l'écart doit rester nul (ou marginal).
         self.assertLessEqual(requetes_20, requetes_4 + 2)
+
+
+class PlanningEquipiersTests(TestCase):
+    """
+    Module Planning (commit 2) : accès au module + CRUD des équipiers.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr = Territoire.objects.create(nom='Ille-et-Vilaine')
+        service = Service.objects.create(territoire=terr, nom='Insertion')
+        cls.equipe_a = Equipe.objects.create(service=service, nom='SORM')
+        cls.equipe_b = Equipe.objects.create(service=service, nom='GORM')
+
+        # Encadrant de l'équipe A (accès planning via l'équipe encadrée)
+        cls.encadrant = User.objects.create_user('laurene', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.encadrant, role='technicien')
+        cls.equipe_a.encadrant = cls.encadrant
+        cls.equipe_a.save()
+
+        # Technicien lambda — aucun accès au module
+        cls.technicien = User.objects.create_user('tech', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.technicien, role='technicien')
+
+        # Admin, responsable (assistante), RH — accès transverse
+        cls.admin = User.objects.create_user('david', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.responsable = User.objects.create_user('assistante', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.responsable, role='responsable')
+        cls.rh = User.objects.create_user('rh', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.rh, role='rh')
+
+    # ── Permissions ──────────────────────────────────────────
+
+    def test_peut_acceder_planning_par_role(self):
+        self.assertTrue(peut_acceder_planning(self.admin))
+        self.assertTrue(peut_acceder_planning(self.responsable))
+        self.assertTrue(peut_acceder_planning(self.rh))
+        self.assertTrue(peut_acceder_planning(self.encadrant))   # encadrant d'une équipe
+        self.assertFalse(peut_acceder_planning(self.technicien))  # aucun rôle ni équipe
+
+    def test_est_encadrant(self):
+        self.assertTrue(est_encadrant(self.encadrant, self.equipe_a))
+        self.assertFalse(est_encadrant(self.encadrant, self.equipe_b))  # pas son équipe
+        self.assertTrue(est_encadrant(self.admin, self.equipe_b))       # admin partout
+        self.assertTrue(est_encadrant(self.responsable, self.equipe_a)) # assistante partout
+        self.assertFalse(est_encadrant(self.technicien, self.equipe_a))
+
+    # ── Accès à la page ──────────────────────────────────────
+
+    def test_liste_refusee_sans_acces(self):
+        self.client.login(username='tech', password='pw')
+        resp = self.client.get(reverse('core:equipiers'))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_liste_ok_pour_encadrant(self):
+        self.client.login(username='laurene', password='pw')
+        resp = self.client.get(reverse('core:equipiers'))
+        self.assertEqual(resp.status_code, 200)
+
+    # ── CRUD ─────────────────────────────────────────────────
+
+    def test_creation_equipier(self):
+        self.client.login(username='laurene', password='pw')
+        resp = self.client.post(reverse('core:equipier-save'), {
+            'prenom': 'Habtom', 'nom': 'Tekie',
+            'equipe': self.equipe_a.pk,
+            'heures_contrat_hebdo': '26',
+        })
+        self.assertEqual(resp.status_code, 302)
+        eq = Equipier.objects.get(nom='Tekie')
+        self.assertEqual(eq.prenom, 'Habtom')
+        self.assertEqual(eq.equipe, self.equipe_a)
+        self.assertEqual(eq.type_contrat, 'CDDI - 26 heures')  # défaut appliqué
+        self.assertTrue(eq.actif)
+
+    def test_edition_equipier(self):
+        eq = Equipier.objects.create(prenom='Habtom', nom='Tekie', equipe=self.equipe_a)
+        self.client.login(username='david', password='pw')
+        self.client.post(reverse('core:equipier-save'), {
+            'pk': eq.pk, 'prenom': 'Habtom', 'nom': 'Tekie',
+            'equipe': self.equipe_b.pk, 'matricule': 'M-042',
+            'heures_contrat_hebdo': '28',
+        })
+        eq.refresh_from_db()
+        self.assertEqual(eq.equipe, self.equipe_b)
+        self.assertEqual(eq.matricule, 'M-042')
+        self.assertEqual(eq.heures_contrat_hebdo, Decimal('28'))
+
+    def test_toggle_actif(self):
+        eq = Equipier.objects.create(prenom='Habtom', nom='Tekie')
+        self.client.login(username='david', password='pw')
+        self.client.post(reverse('core:equipier-toggle-actif', args=[eq.pk]))
+        eq.refresh_from_db()
+        self.assertFalse(eq.actif)
+        self.client.post(reverse('core:equipier-toggle-actif', args=[eq.pk]))
+        eq.refresh_from_db()
+        self.assertTrue(eq.actif)
+
+    def test_creation_refusee_sans_acces(self):
+        self.client.login(username='tech', password='pw')
+        resp = self.client.post(reverse('core:equipier-save'), {
+            'prenom': 'X', 'nom': 'Y',
+        })
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Equipier.objects.filter(nom='Y').exists())

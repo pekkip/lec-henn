@@ -28,6 +28,7 @@ from .models import (
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
     BibliothèqueAides,
+    Equipier,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -36,6 +37,7 @@ from .permissions import (
     peut_supprimer_client, is_admin,
     peut_gerer_utilisateurs, peut_gerer_cet_utilisateur,
     get_collegues_ids, peut_acceder_compta,
+    peut_acceder_planning, est_encadrant,
 )
 from .dashboard_widgets import resolve_dashboard, sanitize_config
 from .totaux import attacher_totaux_devis
@@ -2740,3 +2742,104 @@ def contact_client_delete(request, pk):
     contact = get_object_or_404(ContactClient, pk=pk)
     contact.delete()
     return JsonResponse({'ok': True})
+
+
+# ══════════════════════════════════════════
+#  PLANNING & ÉMARGEMENT — Équipiers
+# ══════════════════════════════════════════
+#
+# Gestion des équipiers (salariés en insertion à pointer). Réservé au module
+# Insertion (peut_acceder_planning : admin / responsable / rh / encadrant).
+# Suppression = désactivation (actif=False), jamais de DELETE dur.
+
+def _planning_date(val):
+    """Parse une date 'YYYY-MM-DD' issue d'un <input type=date> ; '' -> None."""
+    val = (val or '').strip()
+    if not val:
+        return None
+    try:
+        return datetime.strptime(val, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+@login_required
+def equipiers_list(request):
+    if not peut_acceder_planning(request.user):
+        return HttpResponseForbidden("Accès réservé au module Insertion.")
+    q = request.GET.get('q', '').strip()
+    equipe_id = request.GET.get('equipe', '').strip()
+    statut = request.GET.get('statut', 'actifs')
+
+    equipiers = Equipier.objects.select_related('equipe', 'equipe__service')
+    if q:
+        equipiers = equipiers.filter(
+            Q(nom__icontains=q) | Q(prenom__icontains=q) | Q(matricule__icontains=q)
+        )
+    if equipe_id:
+        equipiers = equipiers.filter(equipe_id=equipe_id)
+    if statut == 'actifs':
+        equipiers = equipiers.filter(actif=True)
+    elif statut == 'inactifs':
+        equipiers = equipiers.filter(actif=False)
+
+    return render(request, 'core/equipiers.html', {
+        'equipiers': equipiers,
+        'equipes': Equipe.objects.filter(actif=True).select_related('service'),
+        'f_q': q, 'f_equipe': equipe_id, 'f_statut': statut,
+    })
+
+
+@login_required
+@require_POST
+def equipier_save(request):
+    if not peut_acceder_planning(request.user):
+        return HttpResponseForbidden("Accès réservé au module Insertion.")
+    pk = request.POST.get('pk')
+    nom = request.POST.get('nom', '').strip()
+    prenom = request.POST.get('prenom', '').strip()
+    if not nom or not prenom:
+        messages.error(request, 'Nom et prénom sont obligatoires.')
+        return redirect('core:equipiers')
+
+    equipe_id = request.POST.get('equipe') or None
+    equipe = Equipe.objects.filter(pk=equipe_id).first() if equipe_id else None
+
+    champs = dict(
+        nom=nom,
+        prenom=prenom,
+        equipe=equipe,
+        matricule=request.POST.get('matricule', '').strip(),
+        type_contrat=request.POST.get('type_contrat', '').strip() or 'CDDI - 26 heures',
+        heures_contrat_hebdo=to_decimal(request.POST.get('heures_contrat_hebdo'), Decimal('26.00')),
+        date_debut_contrat=_planning_date(request.POST.get('date_debut_contrat')),
+        date_fin_contrat=_planning_date(request.POST.get('date_fin_contrat')),
+        date_visite_medicale=_planning_date(request.POST.get('date_visite_medicale')),
+        recup_base_heures=to_decimal(request.POST.get('recup_base_heures'), Decimal('0')),
+        recup_base_date=_planning_date(request.POST.get('recup_base_date')),
+        droit_conges_jours=to_decimal(request.POST.get('droit_conges_jours'), Decimal('0')),
+    )
+
+    if pk:
+        equipier = get_object_or_404(Equipier, pk=pk)
+        for k, v in champs.items():
+            setattr(equipier, k, v)
+        equipier.save()
+        messages.success(request, f'Équipier « {prenom} {nom} » modifié.')
+    else:
+        Equipier.objects.create(**champs)
+        messages.success(request, f'Équipier « {prenom} {nom} » créé.')
+    return redirect('core:equipiers')
+
+
+@login_required
+@require_POST
+def equipier_toggle_actif(request, pk):
+    if not peut_acceder_planning(request.user):
+        return HttpResponseForbidden("Accès réservé au module Insertion.")
+    equipier = get_object_or_404(Equipier, pk=pk)
+    equipier.actif = not equipier.actif
+    equipier.save(update_fields=['actif'])
+    action = 'réactivé' if equipier.actif else 'désactivé'
+    messages.success(request, f'Équipier « {equipier.prenom} {equipier.nom} » {action}.')
+    return redirect('core:equipiers')

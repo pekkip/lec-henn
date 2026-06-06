@@ -304,8 +304,10 @@ def peut_acceder_planning(user):
     profil = get_profil_or_none(user)
     if not profil:
         return False
-    if profil.role == 'admin':
+    # Admin / responsable (assistante) / RH : accès transverse au module.
+    if profil.role in ('admin', 'responsable', 'rh'):
         return True
+    # Sinon : encadrant désigné d'au moins une équipe active.
     return Equipe.objects.filter(encadrant=user, actif=True).exists()
 
 

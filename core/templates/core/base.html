@@ -222,6 +222,12 @@ tbody tr:hover td{background:#FAFAF8}
         {% endif %}
       {% endwith %}
     {% endif %}
+    {% if peut_acceder_planning %}
+    <div class="nav-sect">Insertion</div>
+    <a href="{% url 'core:equipiers' %}" title="Équipiers" class="nav-item {% block nav_equipiers %}{% endblock %}">
+      <i class="ti ti-id-badge-2"></i><span class="nav-label">Équipiers</span>
+    </a>
+    {% endif %}
     <button type="button" class="nav-collapse-btn" id="sidebar-toggle" title="Replier le menu" onclick="toggleSidebar()">
       <i class="ti ti-chevron-left"></i><span class="nav-label">Replier</span>
     </button>

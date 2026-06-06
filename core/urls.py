@@ -90,6 +90,11 @@ urlpatterns = [
     path('compta/contacts/creation-rapide/',             views.contact_client_create, name='contact-client-create'),
     path('compta/contacts/<int:pk>/supprimer/',          views.contact_client_delete, name='contact-client-delete'),
 
+    # PLANNING & ÉMARGEMENT (insertion) — réservé peut_acceder_planning
+    path('planning/equipiers/',                  views.equipiers_list,        name='equipiers'),
+    path('planning/equipiers/sauvegarder/',      views.equipier_save,         name='equipier-save'),
+    path('planning/equipiers/<int:pk>/actif/',   views.equipier_toggle_actif, name='equipier-toggle-actif'),
+
     # Gestion utilisateurs
     path('utilisateurs/', views.utilisateurs_list, name='utilisateurs-list'),
     path('utilisateurs/nouveau/', views.utilisateur_create, name='utilisateur-create'),

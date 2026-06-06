@@ -6,6 +6,7 @@ utilisateur** (par défaut le 1er admin). Rien n'est jamais supprimé en dehors 
 ces données de démo :
   - Devis / Factures : marqueur ``SEED_DEMO`` dans le champ ``notes`` ;
   - Clients : nom préfixé ``DÉMO — `` ;
+  - Équipiers : nom préfixé ``(D)`` et matricule préfixé ``(D)`` ;
   - Journal d'audit : action préfixée ``[DÉMO] ``.
 Les équipes / services / territoires existants sont **réutilisés** (jamais
 supprimés) ; créés seulement s'ils manquent.
@@ -18,12 +19,13 @@ Utilisation :
 
 Le seed efface d'abord sa propre démo (idempotent) puis recrée un jeu cohérent
 réparti sur ~6 mois et sur les équipes d'Ille-et-Vilaine :
-  - GORM / GOSM : maçonnerie pierre, enduits, rejointoiement chaux (remparts) ;
-  - SORM / AQRM / AQSM : rénovation (peinture, cloison, menuiserie, sols PVC) ;
+  - 65-GORM / 61-GOSM : maçonnerie pierre, enduits, rejointoiement chaux (remparts) ;
+  - 65-SORM / AQRM A / AQRM B / 58-AQSM : rénovation (peinture, cloison, menuiserie, sols PVC) ;
   - Bricobus rural : sécurisation électrique & plomberie ;
   - Bricobus urbain : petite rénovation de logement ;
   - ARA PO : isolation naturelle, réseaux, poêle à granulés ;
   - ARA LOC : petits chantiers de rénovation.
+Équipiers démo créés pour les 6 équipes d'insertion (préfixe ``(D)``).
 """
 import random
 from datetime import timedelta
@@ -35,7 +37,7 @@ from django.utils import timezone
 
 from core.models import (
     Client, Territoire, Service, Equipe, Devis, LigneDevis, Facture,
-    ProfilUtilisateur, AuditLog, BibliothèqueAides,
+    ProfilUtilisateur, AuditLog, BibliothèqueAides, Equipier,
 )
 
 MARKER = 'SEED_DEMO'
@@ -287,16 +289,48 @@ FIN_FALLBACK = {
 
 # Équipes : code, recette, service de repli (si à créer), chantiers, clients possibles
 TEAMS = [
-    ('GORM', 'walls', 'Insertion 35', WALLS_RM, ['ville_rennes']),
-    ('GOSM', 'walls', 'Insertion 35', WALLS_SM, ['ville_stmalo']),
-    ('SORM', 'reno', 'Insertion 35', RENO_CH, ['archipel', 'neotoa', 'college_zola', 'rennes_metro']),
-    ('AQRM', 'reno', 'Insertion 35', RENO_CH, ['archipel', 'neotoa', 'college_zola']),
-    ('AQSM', 'reno', 'Insertion 35', RENO_CH, ['emeraude', 'mairie_sm', 'ecole_moulin']),
-    ('Bricobus rural', 'bricobus_rural', 'Bricobus 35', BR_RURAL_CH, ['p_rur1', 'p_rur2', 'p_rur3']),
+    ('65-GORM',  'walls',          'Insertion 35', WALLS_RM,  ['ville_rennes']),
+    ('61-GOSM',  'walls',          'Insertion 35', WALLS_SM,  ['ville_stmalo']),
+    ('65-SORM',  'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola', 'rennes_metro']),
+    ('AQRM A',   'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola']),
+    ('AQRM B',   'reno',           'Insertion 35', RENO_CH,   ['archipel', 'neotoa', 'college_zola']),
+    ('58-AQSM',  'reno',           'Insertion 35', RENO_CH,   ['emeraude', 'mairie_sm', 'ecole_moulin']),
+    ('Bricobus rural',  'bricobus_rural',  'Bricobus 35', BR_RURAL_CH,  ['p_rur1', 'p_rur2', 'p_rur3']),
     ('Bricobus urbain', 'bricobus_urbain', 'Bricobus 35', BR_URBAIN_CH, ['p_urb1', 'p_urb2', 'p_urb3']),
-    ('ARA PO', 'ara_po', 'Habitat 35', ARA_PO_CH, ['p_ara1', 'p_ara2', 'p_ara3']),
+    ('ARA PO',  'ara_po',  'Habitat 35', ARA_PO_CH,  ['p_ara1', 'p_ara2', 'p_ara3']),
     ('ARA LOC', 'ara_loc', 'Habitat 35', ARA_LOC_CH, ['p_ara1', 'p_ara2', 'p_ara3']),
 ]
+
+# Équipiers démo pour les 6 équipes d'insertion (prénoms/noms bretons fictifs).
+# Marqueur : nom préfixé '(D)', matricule préfixé '(D)'.
+EQUIP_DEMO = {
+    '65-GORM': [
+        ('Corentin', 'LE BERRE'),  ('Erwann', 'KERMARREC'), ('Loïc', 'CADIOU'),
+        ('Maël', 'KERGUERIS'),     ('Tifenn', 'QUENTEL'),   ('Yann', 'GUILLOU'),
+        ('Noé', 'HERVE'),          ('Aziliz', 'CALVEZ'),
+    ],
+    '61-GOSM': [
+        ('Goulven', 'QUERE'),      ('Tugdual', 'BODENNEC'), ('Brendan', 'MORVAN'),
+        ('Soizic', 'JAOUEN'),      ('Fanch', 'RIOU'),       ('Gurvan', 'MARC'),
+        ('Bleunvenn', 'CARRE'),    ('Malo', 'THOMAS'),
+    ],
+    '65-SORM': [
+        ('Rozenn', 'GUYADER'),     ('Yuna', 'PENNARUN'),    ('Talig', 'EVEN'),
+        ('Naig', 'CROZON'),        ('Loeiz', 'PRIGENT'),    ('Gwenola', 'JARNO'),
+    ],
+    'AQRM A': [
+        ('Gwenael', 'OLLIVIER'),   ('Mikael', 'KERGUELEN'), ('Perig', 'BOUDIC'),
+        ('Denez', 'PLOUZANE'),     ('Enora', 'TANGUY'),
+    ],
+    'AQRM B': [
+        ('Riwanon', 'ROPARS'),     ('Efflam', 'STEPHAN'),   ('Naig', 'DERIEN'),
+        ('Gaetan', 'KERIVEL'),     ('Sterenn', 'PEREZ'),
+    ],
+    '58-AQSM': [
+        ('Alan', 'TREBAOL'),       ('Breval', 'SALAUN'),    ('Katell', 'LARVOR'),
+        ('Nolwenn', 'GLOAGUEN'),   ('Yannig', 'KERVELLA'),
+    ],
+}
 
 
 class Command(BaseCommand):
@@ -328,6 +362,25 @@ class Command(BaseCommand):
 
         self._seed(user, max(1, opts['per_team']))
 
+    def _seed_equipiers(self):
+        """Crée les équipiers démo (idempotent via matricule). Ne recrée pas si déjà présents."""
+        for code, personnes in EQUIP_DEMO.items():
+            equipe = Equipe.objects.filter(nom__icontains=code).first()
+            if equipe is None:
+                continue
+            for i, (prenom, nom) in enumerate(personnes, start=1):
+                matricule = f'(D){code}-{i:02d}'
+                Equipier.objects.get_or_create(
+                    matricule=matricule,
+                    defaults=dict(
+                        prenom=prenom,
+                        nom=f'(D){nom}',
+                        equipe=equipe,
+                        type_contrat='CDDI - 26 heures',
+                        actif=True,
+                    ),
+                )
+
     def _resolve_user(self, username):
         if username:
             return User.objects.filter(username=username).first()
@@ -349,6 +402,8 @@ class Command(BaseCommand):
         total += c.count(); c.delete()
         a = AuditLog.objects.filter(user=user, action__startswith=AUDIT_PREFIX)
         total += a.count(); a.delete()
+        eq = Equipier.objects.filter(matricule__startswith='(D)')
+        total += eq.count(); eq.delete()
         return total
 
     # ── Résolution d'équipe (réutilise l'existant) ────────────
@@ -393,7 +448,7 @@ class Command(BaseCommand):
 
                 # Frais de déplacement (< 20 km) — ligne forfait NORMALE (pas un
                 # financement, pas en zone financement) : 1-2 devis insertion.
-                if (code == 'GORM' and j == 0) or (code == 'SORM' and j == 0):
+                if (code == '65-GORM' and j == 0) or (code == '65-SORM' and j == 0):
                     LigneDevis.objects.create(
                         devis=d, parent=None, type_ligne='F',
                         description='Frais de déplacement (< 20 km)',
@@ -415,6 +470,9 @@ class Command(BaseCommand):
                 if status == 'accepted':
                     accepted.append(d)
                 self._audit(user, f"Création du devis {d.reference} ({equipe.nom})", devis=d)
+
+        # Équipiers démo pour les 6 équipes d'insertion (nom préfixé '(D)').
+        self._seed_equipiers()
 
         # Factures sur les devis acceptés : à valider / validées / envoyées / payées.
         cycle = ['draft', 'validated', 'sent', 'paid']
