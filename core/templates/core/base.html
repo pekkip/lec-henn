@@ -224,6 +224,9 @@ tbody tr:hover td{background:#FAFAF8}
     {% endif %}
     {% if peut_acceder_planning %}
     <div class="nav-sect">Insertion</div>
+    <a href="{% url 'core:planning' %}" title="Planning" class="nav-item {% block nav_planning %}{% endblock %}">
+      <i class="ti ti-calendar-week"></i><span class="nav-label">Planning</span>
+    </a>
     <a href="{% url 'core:equipiers' %}" title="Équipiers" class="nav-item {% block nav_equipiers %}{% endblock %}">
       <i class="ti ti-id-badge-2"></i><span class="nav-label">Équipiers</span>
     </a>

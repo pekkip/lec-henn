@@ -23,12 +23,14 @@ from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 
 logger = logging.getLogger(__name__)
 
+from django.db.models import Prefetch
+
 from .models import (
     Client, ContactClient, Devis, LigneDevis,
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
     BibliothèqueAides,
-    Equipier,
+    Equipier, TrancheDevis, Affectation, Presence,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -2843,3 +2845,265 @@ def equipier_toggle_actif(request, pk):
     action = 'réactivé' if equipier.actif else 'désactivé'
     messages.success(request, f'Équipier « {equipier.prenom} {equipier.nom} » {action}.')
     return redirect('core:equipiers')
+
+
+# ══════════════════════════════════════════
+#  PLANNING — Grille d'émargement & présences
+# ══════════════════════════════════════════
+
+COLORS_AFF = ['cha', 'chb', 'chc', 'cha', 'chb']
+JOURS_FR   = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven']
+CRENEAUX   = [('matin', 'M'), ('aprem', 'A')]
+DEF_H      = {'matin': '4', 'aprem': '3'}
+
+
+@login_required
+def planning_view(request):
+    if not peut_acceder_planning(request.user):
+        return HttpResponseForbidden("Accès réservé au module Insertion.")
+
+    equipe_id = request.GET.get('equipe', '').strip()
+    debut_str = request.GET.get('debut', '').strip()
+
+    today = date.today()
+    try:
+        debut = datetime.strptime(debut_str, '%Y-%m-%d').date() if debut_str else today
+    except ValueError:
+        debut = today
+    lundi   = debut - timedelta(days=debut.weekday())
+    vendredi = lundi + timedelta(days=4)
+
+    profil = get_profil(request.user)
+    if profil.role in ('admin', 'responsable', 'rh'):
+        equipes = Equipe.objects.filter(actif=True).select_related('service').order_by('nom')
+    else:
+        equipes = Equipe.objects.filter(
+            encadrant=request.user, actif=True
+        ).select_related('service').order_by('nom')
+
+    equipe_sel = equipes.filter(pk=equipe_id).first() if equipe_id else None
+    if not equipe_sel:
+        equipe_sel = equipes.first()
+
+    if not equipe_sel:
+        return render(request, 'core/planning.html', {
+            'equipes': equipes, 'equipe_sel': None,
+            'lundi': lundi, 'jours': [], 'grid_rows': [], 'affectations': [],
+        })
+
+    jours = [lundi + timedelta(days=i) for i in range(5)]
+
+    affectations = list(
+        Affectation.objects.filter(
+            equipe=equipe_sel,
+            date_debut__lte=vendredi,
+            date_fin__gte=lundi,
+        ).select_related('tranche__devis__client').order_by('date_debut')
+    )
+    aff_color = {aff.pk: COLORS_AFF[i % len(COLORS_AFF)] for i, aff in enumerate(affectations)}
+    for aff in affectations:
+        aff.css_color = aff_color[aff.pk]
+
+    # Affectation active par jour (première couvrant ce jour)
+    day_aff = {}
+    for jour in jours:
+        for aff in affectations:
+            if aff.date_debut <= jour <= aff.date_fin:
+                day_aff[jour] = aff
+                break
+    aff_default = affectations[0] if affectations else None
+
+    equipiers_maison = list(
+        Equipier.objects.filter(equipe=equipe_sel, actif=True)
+        .select_related('equipe').order_by('nom', 'prenom')
+    )
+
+    presences_qs = list(
+        Presence.objects.filter(
+            affectation__equipe=equipe_sel,
+            date__range=(lundi, vendredi),
+        ).select_related('equipier', 'affectation')
+    )
+    pres_map = {(p.equipier_id, p.date.isoformat(), p.creneau): p for p in presences_qs}
+
+    equip_empruntes_ids = {
+        p.equipier_id for p in presences_qs
+        if p.equipier.equipe_id != equipe_sel.pk
+    }
+    equip_empruntes = (
+        list(Equipier.objects.filter(pk__in=equip_empruntes_ids).select_related('equipe'))
+        if equip_empruntes_ids else []
+    )
+
+    away_set = set()
+    if equipiers_maison:
+        for p in Presence.objects.filter(
+            equipier__in=equipiers_maison,
+            date__range=(lundi, vendredi),
+        ).exclude(affectation__equipe=equipe_sel):
+            away_set.add((p.equipier_id, p.date.isoformat(), p.creneau))
+
+    grid_rows = []
+    for eq in equipiers_maison + equip_empruntes:
+        is_borrowed = eq.equipe_id != equipe_sel.pk
+        total_h = Decimal('0')
+        cren_rows = []
+        for creneau, label in CRENEAUX:
+            cells = []
+            for jour in jours:
+                date_iso = jour.isoformat()
+                key = (eq.pk, date_iso, creneau)
+                pres = pres_map.get(key)
+                if pres and pres.heures:
+                    total_h += pres.heures
+                is_off  = (jour.weekday() == 4)
+                is_away = key in away_set
+                aff_c   = pres.affectation if pres else day_aff.get(jour, aff_default)
+                cells.append({
+                    'jour': jour,
+                    'date_iso': date_iso,
+                    'pres': pres,
+                    'is_off': is_off,
+                    'is_away': is_away,
+                    'color': aff_color.get(aff_c.pk, '') if aff_c else '',
+                    'aff_id': aff_c.pk if aff_c else '',
+                    'default_h': DEF_H[creneau],
+                    'is_mon': (jour.weekday() == 0),
+                })
+            cren_rows.append({'label': label, 'creneau': creneau, 'cells': cells})
+        grid_rows.append({
+            'equipier': eq,
+            'is_borrowed': is_borrowed,
+            'cren_rows': cren_rows,
+            'total_h': total_h,
+        })
+
+    panel_equipes = list(
+        Equipe.objects.filter(actif=True)
+        .prefetch_related(
+            Prefetch('equipiers',
+                     queryset=Equipier.objects.filter(actif=True).order_by('nom', 'prenom'))
+        ).order_by('nom')
+    )
+
+    devis_dispo = list(
+        Devis.objects.filter(status='accepted')
+        .select_related('client')
+        .order_by('client__nom')
+    )
+    jours_info = [(j, JOURS_FR[i]) for i, j in enumerate(jours)]
+
+    return render(request, 'core/planning.html', {
+        'equipes': equipes,
+        'equipe_sel': equipe_sel,
+        'lundi': lundi,
+        'vendredi': vendredi,
+        'jours': jours,
+        'jours_info': jours_info,
+        'affectations': affectations,
+        'aff_color': aff_color,
+        'aff_default': aff_default,
+        'grid_rows': grid_rows,
+        'panel_equipes': panel_equipes,
+        'devis_dispo': devis_dispo,
+        'semaine_prec': (lundi - timedelta(weeks=1)).isoformat(),
+        'semaine_suiv': (lundi + timedelta(weeks=1)).isoformat(),
+        'peut_modifier': est_encadrant(request.user, equipe_sel),
+    })
+
+
+@login_required
+@require_POST
+def affectation_save(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    devis_id   = data.get('devis_id')
+    equipe_id  = data.get('equipe_id')
+    debut_s    = (data.get('date_debut') or '').strip()
+    fin_s      = (data.get('date_fin') or '').strip()
+
+    devis  = Devis.objects.filter(pk=devis_id).first()
+    equipe = Equipe.objects.filter(pk=equipe_id).first()
+    if not devis or not equipe:
+        return JsonResponse({'ok': False, 'error': 'Devis ou équipe introuvable'}, status=404)
+    if not est_encadrant(request.user, equipe):
+        return JsonResponse({'ok': False, 'error': 'Non autorisé sur cette équipe'}, status=403)
+    try:
+        date_debut = datetime.strptime(debut_s, '%Y-%m-%d').date()
+        date_fin   = datetime.strptime(fin_s,   '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Dates invalides'}, status=400)
+    if date_fin < date_debut:
+        return JsonResponse({'ok': False, 'error': 'Fin < début'}, status=400)
+
+    tranche, _ = TrancheDevis.objects.get_or_create(
+        devis=devis,
+        defaults={'nom': 'Chantier complet', 'ordre': 0},
+    )
+    aff = Affectation.objects.create(
+        equipe=equipe, tranche=tranche,
+        date_debut=date_debut, date_fin=date_fin,
+        created_by=request.user,
+    )
+    return JsonResponse({
+        'ok': True,
+        'affectation_id': aff.pk,
+        'chantier': str(devis.chantier or devis.client),
+    })
+
+
+@login_required
+@require_POST
+def presence_save(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    saved = deleted = 0
+    for item in data.get('presences', []):
+        try:
+            equipier_id    = int(item.get('equipier_id', 0))
+            affectation_id = int(item.get('affectation_id', 0))
+            d       = datetime.strptime(item.get('date', ''), '%Y-%m-%d').date()
+            creneau = item.get('creneau', '')
+        except (ValueError, TypeError):
+            continue
+        if creneau not in ('matin', 'aprem'):
+            continue
+
+        aff = Affectation.objects.select_related('equipe').filter(pk=affectation_id).first()
+        if not aff or not est_encadrant(request.user, aff.equipe):
+            continue
+        equipier = Equipier.objects.filter(pk=equipier_id, actif=True).first()
+        if not equipier:
+            continue
+
+        code      = (item.get('code') or '').strip().upper()
+        heures_raw = (item.get('heures') or '')
+        heures = Decimal('0') if code else to_decimal(heures_raw, None)
+
+        if heures is None and not code:
+            Presence.objects.filter(
+                equipier_id=equipier_id, date=d, creneau=creneau
+            ).delete()
+            deleted += 1
+        else:
+            Presence.objects.update_or_create(
+                equipier_id=equipier_id, date=d, creneau=creneau,
+                defaults={
+                    'affectation': aff,
+                    'heures': heures if heures is not None else Decimal('0'),
+                    'code': code,
+                }
+            )
+            saved += 1
+
+    return JsonResponse({'ok': True, 'saved': saved, 'deleted': deleted})

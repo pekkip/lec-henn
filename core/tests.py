@@ -10,10 +10,12 @@ from django.contrib.auth.models import User
 from datetime import date
 from decimal import Decimal
 
+from datetime import timedelta
+
 from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
     Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
-    Equipier,
+    Equipier, TrancheDevis, Affectation, Presence,
 )
 from .permissions import peut_acceder_planning, est_encadrant
 
@@ -926,3 +928,208 @@ class PlanningEquipiersTests(TestCase):
         })
         self.assertEqual(resp.status_code, 403)
         self.assertFalse(Equipier.objects.filter(nom='Y').exists())
+
+
+class PlanningGrilleTests(TestCase):
+    """
+    Commit 3 : planning_view, affectation_save, presence_save.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='Ille-et-Vilaine')
+        service = Service.objects.create(territoire=terr, nom='Insertion')
+        cls.equipe = Equipe.objects.create(service=service, nom='65-SORM')
+        cls.autre  = Equipe.objects.create(service=service, nom='65-GORM')
+
+        cls.encadrant = User.objects.create_user('laurene2', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.encadrant, role='technicien')
+        cls.equipe.encadrant = cls.encadrant
+        cls.equipe.save()
+
+        cls.admin = User.objects.create_user('david2', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+
+        cls.technicien = User.objects.create_user('tech2', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.technicien, role='technicien')
+
+        cls.client_obj = Client.objects.create(nom='Ville de Rennes')
+        cls.devis = Devis.objects.create(
+            reference='DEV-PLAN-001',
+            client=cls.client_obj,
+            chantier='École Guillevic',
+            status='accepted',
+            created_by=cls.admin,
+        )
+        cls.eq1 = Equipier.objects.create(prenom='Habtom', nom='Tekie',   equipe=cls.equipe)
+        cls.eq2 = Equipier.objects.create(prenom='Amina',  nom='Dawlatz', equipe=cls.equipe)
+        cls.lundi = date(2026, 6, 1)  # semaine de test
+
+    # ── planning_view ─────────────────────────────────────────
+
+    def test_planning_view_ok(self):
+        self.client.login(username='laurene2', password='pw')
+        resp = self.client.get(reverse('core:planning') + f'?equipe={self.equipe.pk}&debut=2026-06-01')
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Habtom')
+
+    def test_planning_view_interdit_sans_acces(self):
+        self.client.login(username='tech2', password='pw')
+        resp = self.client.get(reverse('core:planning'))
+        self.assertEqual(resp.status_code, 403)
+
+    # ── affectation_save ──────────────────────────────────────
+
+    def test_affectation_save_ok(self):
+        self.client.login(username='laurene2', password='pw')
+        resp = self.client.post(
+            reverse('core:affectation-save'),
+            data=json.dumps({
+                'devis_id': self.devis.pk,
+                'equipe_id': self.equipe.pk,
+                'date_debut': '2026-06-01',
+                'date_fin':   '2026-06-05',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertTrue(data['ok'])
+        aff = Affectation.objects.get(pk=data['affectation_id'])
+        self.assertEqual(aff.equipe, self.equipe)
+        self.assertEqual(aff.tranche.devis, self.devis)
+
+    def test_affectation_save_refuse_autre_equipe(self):
+        self.client.login(username='laurene2', password='pw')
+        resp = self.client.post(
+            reverse('core:affectation-save'),
+            data=json.dumps({
+                'devis_id': self.devis.pk,
+                'equipe_id': self.autre.pk,
+                'date_debut': '2026-06-01',
+                'date_fin':   '2026-06-05',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
+
+    def test_affectation_fin_avant_debut(self):
+        self.client.login(username='laurene2', password='pw')
+        resp = self.client.post(
+            reverse('core:affectation-save'),
+            data=json.dumps({
+                'devis_id': self.devis.pk,
+                'equipe_id': self.equipe.pk,
+                'date_debut': '2026-06-05',
+                'date_fin':   '2026-06-01',
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    # ── presence_save ─────────────────────────────────────────
+
+    def _make_aff(self):
+        tranche = TrancheDevis.objects.create(devis=self.devis, nom='Complet', ordre=0)
+        return Affectation.objects.create(
+            equipe=self.equipe, tranche=tranche,
+            date_debut=self.lundi, date_fin=self.lundi + timedelta(days=4),
+            created_by=self.admin,
+        )
+
+    def test_presence_save_heures(self):
+        aff = self._make_aff()
+        self.client.login(username='laurene2', password='pw')
+        resp = self.client.post(
+            reverse('core:presence-save'),
+            data=json.dumps({'presences': [{
+                'equipier_id': self.eq1.pk,
+                'affectation_id': aff.pk,
+                'date': '2026-06-01',
+                'creneau': 'matin',
+                'heures': '4',
+                'code': '',
+            }]}),
+            content_type='application/json',
+        )
+        data = json.loads(resp.content)
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['saved'], 1)
+        p = Presence.objects.get(equipier=self.eq1, date=date(2026, 6, 1), creneau='matin')
+        self.assertEqual(p.heures, Decimal('4'))
+
+    def test_presence_save_code_absence(self):
+        aff = self._make_aff()
+        self.client.login(username='laurene2', password='pw')
+        self.client.post(
+            reverse('core:presence-save'),
+            data=json.dumps({'presences': [{
+                'equipier_id': self.eq1.pk,
+                'affectation_id': aff.pk,
+                'date': '2026-06-02',
+                'creneau': 'aprem',
+                'heures': None,
+                'code': 'c',
+            }]}),
+            content_type='application/json',
+        )
+        p = Presence.objects.get(equipier=self.eq1, date=date(2026, 6, 2), creneau='aprem')
+        self.assertEqual(p.code, 'C')
+        self.assertEqual(p.heures, Decimal('0'))
+
+    def test_presence_save_suppression(self):
+        aff = self._make_aff()
+        Presence.objects.create(
+            equipier=self.eq1, affectation=aff,
+            date=date(2026, 6, 3), creneau='matin',
+            heures=Decimal('4'),
+        )
+        self.client.login(username='laurene2', password='pw')
+        self.client.post(
+            reverse('core:presence-save'),
+            data=json.dumps({'presences': [{
+                'equipier_id': self.eq1.pk,
+                'affectation_id': aff.pk,
+                'date': '2026-06-03',
+                'creneau': 'matin',
+                'heures': None,
+                'code': '',
+            }]}),
+            content_type='application/json',
+        )
+        self.assertFalse(
+            Presence.objects.filter(equipier=self.eq1, date=date(2026, 6, 3), creneau='matin').exists()
+        )
+
+    def test_presence_unique_together(self):
+        """Upsert : deux saves pour la même (equipier, date, creneau) → 1 seule ligne."""
+        aff = self._make_aff()
+        self.client.login(username='laurene2', password='pw')
+        payload = lambda h: json.dumps({'presences': [{
+            'equipier_id': self.eq1.pk, 'affectation_id': aff.pk,
+            'date': '2026-06-01', 'creneau': 'matin', 'heures': h, 'code': '',
+        }]})
+        self.client.post(reverse('core:presence-save'), data=payload('4'), content_type='application/json')
+        self.client.post(reverse('core:presence-save'), data=payload('3.5'), content_type='application/json')
+        self.assertEqual(
+            Presence.objects.filter(equipier=self.eq1, date=date(2026, 6, 1), creneau='matin').count(), 1
+        )
+        p = Presence.objects.get(equipier=self.eq1, date=date(2026, 6, 1), creneau='matin')
+        self.assertEqual(p.heures, Decimal('3.5'))
+
+    def test_presence_interdit_sans_acces(self):
+        aff = self._make_aff()
+        self.client.login(username='tech2', password='pw')
+        resp = self.client.post(
+            reverse('core:presence-save'),
+            data=json.dumps({'presences': [{
+                'equipier_id': self.eq1.pk,
+                'affectation_id': aff.pk,
+                'date': '2026-06-01',
+                'creneau': 'matin',
+                'heures': '4',
+                'code': '',
+            }]}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 403)
