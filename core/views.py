@@ -1,6 +1,7 @@
 ﻿import io
 import json
 import logging
+import math
 import random
 import string
 import re
@@ -3115,6 +3116,14 @@ def planning_mois(request):
     devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
     equipe_effectifs_json = {e.pk: e.nb_equipiers for e in equipes}
 
+    # Pour chaque devis déjà affiché sur la grille : liste des équipes déjà affectées
+    devis_equipes: dict[int, list[int]] = {}
+    for aff in affectations:
+        did = aff.tranche.devis_id
+        devis_equipes.setdefault(did, [])
+        if aff.equipe_id not in devis_equipes[did]:
+            devis_equipes[did].append(aff.equipe_id)
+
     tl_min_width = 180 + nb_semaines * (5 * 26 + 2 * 8)  # label + semaines × (5 jours×26px + 2 we×8px)
 
     return render(request, 'core/planning.html', {
@@ -3134,8 +3143,46 @@ def planning_mois(request):
         'devis_dispo': devis_dispo,
         'devis_mo_json': devis_mo_json,
         'equipe_effectifs_json': equipe_effectifs_json,
+        'devis_equipes_json': json.dumps(devis_equipes),
         'today': date.today(),
     })
+
+
+_TAUX_JOUR_PLANNING = Decimal('82.5')  # €/jour/équipier, doit rester cohérent avec TAUX_JOUR dans planning.html
+
+
+def _add_working_days(start_date, n_days):
+    """Ajoute n_days jours ouvrés Lun-Jeu à start_date."""
+    d = start_date
+    while d.weekday() >= 4:   # Ven=4, Sam=5, Dim=6
+        d += timedelta(days=1)
+    rem = n_days - 1
+    while rem > 0:
+        d += timedelta(days=1)
+        if d.weekday() < 4:
+            rem -= 1
+    return d
+
+
+def _recalcul_durees_tranche(tranche, devis):
+    """Recalcule date_fin de toutes les affectations d'une tranche selon l'effectif cumulé.
+    Retourne la liste des PKs modifiés."""
+    all_aff = list(Affectation.objects.filter(tranche=tranche).select_related('equipe'))
+    if not all_aff:
+        return []
+    total_nbEq = sum(a.equipe.nb_equipiers for a in all_aff)
+    total_mo   = total_mo_devis(devis)
+    if not total_mo or total_nbEq <= 0:
+        return []
+    n_jours = max(1, math.ceil(float(total_mo) / (float(_TAUX_JOUR_PLANNING) * total_nbEq)))
+    updated = []
+    for a in all_aff:
+        new_fin = _add_working_days(a.date_debut, n_jours)
+        if a.date_fin != new_fin:
+            a.date_fin = new_fin
+            a.save(update_fields=['date_fin'])
+            updated.append(a.pk)
+    return updated
 
 
 @login_required
@@ -3153,7 +3200,7 @@ def affectation_save(request):
     debut_s    = (data.get('date_debut') or '').strip()
     fin_s      = (data.get('date_fin') or '').strip()
 
-    devis  = Devis.objects.filter(pk=devis_id).first()
+    devis  = Devis.objects.prefetch_related('lignes').filter(pk=devis_id).first()
     equipe = Equipe.objects.filter(pk=equipe_id).first()
     if not devis or not equipe:
         return JsonResponse({'ok': False, 'error': 'Devis ou équipe introuvable'}, status=404)
@@ -3171,15 +3218,21 @@ def affectation_save(request):
         devis=devis,
         defaults={'nom': 'Chantier complet', 'ordre': 0},
     )
+    if Affectation.objects.filter(equipe=equipe, tranche=tranche).exists():
+        label = str(devis.chantier or devis.client)
+        return JsonResponse({'ok': False, 'error': f'"{label}" est déjà assigné à cette équipe.'})
+
     aff = Affectation.objects.create(
         equipe=equipe, tranche=tranche,
         date_debut=date_debut, date_fin=date_fin,
         created_by=request.user,
     )
+    recalculated = _recalcul_durees_tranche(tranche, devis)
     return JsonResponse({
         'ok': True,
         'affectation_id': aff.pk,
         'chantier': str(devis.chantier or devis.client),
+        'recalculated': recalculated,
     })
 
 

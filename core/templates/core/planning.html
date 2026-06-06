@@ -86,6 +86,9 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .resize-l{left:2px}.resize-r{right:24px}
 /* Indicateur durée divergente de la durée calculée */
 .tl-bar.divergent{outline:2px dashed var(--amber);outline-offset:-2px}
+/* Flash après recalcul multi-équipes */
+@keyframes bar-flash{0%,100%{filter:brightness(1)}40%{filter:brightness(1.35) saturate(1.4)}}
+.tl-bar.just-updated{animation:bar-flash .7s ease-in-out}
 </style>
 {% endblock %}
 
@@ -198,7 +201,8 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
                data-debut="{{ barre.aff.date_debut|date:'Y-m-d' }}"
                data-fin="{{ barre.aff.date_fin|date:'Y-m-d' }}"
                data-equipe="{{ ligne.equipe.pk }}"
-               {% if ligne.peut_modifier %}draggable="true" data-aff="{{ barre.aff.pk }}"{% endif %}>
+               data-aff="{{ barre.aff.pk }}"
+               {% if ligne.peut_modifier %}draggable="true"{% endif %}>
               {% if ligne.peut_modifier %}<span class="resize-l" draggable="true" data-side="left"></span>{% endif %}
               {{ barre.label }}
               {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button><span class="resize-r" draggable="true" data-side="right"></span>{% endif %}
@@ -271,9 +275,10 @@ const URL_MOVE = '{% url "core:affectation-move" %}';
 const URL_DEL  = '{% url "core:affectation-delete" %}';
 const MODIFIABLES = new Set({{ equipes_modifiables_ids|safe }});
 const PEUT_GLOBAL = {{ peut_modifier_global|lower }};
-const DEVIS_MO  = {{ devis_mo_json|safe }};
-const EQ_EFF    = {{ equipe_effectifs_json|safe }};
-const TAUX_JOUR = 82.5;  // €/jour/équipier (base 4 j/semaine Lun-Jeu)
+const DEVIS_MO      = {{ devis_mo_json|safe }};
+const EQ_EFF        = {{ equipe_effectifs_json|safe }};
+const TAUX_JOUR     = 82.5;  // €/jour/équipier (base 4 j/semaine Lun-Jeu)
+const DEVIS_EQUIPES = {{ devis_equipes_json|safe }};  // {devis_pk: [equipe_pk, ...]}
 
 // ── Drag & drop ────────────────────────────────────────
 let dragData = null;
@@ -488,7 +493,13 @@ function calcDateFin() {
     return;
   }
   if (hint) hint.style.display = 'none';
-  const nbJ = Math.ceil(mo / (TAUX_JOUR * nbEq));
+  // Effectif cumulé : cette équipe + équipes déjà affectées au même devis
+  const existingEqs = DEVIS_EQUIPES[devId] || [];
+  const otherNbEq   = existingEqs
+    .filter(eid => eid !== eqId)
+    .reduce((s, eid) => s + (EQ_EFF[eid] || 0), 0);
+  const totalNbEq = nbEq + otherNbEq;
+  const nbJ = Math.ceil(mo / (TAUX_JOUR * totalNbEq));
   document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ);
 }
 
@@ -550,10 +561,29 @@ function submitAff() {
   })
   .then(r => r.json())
   .then(d => {
-    if (d.ok) { location.reload(); }
-    else { err.textContent = d.error || 'Erreur'; err.style.display = ''; }
+    if (d.ok) {
+      if (d.recalculated && d.recalculated.length > 0) {
+        sessionStorage.setItem('flashAff', JSON.stringify(d.recalculated));
+      }
+      location.reload();
+    } else {
+      err.textContent = d.error || 'Erreur'; err.style.display = '';
+    }
   })
   .catch(() => { err.textContent = 'Erreur réseau'; err.style.display = ''; });
 }
+
+// Flash des barres recalculées après rechargement
+(function applyFlash() {
+  const raw = sessionStorage.getItem('flashAff');
+  if (!raw) return;
+  sessionStorage.removeItem('flashAff');
+  let ids;
+  try { ids = JSON.parse(raw); } catch { return; }
+  ids.forEach(id => {
+    const bar = document.querySelector(`.tl-bar[data-aff="${id}"]`);
+    if (bar) bar.classList.add('just-updated');
+  });
+})();
 </script>
 {% endblock %}
