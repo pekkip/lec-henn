@@ -482,14 +482,16 @@ function filterDevis(q) {
 }
 
 function submitAff() {
-  const sel = document.getElementById('aff-devis');
-  const debut = document.getElementById('aff-debut').value;
-  const fin   = document.getElementById('aff-fin').value;
-  const err   = document.getElementById('aff-err');
+  const sel    = document.getElementById('aff-devis');
+  const debut  = document.getElementById('aff-debut').value;
+  const err    = document.getElementById('aff-err');
   const devisId = sel.value;
 
   if (!devisId) { err.textContent = 'Sélectionnez un chantier.'; err.style.display = ''; return; }
-  if (!debut || !fin) { err.textContent = 'Renseignez les dates.'; err.style.display = ''; return; }
+  if (!debut)   { err.textContent = 'Renseignez la date de début.'; err.style.display = ''; return; }
+  if (!document.getElementById('aff-fin').value) calcDateFin();
+  const fin = document.getElementById('aff-fin').value;
+  if (!fin)        { err.textContent = 'Renseignez la date de fin (aucune MO trouvée sur ce devis ?).'; err.style.display = ''; return; }
   if (fin < debut) { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
   err.style.display = 'none';
 
