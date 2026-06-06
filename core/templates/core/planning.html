@@ -422,7 +422,13 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
       body: JSON.stringify({aff_id: parseInt(dragData.affId), date_debut: newDebut, date_fin: newFin, equipe_id: newEquipe}),
     })
     .then(r => r.json())
-    .then(d => { if (d.ok) location.reload(); else alert(d.error || 'Erreur'); })
+    .then(d => {
+      if (d.ok) {
+        if (d.recalculated && d.recalculated.length > 0)
+          sessionStorage.setItem('flashAff', JSON.stringify(d.recalculated));
+        location.reload();
+      } else { alert(d.error || 'Erreur'); }
+    })
     .catch(() => alert('Erreur réseau'));
     dragData = null;
   });
@@ -459,7 +465,13 @@ function deleteAff(e, affId) {
     body: JSON.stringify({aff_id: affId}),
   })
   .then(r => r.json())
-  .then(d => { if (d.ok) location.reload(); else alert(d.error || 'Erreur'); })
+  .then(d => {
+    if (d.ok) {
+      if (d.recalculated && d.recalculated.length > 0)
+        sessionStorage.setItem('flashAff', JSON.stringify(d.recalculated));
+      location.reload();
+    } else { alert(d.error || 'Erreur'); }
+  })
   .catch(() => alert('Erreur réseau'));
 }
 

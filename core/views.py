@@ -3267,19 +3267,27 @@ def affectation_move(request):
     if date_fin < date_debut:
         return JsonResponse({'ok': False, 'error': 'Fin < début'}, status=400)
 
-    if equipe_id and int(equipe_id) != aff.equipe_id:
+    changing_equipe = equipe_id and int(equipe_id) != aff.equipe_id
+    if changing_equipe:
         try:
             new_equipe = Equipe.objects.get(pk=equipe_id, actif=True, service__module_planning=True)
         except Equipe.DoesNotExist:
             return JsonResponse({'ok': False, 'error': 'Équipe cible introuvable'}, status=404)
         if not est_encadrant(request.user, new_equipe):
             return JsonResponse({'ok': False, 'error': 'Non autorisé sur l\'équipe cible'}, status=403)
+        tranche = aff.tranche if hasattr(aff, 'tranche') else Affectation.objects.select_related('tranche').get(pk=aff.pk).tranche
+        if Affectation.objects.filter(equipe=new_equipe, tranche=tranche).exclude(pk=aff.pk).exists():
+            label = str(tranche.devis.chantier or tranche.devis.client)
+            return JsonResponse({'ok': False, 'error': f'"{label}" est déjà assigné à cette équipe.'})
         aff.equipe = new_equipe
 
     aff.date_debut = date_debut
     aff.date_fin   = date_fin
     aff.save()
-    return JsonResponse({'ok': True})
+
+    tranche = Affectation.objects.select_related('tranche__devis').prefetch_related('tranche__devis__lignes').get(pk=aff.pk).tranche
+    recalculated = _recalcul_durees_tranche(tranche, tranche.devis) if changing_equipe else []
+    return JsonResponse({'ok': True, 'recalculated': recalculated})
 
 
 @login_required
@@ -3301,8 +3309,14 @@ def affectation_delete(request):
     if not est_encadrant(request.user, aff.equipe):
         return JsonResponse({'ok': False, 'error': 'Non autorisé sur cette équipe'}, status=403)
 
+    # Récupère tranche+devis avant suppression pour recalcul
+    aff_full = Affectation.objects.select_related('tranche__devis').prefetch_related('tranche__devis__lignes').get(pk=aff_id)
+    tranche = aff_full.tranche
+    devis   = tranche.devis
+
     aff.delete()
-    return JsonResponse({'ok': True})
+    recalculated = _recalcul_durees_tranche(tranche, devis)
+    return JsonResponse({'ok': True, 'recalculated': recalculated})
 
 
 @login_required
