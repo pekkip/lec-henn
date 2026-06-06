@@ -96,6 +96,10 @@
 
 /* ── wrapper scrollable ──────────────────── */
 .plan-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+
+/* ── saisie cellules ─────────────────────── */
+.cinp-def{color:#bbb}
+.cinp.inp-err{color:var(--red);font-weight:700}
 </style>
 {% endblock %}
 
@@ -262,18 +266,19 @@
               <input class="cinp" type="text" value="{{ code }}"
                 data-init="{{ code }}"
                 onfocus="this.select()"
+                oninput="onCellInput(this)"
                 onblur="saveCell(this)">
               {% else %}
               <span>{{ code }}</span>
               {% endif %}
             {% else %}
               {% if peut_modifier %}
-              <input class="cinp" type="text"
-                value="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% endif %}"
-                placeholder="{{ cell.default_h }}"
+              <input class="cinp{% if heures is None %} cinp-def{% endif %}" type="text"
+                value="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% else %}{{ cell.default_h }}{% endif %}"
                 data-init="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% endif %}"
                 inputmode="decimal"
                 onfocus="this.select()"
+                oninput="onCellInput(this)"
                 onblur="saveCell(this)">
               {% else %}
               <span>{% if heures %}{{ heures|floatformat:'-2' }}{% endif %}</span>
@@ -283,7 +288,7 @@
           {% endwith %}
           {% endfor %}
           {% if forloop.first %}
-          <div class="gtot" style="grid-row:span 2">
+          <div class="gtot" style="grid-row:span 2" data-equip="{{ row.equipier.pk }}">
             <b>{{ row.total_h|floatformat:"-2" }}</b><small>h</small>
           </div>
           {% endif %}
@@ -399,6 +404,36 @@ function calcDateFin() {
   document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ);
 }
 
+/* ── Validation & mise à jour totaux ──────────────────── */
+const VALID_CODES = ['C','R','M','AT','A','AJ','S','PMSMP','DE','DI','F'];
+
+function updateTotEquipier(eqId) {
+  let tot = 0;
+  document.querySelectorAll(`.cell[data-equipier-id="${eqId}"] .cinp`).forEach(inp => {
+    if (inp.classList.contains('cinp-def')) return;
+    const v = parseFloat(inp.value.replace(',', '.'));
+    if (!isNaN(v)) tot += v;
+  });
+  const b = document.querySelector(`.gtot[data-equip="${eqId}"] b`);
+  if (!b) return;
+  b.textContent = Number.isInteger(tot) ? String(tot) : tot.toFixed(2).replace(/\.?0+$/, '');
+}
+
+function onCellInput(inp) {
+  inp.classList.remove('cinp-def');
+  inp.value = inp.value.toUpperCase();
+  const v = inp.value.trim();
+  if (!v) {
+    inp.classList.remove('inp-err');
+  } else {
+    const ok = /^\d+([.,]\d{1,2})?$/.test(v) || VALID_CODES.includes(v);
+    inp.classList.toggle('inp-err', !ok);
+  }
+  const cell = inp.closest('.cell');
+  const eqId = cell && cell.dataset.equipierId;
+  if (eqId) updateTotEquipier(eqId);
+}
+
 /* ── Auto-save présence ────────────────────────────────── */
 function saveCell(inp) {
   const cell = inp.closest('.cell');
@@ -435,9 +470,15 @@ function saveCell(inp) {
   })
   .then(r => r.json())
   .then(d => {
-    inp.classList.remove('saving');
-    if (d.ok) { inp.classList.add('saved'); setTimeout(() => inp.classList.remove('saved'), 1200); }
-    else { inp.classList.add('saving'); }
+    inp.classList.remove('saving', 'cinp-def');
+    if (d.ok) {
+      inp.classList.add('saved');
+      setTimeout(() => inp.classList.remove('saved'), 1200);
+      const eqId = cell.dataset.equipierId;
+      if (eqId) updateTotEquipier(eqId);
+    } else {
+      inp.classList.add('saving');
+    }
   })
   .catch(() => { inp.classList.remove('saving'); });
 }
