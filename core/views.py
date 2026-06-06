@@ -32,7 +32,7 @@ from .models import (
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
     BibliothèqueAides,
-    Equipier, TrancheDevis, Affectation, Presence,
+    Equipier, TrancheDevis, Affectation, Presence, Evenement,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -3093,10 +3093,56 @@ def planning_mois(request):
     ) if tranche_ids else []
     heures_par_tranche = {r['affectation__tranche_id']: float(r['total']) for r in _rows}
 
-    def day_col(d):
-        """Colonne 1-based dans la grille piste (sans colonne nom-équipe)."""
-        return (d - debut_grille).days + 1
+    # ── Événements dans la fenêtre ──────────────────────────────────────
+    evenements = list(
+        Evenement.objects
+        .filter(date_debut__lte=fin_grille)
+        .prefetch_related('equipes')
+        .order_by('date_debut')
+    )
 
+    # Sets JSON pour JS : {equipe_pk|'global': [date_iso, ...]}
+    ev_positifs_json_data = {}
+    ev_negatifs_json_data = {}
+    for ev in evenements:
+        eq_ids = [e.pk for e in ev.equipes.all()]
+        keys = [str(pk) for pk in eq_ids] if eq_ids else ['global']
+        d_ev, end_ev = ev.date_debut, ev.date_fin or ev.date_debut
+        d_cur = d_ev
+        while d_cur <= end_ev and d_cur <= fin_grille:
+            if d_cur >= debut_grille:
+                iso = d_cur.isoformat()
+                target = ev_positifs_json_data if ev.travaille else ev_negatifs_json_data
+                for k in keys:
+                    target.setdefault(k, [])
+                    if iso not in target[k]:
+                        target[k].append(iso)
+            d_cur += timedelta(days=1)
+
+    # ── Cellules de fond (header jours + track) ────────────────────────
+    # Pour le header : une cellule par jour (span 2 pour les jours ouvrés)
+    jours_hdr = []
+    for d in jours:
+        wd = d.weekday()
+        col_s = _half_col_creneau(d, debut_grille, 'journee')[0]
+        col_e = _half_col_creneau(d, debut_grille, 'journee')[1]
+        jours_hdr.append({'date': d, 'weekday': wd, 'col_debut': col_s, 'col_fin': col_e})
+
+    # Pour les tracks : deux cellules par jour ouvré (matin + aprem), une par weekend
+    jours_cells = []
+    for d in jours:
+        wd = d.weekday()
+        is_today = (d == today)
+        if wd >= 5:  # Weekend : une seule cellule
+            col_s = _half_col_creneau(d, debut_grille, 'journee')[0]
+            jours_cells.append({'date': d, 'weekday': wd, 'col': col_s, 'aprem': False, 'is_we': True, 'is_today': is_today})
+        else:
+            col_m = _half_col_creneau(d, debut_grille, 'matin')[0]
+            col_a = _half_col_creneau(d, debut_grille, 'aprem')[0]
+            jours_cells.append({'date': d, 'weekday': wd, 'col': col_m, 'aprem': False, 'is_we': False, 'is_today': is_today})
+            jours_cells.append({'date': d, 'weekday': wd, 'col': col_a, 'aprem': True,  'is_we': False, 'is_today': is_today})
+
+    # ── Lignes équipes ──────────────────────────────────────────────────
     lignes = []
     for equipe in equipes:
         barres = []
@@ -3107,13 +3153,23 @@ def planning_mois(request):
             ends_after    = aff.date_fin   > fin_grille
             d_debut = max(aff.date_debut, debut_grille)
             d_fin   = min(aff.date_fin,   fin_grille)
-            col_d = day_col(d_debut)
-            col_f = day_col(d_fin)
+
+            # Demi-colonnes avec creneaux
+            if starts_before:
+                col_d = _half_col_creneau(debut_grille, debut_grille, 'matin')[0]
+            else:
+                col_d = _half_col_creneau(d_debut, debut_grille, aff.debut_creneau)[0]
+            if ends_after:
+                col_f = _half_col_creneau(fin_grille, debut_grille, 'aprem')[1]
+            else:
+                col_f = _half_col_creneau(d_fin, debut_grille, aff.fin_creneau)[1]
+
             lundi_em = d_debut - timedelta(days=d_debut.weekday())
             label = aff.tranche.devis.chantier or aff.tranche.devis.client.nom
-            nb_jours = _count_working_days(aff.date_debut, aff.date_fin, vendredi=aff.vendredi_actif)
+            pos, neg = _build_evenement_sets(equipe.pk, aff.date_debut, aff.date_fin)
+            nb_jours = _count_working_days(aff.date_debut, aff.date_fin, pos, neg)
             mo_eur = devis_mo_json.get(aff.tranche.devis_id, 0)
-            heures_budget = mo_eur / float(_TAUX_JOUR_PLANNING) * 7  # 7h/jour ouvré
+            heures_budget = mo_eur / float(_TAUX_JOUR_PLANNING) * 7
             heures_conso  = heures_par_tranche.get(aff.tranche_id, 0)
             pct_consomme  = min(100, round(heures_conso / heures_budget * 100)) if heures_budget > 0 else 0
             devis = aff.tranche.devis
@@ -3125,7 +3181,7 @@ def planning_mois(request):
                 'label': label,
                 'lieu': lieu,
                 'col_debut': col_d,
-                'col_fin_excl': col_f + 1,
+                'col_fin_excl': col_f,
                 'starts_before': starts_before,
                 'ends_after': ends_after,
                 'lundi_em': lundi_em.isoformat(),
@@ -3133,25 +3189,43 @@ def planning_mois(request):
                 'pct_consomme': pct_consomme,
             })
 
-        # Vendredis couverts par une affectation de cette équipe (pour indicateurs)
-        vendredis = []
-        for aff in affectations:
-            if aff.equipe_id != equipe.pk:
+        # ── Événements de cette équipe ──────────────────────────────────
+        ev_barres = []   # événements négatifs → barres hachurées
+        jours_sup = []   # événements positifs → icône sur la colonne
+        for ev in evenements:
+            eq_ids = {e.pk for e in ev.equipes.all()}
+            if eq_ids and equipe.pk not in eq_ids:
                 continue
-            d = max(aff.date_debut, debut_grille)
-            end_d = min(aff.date_fin, fin_grille)
-            while d <= end_d:
-                if d.weekday() == 4:  # vendredi
-                    vendredis.append({
-                        'date': d.isoformat(),
-                        'col': day_col(d),
-                        'actif': aff.vendredi_actif,
-                        'aff_pk': aff.pk,
-                    })
-                d += timedelta(days=1)
+            d_ev_debut = max(ev.date_debut, debut_grille)
+            d_ev_fin   = min(ev.date_fin or ev.date_debut, fin_grille)
+            if d_ev_debut > fin_grille or d_ev_fin < debut_grille:
+                continue
+            cren_debut = 'matin' if ev.creneau != 'aprem'  else 'aprem'
+            cren_fin   = 'aprem' if ev.creneau != 'matin'  else 'matin'
+            col_ev_d = _half_col_creneau(d_ev_debut, debut_grille, cren_debut)[0]
+            col_ev_f = _half_col_creneau(d_ev_fin,   debut_grille, cren_fin)[1]
+            if ev.travaille:
+                jours_sup.append({
+                    'col': col_ev_d,
+                    'pk': ev.pk,
+                    'libelle': ev.libelle or ev.get_type_display(),
+                })
+            else:
+                ev_barres.append({
+                    'ev': ev,
+                    'col_debut': col_ev_d,
+                    'col_fin_excl': col_ev_f,
+                    'decale': ev.decale_chantier,
+                })
 
         peut_modifier_ligne = peut_modifier_global or equipe.pk in equipes_modifiables_ids
-        lignes.append({'equipe': equipe, 'barres': barres, 'vendredis': vendredis, 'peut_modifier': peut_modifier_ligne})
+        lignes.append({
+            'equipe': equipe,
+            'barres': barres,
+            'ev_barres': ev_barres,
+            'jours_sup': jours_sup,
+            'peut_modifier': peut_modifier_ligne,
+        })
 
     prec_debut = (debut_grille - timedelta(weeks=4)).isoformat()
     suiv_debut = (debut_grille + timedelta(weeks=4)).isoformat()
@@ -3164,11 +3238,14 @@ def planning_mois(request):
         if aff.equipe_id not in devis_equipes[did]:
             devis_equipes[did].append(aff.equipe_id)
 
-    tl_min_width = 180 + nb_semaines * (5 * 26 + 2 * 8)  # label + semaines × (5 jours×26px + 2 we×8px)
+    # 12 cols/semaine : 10 demi-j (10×13px) + 1 Sam (8px) + 1 Dim (8px)
+    tl_min_width = 180 + nb_semaines * (10 * 13 + 2 * 8)
 
     return render(request, 'core/planning.html', {
         'equipes': equipes,
         'jours': jours,
+        'jours_hdr': jours_hdr,
+        'jours_cells': jours_cells,
         'nb_jours': nb_jours,
         'nb_semaines': nb_semaines,
         'tl_min_width': tl_min_width,
@@ -3184,42 +3261,108 @@ def planning_mois(request):
         'devis_mo_json': devis_mo_json,
         'equipe_effectifs_json': equipe_effectifs_json,
         'devis_equipes_json': json.dumps(devis_equipes),
+        'ev_positifs_json': json.dumps(ev_positifs_json_data),
+        'ev_negatifs_json': json.dumps(ev_negatifs_json_data),
         'today': date.today(),
+        'equipes_json': json.dumps([{'pk': e.pk, 'nom': e.nom} for e in equipes]),
+        'evenements_data_json': json.dumps({
+            ev.pk: {
+                'type': ev.type,
+                'libelle': ev.libelle,
+                'date_debut': ev.date_debut.isoformat(),
+                'date_fin': ev.date_fin.isoformat() if ev.date_fin else '',
+                'creneau': ev.creneau,
+                'travaille': ev.travaille,
+                'decale_chantier': ev.decale_chantier,
+                'equipe_ids': [e.pk for e in ev.equipes.all()],
+            }
+            for ev in evenements
+        }),
     })
 
 
-_TAUX_JOUR_PLANNING = Decimal('82.5')  # €/jour/équipier, doit rester cohérent avec TAUX_JOUR dans planning.html
+_TAUX_JOUR_PLANNING = Decimal('82.5')  # €/jour/équipier, cohérent avec TAUX_JOUR dans planning.html
 
 
-def _count_working_days(start_date, end_date, vendredi=False):
-    """Compte les jours ouvrés entre start_date et end_date inclus.
-    vendredi=True → semaine Lun-Ven (5j), sinon Lun-Jeu (4j)."""
-    limit = 5 if vendredi else 4  # weekday() exclusif: 0-3=LJ, 0-4=LV
+def _half_col_creneau(d, debut_grille, creneau='journee'):
+    """Retourne (col_start, col_fin_excl) en base 1 pour la grille demi-journées.
+    Grille : 12 cols/semaine = 10 demi-j ouvrées (Lun-Ven) + 1 Sam + 1 Dim."""
+    weeks = (d - debut_grille).days // 7
+    wd = d.weekday()
+    if wd == 5:   # Samedi → col 11 de la semaine
+        c = weeks * 12 + 11
+        return (c, c + 1)
+    if wd == 6:   # Dimanche → col 12
+        c = weeks * 12 + 12
+        return (c, c + 1)
+    c_matin = weeks * 12 + wd * 2 + 1
+    if creneau == 'matin':
+        return (c_matin, c_matin + 1)
+    if creneau == 'aprem':
+        return (c_matin + 1, c_matin + 2)
+    return (c_matin, c_matin + 2)  # journee = span entier
+
+
+def _build_evenement_sets(equipe_id, debut, fin):
+    """Retourne (positifs, negatifs) sets[date] pour une équipe + événements globaux sur [debut, fin].
+    positifs : jours normalement non-ouvrés devenus ouvrés (travaille=True).
+    negatifs : jours ouvrés bloqués (travaille=False, creneau=journee)."""
+    from django.db.models import Q
+    evs = (Evenement.objects
+           .filter(date_debut__lte=fin)
+           .prefetch_related('equipes'))
+    positifs, negatifs = set(), set()
+    for ev in evs:
+        eq_ids = {e.pk for e in ev.equipes.all()}
+        is_global = len(eq_ids) == 0
+        if not is_global and equipe_id not in eq_ids:
+            continue
+        d, end = ev.date_debut, ev.date_fin or ev.date_debut
+        while d <= end:
+            if debut <= d <= fin:
+                if ev.travaille:
+                    positifs.add(d)
+                elif ev.creneau == 'journee':
+                    negatifs.add(d)
+            d += timedelta(days=1)
+    return positifs, negatifs
+
+
+def _is_working_day(d, positifs, negatifs):
+    if d in negatifs:
+        return False
+    if d in positifs:
+        return True
+    return d.weekday() < 4  # Lun=0..Jeu=3
+
+
+def _count_working_days(start_date, end_date, positifs=None, negatifs=None):
+    """Compte les jours ouvrés entre start_date et end_date inclus, tenant compte des exceptions."""
+    pos, neg = positifs or set(), negatifs or set()
     n, d = 0, start_date
     while d <= end_date:
-        if d.weekday() < limit:
+        if _is_working_day(d, pos, neg):
             n += 1
         d += timedelta(days=1)
     return n
 
 
-def _add_working_days(start_date, n_days, vendredi=False):
-    """Ajoute n_days jours ouvrés à start_date.
-    vendredi=True → semaine Lun-Ven (5j), sinon Lun-Jeu (4j)."""
-    limit = 5 if vendredi else 4
+def _add_working_days(start_date, n_days, positifs=None, negatifs=None):
+    """Ajoute n_days jours ouvrés à start_date, tenant compte des exceptions."""
+    pos, neg = positifs or set(), negatifs or set()
     d = start_date
-    while d.weekday() >= limit:
+    while not _is_working_day(d, pos, neg):
         d += timedelta(days=1)
     rem = n_days - 1
     while rem > 0:
         d += timedelta(days=1)
-        if d.weekday() < limit:
+        if _is_working_day(d, pos, neg):
             rem -= 1
     return d
 
 
 def _recalcul_durees_tranche(tranche, devis):
-    """Recalcule date_fin de toutes les affectations d'une tranche selon l'effectif cumulé.
+    """Recalcule date_fin de toutes les affectations d'une tranche selon l'effectif cumulé + événements.
     Retourne la liste des PKs modifiés."""
     all_aff = list(Affectation.objects.filter(tranche=tranche).select_related('equipe'))
     if not all_aff:
@@ -3231,12 +3374,131 @@ def _recalcul_durees_tranche(tranche, devis):
     n_jours = max(1, math.ceil(float(total_mo) / (float(_TAUX_JOUR_PLANNING) * total_nbEq)))
     updated = []
     for a in all_aff:
-        new_fin = _add_working_days(a.date_debut, n_jours, vendredi=a.vendredi_actif)
+        borne_max = a.date_debut + timedelta(days=n_jours * 2 + 30)
+        pos, neg  = _build_evenement_sets(a.equipe_id, a.date_debut, borne_max)
+        new_fin   = _add_working_days(a.date_debut, n_jours, pos, neg)
         if a.date_fin != new_fin:
-            a.date_fin = new_fin
-            a.save(update_fields=['date_fin'])
+            a.date_fin     = new_fin
+            a.fin_creneau  = 'aprem'
+            a.save(update_fields=['date_fin', 'fin_creneau'])
             updated.append(a.pk)
     return updated
+
+
+@login_required
+@require_POST
+def evenement_save(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    pk           = data.get('pk')
+    type_ev      = data.get('type', 'autre')
+    libelle      = (data.get('libelle') or '').strip()
+    equipe_ids   = data.get('equipe_ids', [])
+    date_debut_s = (data.get('date_debut') or '').strip()
+    date_fin_s   = (data.get('date_fin')   or '').strip()
+    creneau      = data.get('creneau', 'journee') or 'journee'
+    travaille    = bool(data.get('travaille', False))
+    decale       = bool(data.get('decale_chantier', False))
+
+    try:
+        date_debut = datetime.strptime(date_debut_s, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Date de début invalide'}, status=400)
+    date_fin = None
+    if date_fin_s:
+        try:
+            date_fin = datetime.strptime(date_fin_s, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return JsonResponse({'ok': False, 'error': 'Date de fin invalide'}, status=400)
+
+    if pk:
+        try:
+            ev = Evenement.objects.prefetch_related('equipes').get(pk=pk)
+        except Evenement.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Événement introuvable'}, status=404)
+    else:
+        ev = Evenement()
+
+    ev.type           = type_ev
+    ev.libelle        = libelle
+    ev.date_debut     = date_debut
+    ev.date_fin       = date_fin
+    ev.creneau        = creneau
+    ev.travaille      = travaille
+    ev.decale_chantier = decale and not travaille  # décalage seulement si événement négatif
+    ev.save()
+    ev.equipes.set(equipe_ids)
+
+    # Recalcul des affectations chevauchantes si nécessaire
+    recalculated = []
+    if travaille or decale:
+        from django.db.models import Q
+        d_end = date_fin or date_debut
+        if equipe_ids:
+            aff_qs = Affectation.objects.filter(
+                equipe_id__in=equipe_ids,
+                date_debut__lte=d_end, date_fin__gte=date_debut,
+            ).select_related('tranche__devis').prefetch_related('tranche__devis__lignes')
+        else:
+            aff_qs = Affectation.objects.filter(
+                date_debut__lte=d_end, date_fin__gte=date_debut,
+            ).select_related('tranche__devis').prefetch_related('tranche__devis__lignes')
+        tranches_done = set()
+        for aff in aff_qs:
+            if aff.tranche_id not in tranches_done:
+                tranches_done.add(aff.tranche_id)
+                recalculated.extend(_recalcul_durees_tranche(aff.tranche, aff.tranche.devis))
+
+    return JsonResponse({'ok': True, 'evenement_id': ev.pk, 'recalculated': recalculated})
+
+
+@login_required
+@require_POST
+def evenement_delete(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    pk = data.get('pk')
+    try:
+        ev = Evenement.objects.prefetch_related('equipes').get(pk=pk)
+    except Evenement.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Événement introuvable'}, status=404)
+
+    # Récupérer les infos avant suppression pour le recalcul
+    equipe_ids  = [e.pk for e in ev.equipes.all()]
+    date_debut  = ev.date_debut
+    date_fin    = ev.date_fin or ev.date_debut
+    do_recalc   = ev.travaille or ev.decale_chantier
+
+    ev.delete()
+
+    recalculated = []
+    if do_recalc:
+        if equipe_ids:
+            aff_qs = Affectation.objects.filter(
+                equipe_id__in=equipe_ids,
+                date_debut__lte=date_fin, date_fin__gte=date_debut,
+            ).select_related('tranche__devis').prefetch_related('tranche__devis__lignes')
+        else:
+            aff_qs = Affectation.objects.filter(
+                date_debut__lte=date_fin, date_fin__gte=date_debut,
+            ).select_related('tranche__devis').prefetch_related('tranche__devis__lignes')
+        tranches_done = set()
+        for aff in aff_qs:
+            if aff.tranche_id not in tranches_done:
+                tranches_done.add(aff.tranche_id)
+                recalculated.extend(_recalcul_durees_tranche(aff.tranche, aff.tranche.devis))
+
+    return JsonResponse({'ok': True, 'recalculated': recalculated})
 
 
 @login_required
@@ -3304,9 +3566,13 @@ def affectation_save(request):
         label = str(devis.chantier or devis.client)
         return JsonResponse({'ok': False, 'error': f'"{label}" est déjà assigné à cette équipe.'})
 
+    debut_creneau = data.get('debut_creneau', 'matin') or 'matin'
+    fin_creneau   = data.get('fin_creneau',   'aprem') or 'aprem'
+
     aff = Affectation.objects.create(
         equipe=equipe, tranche=tranche,
         date_debut=date_debut, date_fin=date_fin,
+        debut_creneau=debut_creneau, fin_creneau=fin_creneau,
         created_by=request.user,
     )
     recalculated = _recalcul_durees_tranche(tranche, devis)
@@ -3365,6 +3631,10 @@ def affectation_move(request):
 
     aff.date_debut = date_debut
     aff.date_fin   = date_fin
+    if 'debut_creneau' in data:
+        aff.debut_creneau = data['debut_creneau'] or 'matin'
+    if 'fin_creneau' in data:
+        aff.fin_creneau = data['fin_creneau'] or 'aprem'
     aff.save()
 
     tranche = Affectation.objects.select_related('tranche__devis').prefetch_related('tranche__devis__lignes').get(pk=aff.pk).tranche

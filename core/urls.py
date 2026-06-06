@@ -100,6 +100,8 @@ urlpatterns = [
     path('planning/affectation/deplacer/',       views.affectation_move,      name='affectation-move'),
     path('planning/affectation/supprimer/',      views.affectation_delete,    name='affectation-delete'),
     path('planning/affectation/vendredi/',       views.vendredi_toggle,       name='vendredi-toggle'),
+    path('planning/evenement/sauvegarder/',      views.evenement_save,         name='evenement-save'),
+    path('planning/evenement/supprimer/',        views.evenement_delete,       name='evenement-delete'),
     path('planning/presence/sauvegarder/',       views.presence_save,         name='presence-save'),
 
     # Gestion utilisateurs

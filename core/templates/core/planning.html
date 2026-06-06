@@ -48,11 +48,24 @@
 .tl-cell{grid-row:1/3;border-right:1px solid #EFEDEB}
 .tl-cell.mon-cell{border-left:2px solid var(--prune-bd)}
 .tl-cell.we-cell{background:#F5F3F1}
-.tl-cell.today-cell{background:rgba(43,191,164,.09);border-left:2px dashed rgba(43,191,164,.5);border-right:2px dashed rgba(43,191,164,.5)}
-/* Vendredi — optionnel, légèrement grisé */
+/* Demi-journée : diviseur pointillé entre matin et aprem */
+.tl-cell.aprem{border-left:1px dashed rgba(0,0,0,.10)}
+.tl-cell.today-cell{background:rgba(43,191,164,.09)}
+.tl-cell.today-cell:not(.aprem){border-left:2px dashed rgba(43,191,164,.5)}
+.tl-cell.today-cell.aprem{border-right:2px dashed rgba(43,191,164,.5)}
+/* Vendredi — légèrement grisé */
 .tl-day.fri-hd{background:#F3F2EF;color:var(--gray-md)}
 .tl-day.fri-hd b{color:var(--gray-md)}
 .tl-cell.fri-cell{background:#F6F4F2}
+/* ── Barre événement négatif (formation, férié…) ─────── */
+.ev-bar{grid-row:2;z-index:3;align-self:end;margin-bottom:4px;margin-left:1px;margin-right:1px;
+  height:16px;border-radius:3px;border:1px solid #C7B8E0;color:#5b4b86;font-size:9px;
+  background:repeating-linear-gradient(45deg,#ECE7F3 0 4px,#E2DAEF 4px 8px);
+  display:flex;align-items:center;padding:0 4px;overflow:hidden;white-space:nowrap;cursor:pointer}
+.ev-bar.decale::after{content:' ↔';opacity:.7}
+/* ── Icône jour supplémentaire travaillé ─────────────── */
+.jour-sup-ind{background:#EDE9F6!important}
+.jour-sup-ind i{color:var(--prune)!important}
 
 /* ── Affectation bars ────────────────────────────────── */
 .tl-bar{grid-row:2;position:relative;z-index:2;align-self:center;margin:0 2px;height:78px;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:6px 10px;min-width:0;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:box-shadow .1s,filter .1s}
@@ -78,12 +91,10 @@
 
 /* ── Empty row ───────────────────────────────────────── */
 .tl-empty{grid-row:2;grid-column:1/-1;display:flex;align-items:center;justify-content:center;font-size:11px;color:#ccc;font-style:italic}
-/* ── Indicateur vendredi actif ──────────────────────── */
+/* ── Indicateur événement positif (vendredi travaillé, jour sup…) ── */
 .ven-ind{grid-row:1;align-self:center;justify-self:center;width:14px;height:14px;border-radius:50%;border:none;cursor:pointer;background:rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;padding:0;transition:background .15s}
 .ven-ind:disabled{cursor:default}
 .ven-ind i{font-size:9px;color:#b0aaa2;transition:color .15s}
-.ven-ind.ven-on{background:var(--teal-lt)}
-.ven-ind.ven-on i{color:var(--teal)}
 
 /* ── Drag & drop ─────────────────────────────────────── */
 body.dragging-active .tl-bar{pointer-events:none}
@@ -144,6 +155,9 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
       <button class="btn btn-prune btn-sm" onclick="openAffModal(null)">
         <i class="ti ti-plus"></i> Assigner un chantier
       </button>
+      <button class="btn btn-sm" style="border-color:var(--prune);color:var(--prune)" onclick="openModalEvNew()">
+        <i class="ti ti-calendar-event"></i> Événement
+      </button>
       {% endif %}
     </div>
   </div>
@@ -165,19 +179,20 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
           <!-- Ligne semaines -->
           <div class="tl-row tl-hdr-row">
             <div class="tl-lbl">Équipe</div>
-            <div class="tl-wk-track" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
+            <div class="tl-wk-track" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
               {% for sem in semaines %}
-              <div class="tl-wk" style="grid-column:span 7">Sem.&nbsp;{{ sem.num }}</div>
+              <div class="tl-wk" style="grid-column:span 12">Sem.&nbsp;{{ sem.num }}</div>
               {% endfor %}
             </div>
           </div>
           <!-- Ligne jours -->
           <div class="tl-row tl-hdr-row">
             <div class="tl-lbl">&nbsp;</div>
-            <div class="tl-day-track" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
-              {% for j in jours %}
-              <div class="tl-day{% if j.weekday == 0 %} mon-hd{% endif %}{% if j.weekday == 4 %} fri-hd{% endif %}{% if j.weekday >= 5 %} we-hd{% endif %}{% if j == today %} today-hd{% endif %}">
-                {% if j.weekday < 5 %}<b>{{ j|date:"j" }}</b>{% else %}{{ j|date:"D"|slice:":2" }}{% endif %}
+            <div class="tl-day-track" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
+              {% for j in jours_hdr %}
+              <div class="tl-day{% if j.weekday == 0 %} mon-hd{% endif %}{% if j.weekday == 4 %} fri-hd{% endif %}{% if j.weekday >= 5 %} we-hd{% endif %}{% if j.date == today %} today-hd{% endif %}"
+                   style="grid-column:{{ j.col_debut }}/{{ j.col_fin }}">
+                {% if j.weekday < 5 %}<b>{{ j.date|date:"j" }}</b>{% else %}{{ j.date|date:"D"|slice:":2" }}{% endif %}
               </div>
               {% endfor %}
             </div>
@@ -202,20 +217,28 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
             </button>
             {% endif %}
           </div>
-          <div class="tl-track" data-equipe="{{ ligne.equipe.pk }}" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
-            {# Fond de cellules (auto-placed, une par jour) — data-date pour le drop DnD #}
-            {% for j in jours %}
-            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" data-date="{{ j|date:'Y-m-d' }}" style="grid-row:1/3;grid-column:{{ forloop.counter }}"></div>
+          <div class="tl-track" data-equipe="{{ ligne.equipe.pk }}" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
+            {# Fond de cellules : 2 demi-colonnes par jour ouvré, 1 par weekend #}
+            {% for cell in jours_cells %}
+            <div class="tl-cell{% if cell.weekday == 0 and not cell.aprem %} mon-cell{% endif %}{% if cell.weekday == 4 %} fri-cell{% endif %}{% if cell.is_we %} we-cell{% endif %}{% if cell.aprem %} aprem{% endif %}{% if cell.is_today %} today-cell{% endif %}"
+                 data-date="{{ cell.date|date:'Y-m-d' }}"
+                 style="grid-row:1/3;grid-column:{{ cell.col }}"></div>
             {% endfor %}
-            {# Indicateurs vendredi actif (grid-row:2, uniquement sur les vendredis couverts) #}
-            {% for ven in ligne.vendredis %}
-            <button class="ven-ind{% if ven.actif %} ven-on{% endif %}"
-                    style="grid-column:{{ ven.col }}"
-                    data-aff="{{ ven.aff_pk }}"
-                    {% if ligne.peut_modifier %}onclick="toggleVendredi({{ ven.aff_pk }}, this)"{% else %}disabled{% endif %}
-                    title="Vendredi {% if ven.actif %}actif{% else %}inactif{% endif %}">
-              <i class="ti ti-sun{% if ven.actif %}-filled{% endif %}"></i>
+            {# Icônes jours travaillés exceptionnels (travaille=True) — row 1 #}
+            {% for js in ligne.jours_sup %}
+            <button class="ven-ind jour-sup-ind"
+                    style="grid-column:{{ js.col }}"
+                    title="{{ js.libelle }}"
+                    {% if ligne.peut_modifier %}onclick="openModalEv({{ js.pk }})"{% else %}disabled{% endif %}>
+              <i class="ti ti-sun-filled"></i>
             </button>
+            {% endfor %}
+            {# Barres événements négatifs (formation, férié…) — row 2, overlay #}
+            {% for ev in ligne.ev_barres %}
+            <div class="ev-bar{% if ev.decale %} decale{% endif %}"
+                 style="grid-column:{{ ev.col_debut }}/{{ ev.col_fin_excl }}"
+                 title="{{ ev.ev.get_type_display }}{% if ev.ev.libelle %} — {{ ev.ev.libelle }}{% endif %}"
+                 {% if ligne.peut_modifier %}onclick="openModalEv({{ ev.ev.pk }})"{% endif %}></div>
             {% endfor %}
             {# Barres d'affectation (positionnées explicitement) #}
             {% for barre in ligne.barres %}
@@ -225,9 +248,10 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
                data-devis="{{ barre.aff.tranche.devis.pk }}"
                data-debut="{{ barre.aff.date_debut|date:'Y-m-d' }}"
                data-fin="{{ barre.aff.date_fin|date:'Y-m-d' }}"
+               data-debut-creneau="{{ barre.aff.debut_creneau }}"
+               data-fin-creneau="{{ barre.aff.fin_creneau }}"
                data-equipe="{{ ligne.equipe.pk }}"
                data-aff="{{ barre.aff.pk }}"
-               data-vendredi="{{ barre.aff.vendredi_actif|lower }}"
                {% if ligne.peut_modifier %}draggable="true"{% endif %}>
               {% if ligne.peut_modifier %}<span class="resize-l" draggable="true" data-side="left"></span>{% endif %}
               <div class="bar-top">
@@ -259,6 +283,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 {% endblock %}
 
 {% block modals %}
+<!-- Modal affectation -->
 <div id="modal-aff" class="modal-bg hidden">
   <div class="modal" style="width:480px">
     <div class="modal-title">Affecter un chantier</div>
@@ -282,16 +307,30 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
         {% endfor %}
       </select>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+      <div class="field" style="grid-column:1/3">
         <label>Du *</label>
         <input class="input" type="date" id="aff-debut" value="{{ debut_grille|date:'Y-m-d' }}" onchange="calcDateFin()">
       </div>
       <div class="field">
-        <label>Au (calculé) *</label>
-        <input class="input" type="date" id="aff-fin">
-        <small id="aff-fin-hint" style="color:var(--amber);font-size:10px;margin-top:3px;display:none"></small>
+        <label>Début</label>
+        <select class="input" id="aff-debut-creneau">
+          <option value="matin">Matin</option>
+          <option value="aprem">Après-midi</option>
+        </select>
       </div>
+      <div class="field">
+        <label>Fin</label>
+        <select class="input" id="aff-fin-creneau">
+          <option value="matin">Matin</option>
+          <option value="aprem" selected>Après-midi</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Au (calculé) *</label>
+      <input class="input" type="date" id="aff-fin">
+      <small id="aff-fin-hint" style="color:var(--amber);font-size:10px;margin-top:3px;display:none"></small>
     </div>
     <div id="aff-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
     <div class="modal-acts">
@@ -300,40 +339,113 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
     </div>
   </div>
 </div>
+
+<!-- Modal événement -->
+<div id="modal-ev" class="modal-bg hidden">
+  <div class="modal" style="width:500px">
+    <div class="modal-title" id="ev-modal-title">Événement</div>
+    <input type="hidden" id="ev-pk" value="">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field">
+        <label>Type *</label>
+        <select class="input" id="ev-type">
+          <option value="formation">Formation</option>
+          <option value="visite">Visite</option>
+          <option value="reunion">Réunion</option>
+          <option value="journee_ferie">Jour férié / pont</option>
+          <option value="jour_sup">Jour supplémentaire</option>
+          <option value="autre" selected>Autre</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Créneau</label>
+        <select class="input" id="ev-creneau">
+          <option value="journee" selected>Journée entière</option>
+          <option value="matin">Matin</option>
+          <option value="aprem">Après-midi</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Libellé</label>
+      <input class="input" type="text" id="ev-libelle" placeholder="Description (optionnelle)">
+    </div>
+    <div class="field">
+      <label>Équipes concernées <small style="font-weight:400;color:var(--gray-md)">(aucune = toutes les équipes)</small></label>
+      <div id="ev-equipes-list" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0">
+        {% for e in equipes %}
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+          <input type="checkbox" class="ev-equipe-cb" value="{{ e.pk }}"> {{ e.nom }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field">
+        <label>Date début *</label>
+        <input class="input" type="date" id="ev-debut">
+      </div>
+      <div class="field">
+        <label>Date fin <small style="font-weight:400;color:var(--gray-md)">(optionnelle)</small></label>
+        <input class="input" type="date" id="ev-fin">
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;margin-bottom:.75rem">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ev-travaille">
+        <span>Jour travaillé <small style="color:var(--gray-md)">(vendredi ou jour exceptionnel)</small></span>
+      </label>
+      <label id="ev-decale-wrap" style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ev-decale">
+        <span>Décale les chantiers</span>
+      </label>
+    </div>
+    <div id="ev-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
+    <div class="modal-acts">
+      <button type="button" class="btn btn-red" id="ev-del-btn" onclick="deleteEv()" style="display:none">Supprimer</button>
+      <button type="button" class="btn" id="ev-dup-btn" onclick="dupEv()" style="display:none">Dupliquer</button>
+      <button type="button" class="btn" onclick="closeModalEv()">Annuler</button>
+      <button type="button" class="btn btn-teal" onclick="submitEv()">Enregistrer</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-const CSRF     = '{{ csrf_token }}';
-const URL_AFF  = '{% url "core:affectation-save" %}';
-const URL_MOVE = '{% url "core:affectation-move" %}';
-const URL_DEL  = '{% url "core:affectation-delete" %}';
-const URL_VEN  = '{% url "core:vendredi-toggle" %}';
-const MODIFIABLES = new Set({{ equipes_modifiables_ids|safe }});
-const PEUT_GLOBAL = {{ peut_modifier_global|lower }};
+const CSRF        = '{{ csrf_token }}';
+const URL_AFF     = '{% url "core:affectation-save" %}';
+const URL_MOVE    = '{% url "core:affectation-move" %}';
+const URL_DEL     = '{% url "core:affectation-delete" %}';
+const URL_EV_SAVE = '{% url "core:evenement-save" %}';
+const URL_EV_DEL  = '{% url "core:evenement-delete" %}';
+const MODIFIABLES   = new Set({{ equipes_modifiables_ids|safe }});
+const PEUT_GLOBAL   = {{ peut_modifier_global|lower }};
 const DEVIS_MO      = {{ devis_mo_json|safe }};
 const EQ_EFF        = {{ equipe_effectifs_json|safe }};
-const TAUX_JOUR     = 82.5;  // €/jour/équipier (base 4 j/semaine Lun-Jeu)
-const DEVIS_EQUIPES = {{ devis_equipes_json|safe }};  // {devis_pk: [equipe_pk, ...]}
+const TAUX_JOUR     = 82.5;
+const DEVIS_EQUIPES = {{ devis_equipes_json|safe }};
+const EV_POSITIFS   = {{ ev_positifs_json|safe }};
+const EV_NEGATIFS   = {{ ev_negatifs_json|safe }};
+const EVENEMENTS_DATA = {{ evenements_data_json|safe }};
+
+// Jours ouvrés par défaut : Lun-Jeu (0-3). Ven activable via événements.
+const WE_EXCLUDED = [0, 5, 6]; // JS: Sun=0, Fri=5, Sat=6
+const TODAY_ISO   = '{{ today|date:"Y-m-d" }}';
+
+function snapDebut(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  while (WE_EXCLUDED.includes(d.getDay())) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+function snapFin(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  while (WE_EXCLUDED.includes(d.getDay())) d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 // ── Drag & drop ────────────────────────────────────────
 let dragData = null;
-
-// Trouve la cellule la plus proche du point clientX dans un track
-// JS: Sun=0,Mon=1,Tue=2,Wed=3,Thu=4,Fri=5,Sat=6
-function _weExcluded(vendredi) { return vendredi ? [0,6] : [0,5,6]; }
-function snapDebut(dateStr, vendredi) {
-  const ex = _weExcluded(vendredi);
-  const d = new Date(dateStr + 'T12:00:00');
-  while (ex.includes(d.getDay())) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
-}
-function snapFin(dateStr, vendredi) {
-  const ex = _weExcluded(vendredi);
-  const d = new Date(dateStr + 'T12:00:00');
-  while (ex.includes(d.getDay())) d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
 
 function cellAtX(track, clientX) {
   let best = null, bestDist = Infinity;
@@ -356,14 +468,12 @@ function clearDropOver() {
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
     if (e.target !== bar) return;
-    const ven = bar.dataset.vendredi === 'true';
     dragData = {
-      type:         'move',
-      affId:        bar.dataset.aff,
-      dur:          workingDays(bar.dataset.debut, bar.dataset.fin, ven),
-      devisId:      parseInt(bar.dataset.devis),
-      equipeId:     parseInt(bar.dataset.equipe),
-      vendrediActif: ven,
+      type:      'move',
+      affId:     bar.dataset.aff,
+      dur:       workingDays(bar.dataset.debut, bar.dataset.fin),
+      devisId:   parseInt(bar.dataset.devis),
+      equipeId:  parseInt(bar.dataset.equipe),
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
@@ -432,26 +542,23 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
 
     let newDebut, newFin, newEquipe;
     if (dragData.type === 'move') {
-      const ven = dragData.vendrediActif;
-      newDebut  = snapDebut(cell.dataset.date, ven);
+      newDebut  = snapDebut(cell.dataset.date);
       newEquipe = eq;
       if (newEquipe !== dragData.equipeId) {
         const mo   = DEVIS_MO[dragData.devisId] || 0;
         const nbEq = EQ_EFF[newEquipe] || 0;
         newFin = (mo > 0 && nbEq > 0)
-          ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)), ven)
-          : addWorkingDays(newDebut, dragData.dur, ven);
+          ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)))
+          : addWorkingDays(newDebut, dragData.dur);
       } else {
-        newFin = addWorkingDays(newDebut, dragData.dur, ven);
+        newFin = addWorkingDays(newDebut, dragData.dur);
       }
     } else {
-      const bar = document.querySelector(`.tl-bar[data-aff="${dragData.affId}"]`);
-      const ven = bar ? bar.dataset.vendredi === 'true' : false;
       if (dragData.side === 'right') {
         newDebut = dragData.otherDate;
-        newFin   = snapFin(cell.dataset.date, ven);
+        newFin   = snapFin(cell.dataset.date);
       } else {
-        newDebut = snapDebut(cell.dataset.date, ven);
+        newDebut = snapDebut(cell.dataset.date);
         newFin   = dragData.otherDate;
       }
       newEquipe = parseInt(dragData.equipeId);
@@ -477,23 +584,23 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
   });
 });
 
-// ── Indicateur durée divergente de la durée calculée ──
-function workingDays(debut, fin, vendredi) {
-  const ex = _weExcluded(vendredi);
+// ── Jours ouvrés (base 4j/sem, vendredi exclu sauf événement côté serveur) ──
+function workingDays(debut, fin) {
   let d = new Date(debut + 'T12:00:00'), end = new Date(fin + 'T12:00:00'), n = 0;
-  while (d <= end) { if (!ex.includes(d.getDay())) n++; d.setDate(d.getDate()+1); }
+  while (d <= end) { if (!WE_EXCLUDED.includes(d.getDay())) n++; d.setDate(d.getDate()+1); }
   return n;
 }
+
+// ── Indicateur durée divergente de la durée calculée ──
 document.querySelectorAll('.tl-bar[data-devis]').forEach(bar => {
-  const devisId  = parseInt(bar.dataset.devis);
-  const vendredi = bar.dataset.vendredi === 'true';
-  const mo       = DEVIS_MO[devisId] || 0;
+  const devisId   = parseInt(bar.dataset.devis);
+  const mo        = DEVIS_MO[devisId] || 0;
   if (!mo) return;
   const allEqs    = DEVIS_EQUIPES[devisId] || [parseInt(bar.dataset.equipe)];
   const totalNbEq = allEqs.reduce((s, eid) => s + (EQ_EFF[eid] || 0), 0);
   if (!totalNbEq) return;
   const calcJ   = Math.ceil(mo / (TAUX_JOUR * totalNbEq));
-  const actualJ = workingDays(bar.dataset.debut, bar.dataset.fin, vendredi);
+  const actualJ = workingDays(bar.dataset.debut, bar.dataset.fin);
   if (Math.abs(actualJ - calcJ) > 1) {
     bar.classList.add('divergent');
     bar.title += ` · Durée calculée : ${calcJ} j, affectée : ${actualJ} j`;
@@ -521,15 +628,14 @@ function deleteAff(e, affId) {
   .catch(() => alert('Erreur réseau'));
 }
 
-function addWorkingDays(startStr, n, vendredi) {
+function addWorkingDays(startStr, n) {
   if (n <= 0) return startStr;
-  const ex = _weExcluded(vendredi);
   let d = new Date(startStr + 'T12:00:00');
-  while (ex.includes(d.getDay())) d.setDate(d.getDate() + 1);
+  while (WE_EXCLUDED.includes(d.getDay())) d.setDate(d.getDate() + 1);
   let rem = n - 1;
   while (rem > 0) {
     d.setDate(d.getDate() + 1);
-    if (!ex.includes(d.getDay())) rem--;
+    if (!WE_EXCLUDED.includes(d.getDay())) rem--;
   }
   return d.toISOString().slice(0, 10);
 }
@@ -576,7 +682,9 @@ function openAffModal(equipeId) {
   calcDateFin();
 }
 function closeAffModal() { document.getElementById('modal-aff').classList.add('hidden'); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAffModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeAffModal(); closeModalEv(); }
+});
 
 function filterDevis(q) {
   q = q.toLowerCase();
@@ -607,6 +715,8 @@ function submitAff() {
   if (fin < debut) { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
   err.style.display = 'none';
 
+  const debutCreneau = document.getElementById('aff-debut-creneau').value;
+  const finCreneau   = document.getElementById('aff-fin-creneau').value;
   fetch(URL_AFF, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
@@ -615,6 +725,8 @@ function submitAff() {
       equipe_id: parseInt(equipeId),
       date_debut: debut,
       date_fin: fin,
+      debut_creneau: debutCreneau,
+      fin_creneau: finCreneau,
     })
   })
   .then(r => r.json())
@@ -631,12 +743,95 @@ function submitAff() {
   .catch(() => { err.textContent = 'Erreur réseau'; err.style.display = ''; });
 }
 
-// ── Toggle vendredi actif ──────────────────────────────
-function toggleVendredi(affPk, btn) {
-  fetch(URL_VEN, {
+// ── Modale événement ──────────────────────────────────
+function openModalEv(pk) {
+  const modal = document.getElementById('modal-ev');
+  modal.dataset.pk = pk || '';
+  modal.querySelector('#ev-type').value    = 'autre';
+  modal.querySelector('#ev-libelle').value = '';
+  modal.querySelector('#ev-debut').value   = '';
+  modal.querySelector('#ev-fin').value     = '';
+  modal.querySelector('#ev-creneau').value = 'journee';
+  modal.querySelector('#ev-travaille').checked      = false;
+  modal.querySelector('#ev-decale').checked         = false;
+  modal.querySelector('#ev-err').style.display      = 'none';
+  modal.querySelector('#ev-del-btn').style.display = pk ? '' : 'none';
+  modal.querySelector('#ev-dup-btn').style.display    = pk ? '' : 'none';
+  // Décocher toutes les équipes
+  modal.querySelectorAll('#ev-equipes-list input[type=checkbox]').forEach(cb => cb.checked = false);
+
+  if (pk) {
+    const ev = EVENEMENTS_DATA[pk];
+    if (ev) {
+      modal.querySelector('#ev-type').value    = ev.type    || 'autre';
+      modal.querySelector('#ev-libelle').value = ev.libelle || '';
+      modal.querySelector('#ev-debut').value   = ev.date_debut || '';
+      modal.querySelector('#ev-fin').value     = ev.date_fin   || '';
+      modal.querySelector('#ev-creneau').value = ev.creneau    || 'journee';
+      modal.querySelector('#ev-travaille').checked = ev.travaille        || false;
+      modal.querySelector('#ev-decale').checked    = ev.decale_chantier  || false;
+      (ev.equipe_ids || []).forEach(id => {
+        const cb = modal.querySelector(`#ev-equipes-list input[value="${id}"]`);
+        if (cb) cb.checked = true;
+      });
+    }
+  }
+  modal.classList.remove('hidden');
+}
+
+function openModalEvNew(dateStr) {
+  openModalEv(null);
+  document.getElementById('ev-debut').value = dateStr || TODAY_ISO;
+}
+
+function closeModalEv() { document.getElementById('modal-ev').classList.add('hidden'); }
+
+function submitEv() {
+  const modal = document.getElementById('modal-ev');
+  const pk    = modal.dataset.pk ? parseInt(modal.dataset.pk) : null;
+  const err   = modal.querySelector('#ev-err');
+  const debut = modal.querySelector('#ev-debut').value;
+  if (!debut) { err.textContent = 'Renseignez la date de début.'; err.style.display = ''; return; }
+
+  const equipeIds = [...modal.querySelectorAll('#ev-equipes-list input[type=checkbox]:checked')]
+    .map(cb => parseInt(cb.value));
+
+  const body = {
+    type:             modal.querySelector('#ev-type').value,
+    libelle:          modal.querySelector('#ev-libelle').value.trim(),
+    date_debut:       debut,
+    date_fin:         modal.querySelector('#ev-fin').value || null,
+    creneau:          modal.querySelector('#ev-creneau').value,
+    travaille:        modal.querySelector('#ev-travaille').checked,
+    decale_chantier:  modal.querySelector('#ev-decale').checked,
+    equipe_ids:       equipeIds,
+  };
+  if (pk) body.pk = pk;
+
+  fetch(URL_EV_SAVE, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify({aff_id: affPk}),
+    body: JSON.stringify(body),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.ok) {
+      if (d.recalculated && d.recalculated.length > 0)
+        sessionStorage.setItem('flashAff', JSON.stringify(d.recalculated));
+      location.reload();
+    } else { err.textContent = d.error || 'Erreur'; err.style.display = ''; }
+  })
+  .catch(() => { err.textContent = 'Erreur réseau'; err.style.display = ''; });
+}
+
+function deleteEv() {
+  const modal = document.getElementById('modal-ev');
+  const pk    = modal.dataset.pk ? parseInt(modal.dataset.pk) : null;
+  if (!pk || !confirm('Supprimer cet événement ?')) return;
+  fetch(URL_EV_DEL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({pk}),
   })
   .then(r => r.json())
   .then(d => {
@@ -647,6 +842,13 @@ function toggleVendredi(affPk, btn) {
     } else { alert(d.error || 'Erreur'); }
   })
   .catch(() => alert('Erreur réseau'));
+}
+
+function dupEv() {
+  const modal = document.getElementById('modal-ev');
+  modal.dataset.pk = '';
+  modal.querySelector('#ev-del-btn').style.display = 'none';
+  modal.querySelector('#ev-dup-btn').style.display    = 'none';
 }
 
 // Flash des barres recalculées après rechargement

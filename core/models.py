@@ -933,7 +933,17 @@ class Affectation(models.Model):
     )
     vendredi_actif = models.BooleanField(
         default=False,
-        help_text="Cette équipe travaille le vendredi sur cette période"
+        help_text="Déprécié — remplacé par les événements Evenement(travaille=True)"
+    )
+    debut_creneau = models.CharField(
+        max_length=5,
+        choices=[('matin', 'Matin'), ('aprem', 'Après-midi')],
+        default='matin',
+    )
+    fin_creneau = models.CharField(
+        max_length=5,
+        choices=[('matin', 'Matin'), ('aprem', 'Après-midi')],
+        default='aprem',
     )
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,
@@ -951,35 +961,49 @@ class Affectation(models.Model):
 
 class Evenement(models.Model):
     """
-    Événement posé sur le planning (formation, visite, réunion…).
-    `decale_chantier` = drapeau visuel signalant un report d'avancement ;
-    PAS de recalcul auto (l'encadrant réajuste les affectations à la main).
-    N'entre pas dans les jours réalisés (temps non-production).
+    Exception calendrier sur le planning.
+    - travaille=False (défaut) : journée non travaillée (formation, férié…) — si decale_chantier=True,
+      repousse automatiquement les date_fin des affectations chevauchantes.
+    - travaille=True : journée normalement non-ouvrée devenue ouvrée (vendredi de rattrapage, etc.)
+      → avance les date_fin des affectations concernées.
+    equipes vide = événement global (toutes équipes).
     """
     TYPE_CHOICES = [
-        ('formation', 'Formation'),
-        ('visite',    'Visite'),
-        ('reunion',   'Réunion'),
-        ('autre',     'Autre'),
+        ('formation',     'Formation'),
+        ('visite',        'Visite'),
+        ('reunion',       'Réunion'),
+        ('journee_ferie', 'Jour férié / pont'),
+        ('jour_sup',      'Jour supplémentaire'),
+        ('autre',         'Autre'),
     ]
     CRENEAU_CHOICES = [
         ('matin',   'Matin'),
         ('aprem',   'Après-midi'),
         ('journee', 'Journée'),
     ]
+    # Legacy FK — conservé pour la compatibilité schéma ; utiliser equipes (M2M) désormais
     equipe = models.ForeignKey(
-        Equipe, on_delete=models.CASCADE, related_name='evenements'
+        Equipe, on_delete=models.SET_NULL, related_name='evenements_legacy',
+        null=True, blank=True,
+    )
+    equipes = models.ManyToManyField(
+        Equipe, blank=True, related_name='evenements',
+        verbose_name='Équipes concernées (vide = toutes)',
     )
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='autre')
     libelle = models.CharField(max_length=200, blank=True)
     date_debut = models.DateField()
     date_fin = models.DateField(null=True, blank=True)
     creneau = models.CharField(
-        max_length=10, choices=CRENEAU_CHOICES, blank=True
+        max_length=10, choices=CRENEAU_CHOICES, default='journee', blank=True,
     )
     decale_chantier = models.BooleanField(
         default=False,
-        help_text="Repousse l'avancement du chantier (drapeau visuel, ajustement manuel)"
+        help_text="Recalcule automatiquement les date_fin des chantiers couverts"
+    )
+    travaille = models.BooleanField(
+        default=False,
+        help_text="True = jour normalement non-ouvré devient ouvré (vendredi de rattrapage…)",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -988,7 +1012,7 @@ class Evenement(models.Model):
         verbose_name = 'Événement'
 
     def __str__(self):
-        return f"{self.get_type_display()} — {self.libelle or self.equipe.nom}"
+        return f"{self.get_type_display()} — {self.libelle or '(sans libellé)'}"
 
 
 class Presence(models.Model):

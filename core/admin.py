@@ -181,17 +181,23 @@ class TrancheDevisAdmin(admin.ModelAdmin):
 
 @admin.register(Affectation)
 class AffectationAdmin(admin.ModelAdmin):
-    list_display = ['equipe', 'tranche', 'date_debut', 'date_fin', 'duree_jours', 'epingle', 'vendredi_actif']
-    list_filter = ['epingle', 'vendredi_actif', 'equipe']
+    list_display = ['equipe', 'tranche', 'date_debut', 'debut_creneau', 'date_fin', 'fin_creneau', 'duree_jours', 'epingle']
+    list_filter = ['epingle', 'equipe']
     raw_id_fields = ['equipe', 'tranche', 'created_by']
     readonly_fields = ['created_at']
 
 
 @admin.register(Evenement)
 class EvenementAdmin(admin.ModelAdmin):
-    list_display = ['type', 'libelle', 'equipe', 'date_debut', 'date_fin', 'decale_chantier']
-    list_filter = ['type', 'decale_chantier', 'equipe']
-    raw_id_fields = ['equipe']
+    list_display   = ['type', 'libelle', 'get_equipes', 'date_debut', 'date_fin', 'creneau', 'decale_chantier', 'travaille']
+    list_filter    = ['type', 'decale_chantier', 'travaille']
+    filter_horizontal = ['equipes']
+    raw_id_fields  = ['equipe']
+
+    @admin.display(description='Équipes')
+    def get_equipes(self, obj):
+        names = [e.nom for e in obj.equipes.all()]
+        return ', '.join(names) if names else '— toutes —'
 
 
 @admin.register(Presence)
