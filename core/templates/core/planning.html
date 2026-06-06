@@ -375,9 +375,6 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
     if (cell) cell.classList.add('drop-over');
   });
 
-  track.addEventListener('dragleave', e => {
-    if (!track.contains(e.relatedTarget)) clearDropOver();
-  });
 
   track.addEventListener('drop', e => {
     if (!dragData) return;
