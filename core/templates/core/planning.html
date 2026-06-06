@@ -72,7 +72,7 @@
 
 /* ── Drag & drop ─────────────────────────────────────── */
 body.dragging-active .tl-bar{pointer-events:none}
-body.dragging-active .tl-lbl{pointer-events:none}
+body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .tl-cell.drop-over{background:rgba(43,191,164,.28)!important;outline:2px dashed var(--teal);outline-offset:-2px}
 /* Bouton suppression sur barre */
 .tl-bar .bar-del{display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:inherit;font-size:15px;line-height:1;padding:0 3px;opacity:.6;z-index:3}
