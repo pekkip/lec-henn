@@ -2909,7 +2909,7 @@ def emargement_view(request):
             date_fin__gte=lundi,
         ).select_related('tranche__devis__client').order_by('date_debut')
     )
-    aff_color = {aff.pk: COLORS_AFF[i % len(COLORS_AFF)] for i, aff in enumerate(affectations)}
+    aff_color = {aff.pk: COLORS_AFF[aff.tranche.devis_id % len(COLORS_AFF)] for aff in affectations}
     for aff in affectations:
         aff.css_color = aff_color[aff.pk]
 
@@ -3069,7 +3069,7 @@ def planning_mois(request):
         .select_related('tranche__devis__client', 'equipe')
         .order_by('date_debut')
     )
-    aff_color = {aff.pk: COLORS_AFF[i % len(COLORS_AFF)] for i, aff in enumerate(affectations)}
+    aff_color = {aff.pk: COLORS_AFF[aff.tranche.devis_id % len(COLORS_AFF)] for aff in affectations}
     equipes_modifiables_ids = {e.pk for e in equipes if est_encadrant(request.user, e)}
 
     def day_col(d):
