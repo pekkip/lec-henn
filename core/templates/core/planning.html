@@ -11,7 +11,7 @@
 /* ── Timeline container ──────────────────────────────── */
 .tl-outer{display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--gray-bd);border-radius:var(--r);background:#fff;flex:1}
 .tl-scroll{overflow-x:auto;overflow-y:auto;flex:1}
-.tl-inner{min-width:max-content;display:flex;flex-direction:column}
+.tl-inner{display:flex;flex-direction:column}
 
 /* ── Row layout : label | track ─────────────────────── */
 .tl-row{display:grid;grid-template-columns:180px 1fr;border-bottom:1px solid var(--gray-bd)}
@@ -140,7 +140,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
   <!-- ── Timeline ──────────────────────────────────── -->
   <div class="tl-outer">
     <div class="tl-scroll">
-      <div class="tl-inner">
+      <div class="tl-inner" style="min-width:{{ tl_min_width }}px">
 
         <!-- En-têtes collants -->
         <div class="tl-hdr">

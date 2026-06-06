@@ -3115,11 +3115,14 @@ def planning_mois(request):
     devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
     equipe_effectifs_json = {e.pk: e.nb_equipiers for e in equipes}
 
+    tl_min_width = 180 + nb_semaines * (5 * 26 + 2 * 8)  # label + semaines × (5 jours×26px + 2 we×8px)
+
     return render(request, 'core/planning.html', {
         'equipes': equipes,
         'jours': jours,
         'nb_jours': nb_jours,
         'nb_semaines': nb_semaines,
+        'tl_min_width': tl_min_width,
         'semaines': semaines,
         'lignes': lignes,
         'debut_grille': debut_grille,
