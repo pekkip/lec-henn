@@ -3063,7 +3063,7 @@ def planning_mois(request):
         for w in range(nb_semaines)
     ]
 
-    equipes = Equipe.objects.filter(actif=True, service__module_planning=True).order_by('nom')
+    equipes = Equipe.objects.filter(actif=True, service__module_planning=True).order_by('ordre', 'nom')
     affectations = list(
         Affectation.objects
         .filter(equipe__in=equipes, date_debut__lte=fin_grille, date_fin__gte=debut_grille)
