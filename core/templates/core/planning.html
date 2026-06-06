@@ -296,8 +296,10 @@ function cellAtX(track, clientX) {
   let best = null, bestDist = Infinity;
   track.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
     const r = cell.getBoundingClientRect();
-    if (clientX >= r.left && clientX <= r.right) { best = cell; return; }
-    const d = Math.min(Math.abs(clientX - r.left), Math.abs(clientX - r.right));
+    // d=0 si le curseur est dans la cellule, sinon distance au bord le plus proche
+    const d = (clientX >= r.left && clientX <= r.right)
+      ? 0
+      : Math.min(Math.abs(clientX - r.left), Math.abs(clientX - r.right));
     if (d < bestDist) { bestDist = d; best = cell; }
   });
   return best;
