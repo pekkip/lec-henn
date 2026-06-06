@@ -832,7 +832,7 @@ class PlanningEquipiersTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         terr = Territoire.objects.create(nom='Ille-et-Vilaine')
-        service = Service.objects.create(territoire=terr, nom='Insertion')
+        service = Service.objects.create(territoire=terr, nom='Insertion', module_planning=True)
         cls.equipe_a = Equipe.objects.create(service=service, nom='SORM')
         cls.equipe_b = Equipe.objects.create(service=service, nom='GORM')
 
@@ -938,7 +938,7 @@ class PlanningGrilleTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         terr    = Territoire.objects.create(nom='Ille-et-Vilaine')
-        service = Service.objects.create(territoire=terr, nom='Insertion')
+        service = Service.objects.create(territoire=terr, nom='Insertion', module_planning=True)
         cls.equipe = Equipe.objects.create(service=service, nom='65-SORM')
         cls.autre  = Equipe.objects.create(service=service, nom='65-GORM')
 

@@ -412,7 +412,10 @@ class Command(BaseCommand):
         if e:
             return e
         terr, _ = Territoire.objects.get_or_create(nom='Ille-et-Vilaine')
-        svc, _ = Service.objects.get_or_create(territoire=terr, nom=service_fallback)
+        svc, created = Service.objects.get_or_create(territoire=terr, nom=service_fallback)
+        if service_fallback == 'Insertion 35' and not svc.module_planning:
+            svc.module_planning = True
+            svc.save(update_fields=['module_planning'])
         return Equipe.objects.create(service=svc, nom=code)
 
     # ── Création ──────────────────────────────────────────────

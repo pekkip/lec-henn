@@ -6,11 +6,17 @@
 {% block extra_css %}
 <style>
 /* ── layout ───────────────────────────────── */
-.plan-layout{display:grid;grid-template-columns:220px 1fr;gap:1rem;flex:1;overflow:hidden;padding:1rem 1.25rem}
+.plan-layout{display:grid;grid-template-columns:220px 1fr;gap:1rem;flex:1;overflow:hidden;padding:1rem 1.25rem;transition:grid-template-columns .15s}
+.plan-layout.panel-off{grid-template-columns:40px 1fr}
 
 /* ── panneau équipiers ────────────────────── */
 .biblio{display:flex;flex-direction:column;overflow:hidden;align-self:start;max-height:calc(100vh - 160px)}
 .biblio .card-body{padding:.5rem;overflow-y:auto;flex:1}
+.panel-off .biblio .card-body,
+.panel-off .biblio #panel-title{display:none}
+.panel-off .biblio .card-hd{justify-content:center;padding:8px 4px;min-height:40px}
+#panel-toggle i{transition:transform .15s}
+.panel-off #panel-toggle i{transform:rotate(180deg)}
 .bsearch{position:relative;margin-bottom:.5rem}
 .bsearch i{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--gray-md);pointer-events:none}
 .bsearch input{width:100%;padding:6px 8px 6px 28px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none}
@@ -147,11 +153,16 @@
 {% else %}
 
 <div class="plan-scroll">
-  <div class="plan-layout">
+  <div class="plan-layout" id="plan-layout">
 
     <!-- ══ PANNEAU ÉQUIPIERS ══ -->
-    <div class="biblio card">
-      <div class="card-hd"><span class="card-title"><i class="ti ti-id-badge-2"></i> Équipiers</span></div>
+    <div class="biblio card" id="biblio-panel">
+      <div class="card-hd">
+        <span class="card-title" id="panel-title"><i class="ti ti-id-badge-2"></i> Équipiers</span>
+        <button class="ico-btn" id="panel-toggle" onclick="togglePanel()" title="Replier le panneau">
+          <i class="ti ti-chevron-left"></i>
+        </button>
+      </div>
       <div class="card-body">
         <div class="bsearch">
           <i class="ti ti-search"></i>
@@ -415,6 +426,19 @@ function updateTotal(equipierId) {
   });
   const nm = document.querySelector(`.nm`);  // trop générique, on skip pour l'instant
 }
+
+/* ── Panneau équipiers : replier/déplier ───────────────── */
+function togglePanel() {
+  const layout = document.getElementById('plan-layout');
+  const off = layout.classList.toggle('panel-off');
+  try { localStorage.setItem('plan-panel-off', off ? '1' : '0'); } catch(e) {}
+}
+(function() {
+  try {
+    if (localStorage.getItem('plan-panel-off') === '1')
+      document.getElementById('plan-layout').classList.add('panel-off');
+  } catch(e) {}
+})();
 
 /* ── Panneau : collapse/expand catégories ──────────────── */
 function toggleCat(hd) {

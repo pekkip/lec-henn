@@ -2773,7 +2773,13 @@ def equipiers_list(request):
     equipe_id = request.GET.get('equipe', '').strip()
     statut = request.GET.get('statut', 'actifs')
 
-    equipiers = Equipier.objects.select_related('equipe', 'equipe__service')
+    equipes_planning = Equipe.objects.filter(
+        actif=True, service__module_planning=True
+    ).select_related('service').order_by('nom')
+
+    equipiers = Equipier.objects.filter(
+        equipe__service__module_planning=True
+    ).select_related('equipe', 'equipe__service')
     if q:
         equipiers = equipiers.filter(
             Q(nom__icontains=q) | Q(prenom__icontains=q) | Q(matricule__icontains=q)
@@ -2787,7 +2793,7 @@ def equipiers_list(request):
 
     return render(request, 'core/equipiers.html', {
         'equipiers': equipiers,
-        'equipes': Equipe.objects.filter(actif=True).select_related('service'),
+        'equipes': equipes_planning,
         'f_q': q, 'f_equipe': equipe_id, 'f_statut': statut,
     })
 
@@ -2875,10 +2881,12 @@ def planning_view(request):
 
     profil = get_profil(request.user)
     if profil.role in ('admin', 'responsable', 'rh'):
-        equipes = Equipe.objects.filter(actif=True).select_related('service').order_by('nom')
+        equipes = Equipe.objects.filter(
+            actif=True, service__module_planning=True
+        ).select_related('service').order_by('nom')
     else:
         equipes = Equipe.objects.filter(
-            encadrant=request.user, actif=True
+            encadrant=request.user, actif=True, service__module_planning=True
         ).select_related('service').order_by('nom')
 
     equipe_sel = equipes.filter(pk=equipe_id).first() if equipe_id else None
@@ -2979,7 +2987,7 @@ def planning_view(request):
         })
 
     panel_equipes = list(
-        Equipe.objects.filter(actif=True)
+        Equipe.objects.filter(actif=True, service__module_planning=True)
         .prefetch_related(
             Prefetch('equipiers',
                      queryset=Equipier.objects.filter(actif=True).order_by('nom', 'prenom'))

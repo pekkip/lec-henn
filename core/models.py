@@ -25,6 +25,10 @@ class Service(models.Model):
         Territoire, on_delete=models.PROTECT, related_name='services'
     )
     nom = models.CharField(max_length=200)
+    module_planning = models.BooleanField(
+        default=False,
+        help_text="Ce service utilise le module Planning & Émargement (salariés en insertion)"
+    )
     conditions_devis = models.TextField(
         blank=True,
         help_text="Conditions de vente affichées sur les devis de ce service"
