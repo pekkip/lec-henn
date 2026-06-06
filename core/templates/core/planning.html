@@ -72,6 +72,7 @@
 
 /* ── Drag & drop ─────────────────────────────────────── */
 body.dragging-active .tl-bar{pointer-events:none}
+body.dragging-active .tl-lbl{pointer-events:none}
 .tl-cell.drop-over{background:rgba(43,191,164,.28)!important;outline:2px dashed var(--teal);outline-offset:-2px}
 /* Bouton suppression sur barre */
 .tl-bar .bar-del{display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:inherit;font-size:15px;line-height:1;padding:0 3px;opacity:.6;z-index:3}
@@ -278,6 +279,19 @@ const TAUX_JOUR = 82.5;  // €/jour/équipier (base 4 j/semaine Lun-Jeu)
 let dragData = null;
 
 // Trouve la cellule la plus proche du point clientX dans un track
+// Snap vers le prochain jour ouvré (pour date_debut)
+function snapDebut(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+// Snap vers le dernier jour ouvré précédent (pour date_fin)
+function snapFin(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function cellAtX(track, clientX) {
   let best = null, bestDist = Infinity;
   track.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
@@ -374,12 +388,11 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
 
     let newDebut, newFin, newEquipe;
     if (dragData.type === 'move') {
-      newDebut  = cell.dataset.date;
+      newDebut  = snapDebut(cell.dataset.date); // snap Sat/Dim/Ven → Lun suivant
       newEquipe = eq;
-      // Inter-équipe : recalcule la durée selon l'effectif de la nouvelle équipe
       if (newEquipe !== dragData.equipeId) {
-        const mo    = DEVIS_MO[dragData.devisId] || 0;
-        const nbEq  = EQ_EFF[newEquipe] || 0;
+        const mo   = DEVIS_MO[dragData.devisId] || 0;
+        const nbEq = EQ_EFF[newEquipe] || 0;
         newFin = (mo > 0 && nbEq > 0)
           ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)))
           : addWorkingDays(newDebut, dragData.dur);
@@ -387,8 +400,13 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
         newFin = addWorkingDays(newDebut, dragData.dur);
       }
     } else {
-      if (dragData.side === 'right') { newDebut = dragData.otherDate; newFin = cell.dataset.date; }
-      else                           { newDebut = cell.dataset.date;  newFin = dragData.otherDate; }
+      if (dragData.side === 'right') {
+        newDebut = dragData.otherDate;
+        newFin   = snapFin(cell.dataset.date);  // snap Sat/Dim/Ven → Jeu précédent
+      } else {
+        newDebut = snapDebut(cell.dataset.date);
+        newFin   = dragData.otherDate;
+      }
       newEquipe = parseInt(dragData.equipeId);
       if (newFin < newDebut) { clearDropOver(); dragData = null; return; }
     }
