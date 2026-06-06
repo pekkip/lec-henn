@@ -44,7 +44,7 @@
 .tl-day.today-hd b{color:var(--teal-dk)}
 
 /* ── Team track ──────────────────────────────────────── */
-.tl-track{display:grid;grid-template-rows:72px;height:72px}
+.tl-track{display:grid;grid-template-rows:92px;height:92px}
 .tl-cell{grid-row:1;border-right:1px solid #EFEDEB}
 .tl-cell.mon-cell{border-left:2px solid var(--prune-bd)}
 .tl-cell.we-cell{background:#F5F3F1}
@@ -55,10 +55,11 @@
 .tl-cell.fri-cell{background:#F6F4F2}
 
 /* ── Affectation bars ────────────────────────────────── */
-.tl-bar{grid-row:1;position:relative;z-index:2;align-self:center;margin:0 2px;height:60px;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:6px 10px;min-width:0;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:box-shadow .1s,filter .1s}
+.tl-bar{grid-row:1;position:relative;z-index:2;align-self:center;margin:0 2px;height:78px;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:6px 10px;min-width:0;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:box-shadow .1s,filter .1s}
 .bar-top{display:flex;align-items:baseline;gap:5px;width:100%;min-width:0;overflow:hidden}
 .bar-ref{font-size:10px;font-weight:700;opacity:.65;flex-shrink:0;white-space:nowrap}
 .bar-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.bar-lieu{font-size:10px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
 .bar-meta{display:flex;align-items:center;gap:5px;width:100%;font-size:10px;opacity:.85}
 .bar-days{flex-shrink:0;white-space:nowrap}
 .bar-prog{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.15);overflow:hidden;min-width:16px}
@@ -216,6 +217,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
                 <span class="bar-ref">{{ barre.aff.tranche.devis.reference }}</span>
                 <span class="bar-name">{{ barre.label }}</span>
               </div>
+              {% if barre.lieu %}<div class="bar-lieu">{{ barre.lieu }}</div>{% endif %}
               <div class="bar-meta">
                 <span class="bar-days">{{ barre.nb_jours }}&nbsp;j</span>
                 <div class="bar-prog" title="{{ barre.pct_consomme }}% consommé"><div class="bar-prog-fill" style="width:{{ barre.pct_consomme }}%"></div></div>

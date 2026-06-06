@@ -3116,10 +3116,14 @@ def planning_mois(request):
             heures_budget = mo_eur / float(_TAUX_JOUR_PLANNING) * 7  # 7h/jour ouvré
             heures_conso  = heures_par_tranche.get(aff.tranche_id, 0)
             pct_consomme  = min(100, round(heures_conso / heures_budget * 100)) if heures_budget > 0 else 0
+            devis = aff.tranche.devis
+            lieu_parts = [p for p in (devis.chantier_cp, devis.chantier_ville) if p]
+            lieu = ' '.join(lieu_parts)
             barres.append({
                 'aff': aff,
                 'color': aff_color[aff.pk],
                 'label': label,
+                'lieu': lieu,
                 'col_debut': col_d,
                 'col_fin_excl': col_f + 1,
                 'starts_before': starts_before,
