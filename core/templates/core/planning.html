@@ -277,20 +277,31 @@ const TAUX_JOUR = 82.5;  // €/jour/équipier (base 4 j/semaine Lun-Jeu)
 // ── Drag & drop ────────────────────────────────────────
 let dragData = null;
 
-function daysBetween(a, b) {
-  return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+// Trouve la cellule la plus proche du point clientX dans un track
+function cellAtX(track, clientX) {
+  let best = null, bestDist = Infinity;
+  track.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
+    const r = cell.getBoundingClientRect();
+    if (clientX >= r.left && clientX <= r.right) { best = cell; return; }
+    const d = Math.min(Math.abs(clientX - r.left), Math.abs(clientX - r.right));
+    if (d < bestDist) { bestDist = d; best = cell; }
+  });
+  return best;
 }
-function addCalendarDays(dateStr, n) {
-  const d = new Date(dateStr + 'T12:00:00');
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+
+function clearDropOver() {
+  document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
 }
 
 // Déplacement de barre (move)
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
-    if (e.target !== bar) return; // poignée enfant — laissera son propre dragstart gérer
-    dragData = { type: 'move', affId: bar.dataset.aff, dur: daysBetween(bar.dataset.debut, bar.dataset.fin) };
+    if (e.target !== bar) return;
+    dragData = {
+      type:  'move',
+      affId: bar.dataset.aff,
+      dur:   workingDays(bar.dataset.debut, bar.dataset.fin), // jours ouvrés Lun-Jeu
+    };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
     document.body.classList.add('dragging-active');
@@ -300,7 +311,7 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragend', () => {
     document.body.classList.remove('dragging-active');
     bar.style.opacity = '';
-    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
+    clearDropOver();
     dragData = null;
   });
 });
@@ -328,49 +339,50 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
     document.body.classList.remove('dragging-active');
     const bar = handle.closest('.tl-bar');
     if (bar) bar.style.opacity = '';
-    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
+    clearDropOver();
     dragData = null;
   });
 });
 
-document.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
-  cell.addEventListener('dragover', e => {
+// Drop sur les tracks (plus fiable que cell-level pour le drag inter-lignes)
+document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
+  const eq = parseInt(track.dataset.equipe);
+
+  track.addEventListener('dragover', e => {
     if (!dragData) return;
-    const eq = parseInt(cell.closest('.tl-track').dataset.equipe);
-    // Pour le resize, seule la même ligne est valide ; pour le move, toute ligne modifiable est ok
     if (dragData.type === 'resize' && eq !== parseInt(dragData.equipeId)) return;
     if (!PEUT_GLOBAL && !MODIFIABLES.has(eq)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
-    cell.classList.add('drop-over');
+    clearDropOver();
+    const cell = cellAtX(track, e.clientX);
+    if (cell) cell.classList.add('drop-over');
   });
 
-  cell.addEventListener('dragleave', () => {
-    cell.classList.remove('drop-over');
+  track.addEventListener('dragleave', e => {
+    if (!track.contains(e.relatedTarget)) clearDropOver();
   });
 
-  cell.addEventListener('drop', e => {
+  track.addEventListener('drop', e => {
     if (!dragData) return;
     e.preventDefault();
-    const track     = cell.closest('.tl-track');
-    const trackEq   = parseInt(track.dataset.equipe);
-    if (!PEUT_GLOBAL && !MODIFIABLES.has(trackEq)) return;
+    if (!PEUT_GLOBAL && !MODIFIABLES.has(eq)) return;
+    const cell = cellAtX(track, e.clientX);
+    if (!cell) { dragData = null; return; }
 
     let newDebut, newFin, newEquipe;
     if (dragData.type === 'move') {
       newDebut  = cell.dataset.date;
-      newFin    = addCalendarDays(newDebut, dragData.dur);
-      newEquipe = trackEq;
+      newFin    = addWorkingDays(newDebut, dragData.dur); // préserve les jours ouvrés
+      newEquipe = eq;
     } else {
-      // resize : l'équipe ne change pas
       if (dragData.side === 'right') { newDebut = dragData.otherDate; newFin = cell.dataset.date; }
       else                           { newDebut = cell.dataset.date;  newFin = dragData.otherDate; }
       newEquipe = parseInt(dragData.equipeId);
-      if (newFin < newDebut) { dragData = null; return; } // sanity check
+      if (newFin < newDebut) { clearDropOver(); dragData = null; return; }
     }
 
-    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
+    clearDropOver();
     fetch(URL_MOVE, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
