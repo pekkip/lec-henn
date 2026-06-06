@@ -94,7 +94,8 @@ urlpatterns = [
     path('planning/equipiers/',                  views.equipiers_list,        name='equipiers'),
     path('planning/equipiers/sauvegarder/',      views.equipier_save,         name='equipier-save'),
     path('planning/equipiers/<int:pk>/actif/',   views.equipier_toggle_actif, name='equipier-toggle-actif'),
-    path('planning/',                            views.planning_view,         name='planning'),
+    path('planning/',                            views.planning_mois,         name='planning'),
+    path('planning/emargement/',                 views.emargement_view,       name='emargement'),
     path('planning/affectation/sauvegarder/',    views.affectation_save,      name='affectation-save'),
     path('planning/presence/sauvegarder/',       views.presence_save,         name='presence-save'),
 

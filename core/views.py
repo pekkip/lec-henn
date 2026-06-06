@@ -4,6 +4,7 @@ import logging
 import random
 import string
 import re
+from calendar import monthrange
 from datetime import date, timedelta, datetime
 from datetime import datetime as dt
 from decimal import Decimal, InvalidOperation
@@ -2864,7 +2865,7 @@ DEF_H      = {'matin': '4', 'aprem': '3'}
 
 
 @login_required
-def planning_view(request):
+def emargement_view(request):
     if not peut_acceder_planning(request.user):
         return HttpResponseForbidden("Accès réservé au module Insertion.")
 
@@ -2894,7 +2895,7 @@ def planning_view(request):
         equipe_sel = equipes.first()
 
     if not equipe_sel:
-        return render(request, 'core/planning.html', {
+        return render(request, 'core/emargement.html', {
             'equipes': equipes, 'equipe_sel': None,
             'lundi': lundi, 'jours': [], 'grid_rows': [], 'affectations': [],
         })
@@ -3001,7 +3002,7 @@ def planning_view(request):
     )
     jours_info = [(j, JOURS_FR[i]) for i, j in enumerate(jours)]
 
-    return render(request, 'core/planning.html', {
+    return render(request, 'core/emargement.html', {
         'equipes': equipes,
         'equipe_sel': equipe_sel,
         'lundi': lundi,
@@ -3017,6 +3018,101 @@ def planning_view(request):
         'semaine_prec': (lundi - timedelta(weeks=1)).isoformat(),
         'semaine_suiv': (lundi + timedelta(weeks=1)).isoformat(),
         'peut_modifier': est_encadrant(request.user, equipe_sel),
+    })
+
+
+@login_required
+def planning_mois(request):
+    if not peut_acceder_planning(request.user):
+        return HttpResponseForbidden("Accès réservé au module Insertion.")
+
+    profil = get_profil(request.user)
+    peut_modifier_global = profil.role in ('admin', 'responsable')
+
+    default_sem = 8 if profil.role in ('admin', 'responsable', 'rh') else 4
+    nb_semaines = max(1, min(52, int(request.GET.get('semaines', '') or default_sem)))
+
+    debut_str = request.GET.get('debut', '')
+    try:
+        debut_grille = datetime.strptime(debut_str, '%Y-%m-%d').date()
+        debut_grille -= timedelta(days=debut_grille.weekday())  # recaler au lundi
+    except (ValueError, AttributeError):
+        today = date.today()
+        debut_grille = today - timedelta(days=today.weekday())
+
+    nb_jours   = nb_semaines * 7
+    fin_grille = debut_grille + timedelta(days=nb_jours - 1)
+    jours      = [debut_grille + timedelta(days=i) for i in range(nb_jours)]
+
+    # En-têtes semaines : numéro ISO
+    semaines = [
+        {'num': (debut_grille + timedelta(weeks=w)).isocalendar()[1]}
+        for w in range(nb_semaines)
+    ]
+
+    equipes = Equipe.objects.filter(actif=True, service__module_planning=True).order_by('nom')
+    affectations = list(
+        Affectation.objects
+        .filter(equipe__in=equipes, date_debut__lte=fin_grille, date_fin__gte=debut_grille)
+        .select_related('tranche__devis__client', 'equipe')
+        .order_by('date_debut')
+    )
+    aff_color = {aff.pk: COLORS_AFF[i % len(COLORS_AFF)] for i, aff in enumerate(affectations)}
+    equipes_modifiables_ids = {e.pk for e in equipes if est_encadrant(request.user, e)}
+
+    def day_col(d):
+        """Colonne 1-based dans la grille piste (sans colonne nom-équipe)."""
+        return (d - debut_grille).days + 1
+
+    lignes = []
+    for equipe in equipes:
+        barres = []
+        for aff in affectations:
+            if aff.equipe_id != equipe.pk:
+                continue
+            starts_before = aff.date_debut < debut_grille
+            ends_after    = aff.date_fin   > fin_grille
+            d_debut = max(aff.date_debut, debut_grille)
+            d_fin   = min(aff.date_fin,   fin_grille)
+            col_d = day_col(d_debut)
+            col_f = day_col(d_fin)
+            lundi_em = d_debut - timedelta(days=d_debut.weekday())
+            label = aff.tranche.devis.chantier or aff.tranche.devis.client.nom
+            barres.append({
+                'aff': aff,
+                'color': aff_color[aff.pk],
+                'label': label,
+                'col_debut': col_d,
+                'col_fin_excl': col_f + 1,   # end exclusif pour grid-column
+                'starts_before': starts_before,
+                'ends_after': ends_after,
+                'lundi_em': lundi_em.isoformat(),
+            })
+        peut_modifier_ligne = peut_modifier_global or equipe.pk in equipes_modifiables_ids
+        lignes.append({'equipe': equipe, 'barres': barres, 'peut_modifier': peut_modifier_ligne})
+
+    prec_debut = (debut_grille - timedelta(weeks=4)).isoformat()
+    suiv_debut = (debut_grille + timedelta(weeks=4)).isoformat()
+
+    devis_dispo = list(
+        Devis.objects.filter(status='accepted').select_related('client').order_by('client__nom')
+    )
+
+    return render(request, 'core/planning.html', {
+        'equipes': equipes,
+        'jours': jours,
+        'nb_jours': nb_jours,
+        'nb_semaines': nb_semaines,
+        'semaines': semaines,
+        'lignes': lignes,
+        'debut_grille': debut_grille,
+        'fin_grille': fin_grille,
+        'prec_debut': prec_debut,
+        'suiv_debut': suiv_debut,
+        'peut_modifier_global': peut_modifier_global,
+        'equipes_modifiables_ids': list(equipes_modifiables_ids),
+        'devis_dispo': devis_dispo,
+        'today': date.today(),
     })
 
 

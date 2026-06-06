@@ -932,7 +932,7 @@ class PlanningEquipiersTests(TestCase):
 
 class PlanningGrilleTests(TestCase):
     """
-    Commit 3 : planning_view, affectation_save, presence_save.
+    Commit 3 : emargement_view, affectation_save, presence_save.
     """
 
     @classmethod
@@ -965,15 +965,27 @@ class PlanningGrilleTests(TestCase):
         cls.eq2 = Equipier.objects.create(prenom='Amina',  nom='Dawlatz', equipe=cls.equipe)
         cls.lundi = date(2026, 6, 1)  # semaine de test
 
-    # ── planning_view ─────────────────────────────────────────
+    # ── emargement_view ───────────────────────────────────────
 
-    def test_planning_view_ok(self):
+    def test_emargement_view_ok(self):
         self.client.login(username='laurene2', password='pw')
-        resp = self.client.get(reverse('core:planning') + f'?equipe={self.equipe.pk}&debut=2026-06-01')
+        resp = self.client.get(reverse('core:emargement') + f'?equipe={self.equipe.pk}&debut=2026-06-01')
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, 'Habtom')
 
-    def test_planning_view_interdit_sans_acces(self):
+    def test_emargement_view_interdit_sans_acces(self):
+        self.client.login(username='tech2', password='pw')
+        resp = self.client.get(reverse('core:emargement'))
+        self.assertEqual(resp.status_code, 403)
+
+    # ── planning_mois ─────────────────────────────────────────
+
+    def test_planning_mois_ok(self):
+        self.client.login(username='david2', password='pw')
+        resp = self.client.get(reverse('core:planning'))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_planning_mois_interdit_sans_acces(self):
         self.client.login(username='tech2', password='pw')
         resp = self.client.get(reverse('core:planning'))
         self.assertEqual(resp.status_code, 403)
