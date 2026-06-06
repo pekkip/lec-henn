@@ -248,6 +248,7 @@ body.dragging-active .tl-bar{pointer-events:none}
       <div class="field">
         <label>Au (calculé) *</label>
         <input class="input" type="date" id="aff-fin">
+        <small id="aff-fin-hint" style="color:var(--amber);font-size:10px;margin-top:3px;display:none"></small>
       </div>
     </div>
     <div id="aff-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
@@ -429,13 +430,22 @@ function addWorkingDays(startStr, n) {
 }
 
 function calcDateFin() {
+  const hint  = document.getElementById('aff-fin-hint');
   const eqId  = parseInt(document.getElementById('aff-equipe').value);
   const devId = parseInt(document.getElementById('aff-devis').value);
   const debut = document.getElementById('aff-debut').value;
   if (!eqId || !devId || !debut) return;
   const mo   = DEVIS_MO[devId] || 0;
   const nbEq = EQ_EFF[eqId]    || 0;
-  if (mo <= 0 || nbEq <= 0) return;
+  if (nbEq <= 0) {
+    if (hint) { hint.textContent = 'Aucun équipier actif dans cette équipe — saisir la date manuellement.'; hint.style.display = ''; }
+    return;
+  }
+  if (mo <= 0) {
+    if (hint) { hint.textContent = 'Aucune ligne MO/FMO dans ce devis — saisir la date manuellement.'; hint.style.display = ''; }
+    return;
+  }
+  if (hint) hint.style.display = 'none';
   const nbJ = Math.ceil(mo / (TAUX_JOUR * nbEq));
   document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ);
 }
@@ -475,7 +485,14 @@ function submitAff() {
   if (!debut)    { err.textContent = 'Renseignez la date de début.'; err.style.display = ''; return; }
   if (!document.getElementById('aff-fin').value) calcDateFin();
   const fin = document.getElementById('aff-fin').value;
-  if (!fin)       { err.textContent = 'Renseignez la date de fin (aucune MO trouvée sur ce devis ?).'; err.style.display = ''; return; }
+  if (!fin) {
+    const mo2   = DEVIS_MO[parseInt(devisId)]  || 0;
+    const nbEq2 = EQ_EFF[parseInt(equipeId)]   || 0;
+    if (nbEq2 <= 0) err.textContent = 'Équipe sans équipier actif — saisir la date de fin manuellement.';
+    else if (mo2 <= 0) err.textContent = 'Aucune ligne MO/FMO dans ce devis — saisir la date de fin manuellement.';
+    else err.textContent = 'Renseignez la date de fin.';
+    err.style.display = ''; return;
+  }
   if (fin < debut) { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
   err.style.display = 'none';
 
