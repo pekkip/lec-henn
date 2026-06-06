@@ -186,7 +186,7 @@ body.dragging-active .tl-bar{pointer-events:none}
           <div class="tl-track" data-equipe="{{ ligne.equipe.pk }}" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
             {# Fond de cellules (auto-placed, une par jour) — data-date pour le drop DnD #}
             {% for j in jours %}
-            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" data-date="{{ j|date:'Y-m-d' }}" style="grid-row:1"></div>
+            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" data-date="{{ j|date:'Y-m-d' }}" style="grid-row:1;grid-column:{{ forloop.counter }}"></div>
             {% endfor %}
             {# Barres d'affectation (positionnées explicitement) #}
             {% for barre in ligne.barres %}
@@ -298,9 +298,11 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
     if (e.target !== bar) return;
     dragData = {
-      type:  'move',
-      affId: bar.dataset.aff,
-      dur:   workingDays(bar.dataset.debut, bar.dataset.fin), // jours ouvrés Lun-Jeu
+      type:     'move',
+      affId:    bar.dataset.aff,
+      dur:      workingDays(bar.dataset.debut, bar.dataset.fin),
+      devisId:  parseInt(bar.dataset.devis),
+      equipeId: parseInt(bar.dataset.equipe),
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
@@ -373,8 +375,17 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
     let newDebut, newFin, newEquipe;
     if (dragData.type === 'move') {
       newDebut  = cell.dataset.date;
-      newFin    = addWorkingDays(newDebut, dragData.dur); // préserve les jours ouvrés
       newEquipe = eq;
+      // Inter-équipe : recalcule la durée selon l'effectif de la nouvelle équipe
+      if (newEquipe !== dragData.equipeId) {
+        const mo    = DEVIS_MO[dragData.devisId] || 0;
+        const nbEq  = EQ_EFF[newEquipe] || 0;
+        newFin = (mo > 0 && nbEq > 0)
+          ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)))
+          : addWorkingDays(newDebut, dragData.dur);
+      } else {
+        newFin = addWorkingDays(newDebut, dragData.dur);
+      }
     } else {
       if (dragData.side === 'right') { newDebut = dragData.otherDate; newFin = cell.dataset.date; }
       else                           { newDebut = cell.dataset.date;  newFin = dragData.otherDate; }

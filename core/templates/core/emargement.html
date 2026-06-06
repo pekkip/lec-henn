@@ -370,7 +370,7 @@ const TAUX_JOUR = 82.5;  // €/jour/équipier (Lun-Jeu, 4 j/semaine)
 function addWorkingDays(startStr, n) {
   if (n <= 0) return startStr;
   let d = new Date(startStr + 'T12:00:00');
-  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() + 1);
+  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() + 1); // aligner Lun-Jeu
   let rem = n - 1;
   while (rem > 0) {
     d.setDate(d.getDate() + 1);
