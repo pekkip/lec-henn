@@ -58,8 +58,8 @@
 .tl-bar{grid-row:1;position:relative;z-index:2;align-self:center;margin:0 2px;height:78px;border-radius:5px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:3px;padding:6px 10px;min-width:0;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:box-shadow .1s,filter .1s}
 .bar-top{display:flex;align-items:baseline;gap:5px;width:100%;min-width:0;overflow:hidden}
 .bar-ref{font-size:10px;font-weight:700;opacity:.65;flex-shrink:0;white-space:nowrap}
-.bar-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-.bar-lieu{font-size:10px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+.bar-lieu-inline{font-size:10px;opacity:.65;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.bar-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%}
 .bar-meta{display:flex;align-items:center;gap:5px;width:100%;font-size:10px;opacity:.85}
 .bar-days{flex-shrink:0;white-space:nowrap}
 .bar-prog{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.15);overflow:hidden;min-width:16px}
@@ -215,9 +215,9 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
               {% if ligne.peut_modifier %}<span class="resize-l" draggable="true" data-side="left"></span>{% endif %}
               <div class="bar-top">
                 <span class="bar-ref">{{ barre.aff.tranche.devis.reference }}</span>
-                <span class="bar-name">{{ barre.label }}</span>
+                {% if barre.lieu %}<span class="bar-lieu-inline">{{ barre.aff.tranche.devis.chantier_ville }}</span>{% endif %}
               </div>
-              {% if barre.lieu %}<div class="bar-lieu">{{ barre.lieu }}</div>{% endif %}
+              <div class="bar-name">{{ barre.label }}</div>
               <div class="bar-meta">
                 <span class="bar-days">{{ barre.nb_jours }}&nbsp;j</span>
                 <div class="bar-prog" title="{{ barre.pct_consomme }}% consommé"><div class="bar-prog-fill" style="width:{{ barre.pct_consomme }}%"></div></div>
