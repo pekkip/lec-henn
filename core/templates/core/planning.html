@@ -433,15 +433,23 @@ const EVENEMENTS_DATA = {{ evenements_data_json|safe }};
 const WE_EXCLUDED = [0, 5, 6]; // JS: Sun=0, Fri=5, Sat=6
 const TODAY_ISO   = '{{ today|date:"Y-m-d" }}';
 
-function snapDebut(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00');
-  while (WE_EXCLUDED.includes(d.getDay())) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+function isWorkingDay(dateStr, equipeId) {
+  const eqKey = String(equipeId || '');
+  const neg = (EV_NEGATIFS[eqKey] || []).concat(EV_NEGATIFS['global'] || []);
+  const pos = (EV_POSITIFS[eqKey] || []).concat(EV_POSITIFS['global'] || []);
+  if (neg.includes(dateStr)) return false;
+  if (pos.includes(dateStr)) return true;
+  return !WE_EXCLUDED.includes(new Date(dateStr + 'T12:00:00').getDay());
 }
-function snapFin(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00');
-  while (WE_EXCLUDED.includes(d.getDay())) d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
+function snapDebut(dateStr, equipeId) {
+  let d = new Date(dateStr + 'T12:00:00'), ds = d.toISOString().slice(0, 10);
+  while (!isWorkingDay(ds, equipeId)) { d.setDate(d.getDate() + 1); ds = d.toISOString().slice(0, 10); }
+  return ds;
+}
+function snapFin(dateStr, equipeId) {
+  let d = new Date(dateStr + 'T12:00:00'), ds = d.toISOString().slice(0, 10);
+  while (!isWorkingDay(ds, equipeId)) { d.setDate(d.getDate() - 1); ds = d.toISOString().slice(0, 10); }
+  return ds;
 }
 
 // ── Drag & drop ────────────────────────────────────────
@@ -468,12 +476,13 @@ function clearDropOver() {
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
     if (e.target !== bar) return;
+    const eid = parseInt(bar.dataset.equipe);
     dragData = {
       type:      'move',
       affId:     bar.dataset.aff,
-      dur:       workingDays(bar.dataset.debut, bar.dataset.fin),
+      dur:       workingDays(bar.dataset.debut, bar.dataset.fin, eid),
       devisId:   parseInt(bar.dataset.devis),
-      equipeId:  parseInt(bar.dataset.equipe),
+      equipeId:  eid,
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
@@ -542,26 +551,26 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
 
     let newDebut, newFin, newEquipe;
     if (dragData.type === 'move') {
-      newDebut  = snapDebut(cell.dataset.date);
       newEquipe = eq;
+      newDebut  = snapDebut(cell.dataset.date, newEquipe);
       if (newEquipe !== dragData.equipeId) {
         const mo   = DEVIS_MO[dragData.devisId] || 0;
         const nbEq = EQ_EFF[newEquipe] || 0;
         newFin = (mo > 0 && nbEq > 0)
-          ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)))
-          : addWorkingDays(newDebut, dragData.dur);
+          ? addWorkingDays(newDebut, Math.ceil(mo / (TAUX_JOUR * nbEq)), newEquipe)
+          : addWorkingDays(newDebut, dragData.dur, newEquipe);
       } else {
-        newFin = addWorkingDays(newDebut, dragData.dur);
+        newFin = addWorkingDays(newDebut, dragData.dur, newEquipe);
       }
     } else {
+      newEquipe = parseInt(dragData.equipeId);
       if (dragData.side === 'right') {
         newDebut = dragData.otherDate;
-        newFin   = snapFin(cell.dataset.date);
+        newFin   = snapFin(cell.dataset.date, newEquipe);
       } else {
-        newDebut = snapDebut(cell.dataset.date);
+        newDebut = snapDebut(cell.dataset.date, newEquipe);
         newFin   = dragData.otherDate;
       }
-      newEquipe = parseInt(dragData.equipeId);
       if (newFin < newDebut) { clearDropOver(); dragData = null; return; }
     }
 
@@ -584,10 +593,13 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
   });
 });
 
-// ── Jours ouvrés (base 4j/sem, vendredi exclu sauf événement côté serveur) ──
-function workingDays(debut, fin) {
+// ── Jours ouvrés (event-aware) ──
+function workingDays(debut, fin, equipeId) {
   let d = new Date(debut + 'T12:00:00'), end = new Date(fin + 'T12:00:00'), n = 0;
-  while (d <= end) { if (!WE_EXCLUDED.includes(d.getDay())) n++; d.setDate(d.getDate()+1); }
+  while (d <= end) {
+    if (isWorkingDay(d.toISOString().slice(0, 10), equipeId)) n++;
+    d.setDate(d.getDate() + 1);
+  }
   return n;
 }
 
@@ -600,7 +612,7 @@ document.querySelectorAll('.tl-bar[data-devis]').forEach(bar => {
   const totalNbEq = allEqs.reduce((s, eid) => s + (EQ_EFF[eid] || 0), 0);
   if (!totalNbEq) return;
   const calcJ   = Math.ceil(mo / (TAUX_JOUR * totalNbEq));
-  const actualJ = workingDays(bar.dataset.debut, bar.dataset.fin);
+  const actualJ = workingDays(bar.dataset.debut, bar.dataset.fin, parseInt(bar.dataset.equipe));
   if (Math.abs(actualJ - calcJ) > 1) {
     bar.classList.add('divergent');
     bar.title += ` · Durée calculée : ${calcJ} j, affectée : ${actualJ} j`;
@@ -628,16 +640,17 @@ function deleteAff(e, affId) {
   .catch(() => alert('Erreur réseau'));
 }
 
-function addWorkingDays(startStr, n) {
+function addWorkingDays(startStr, n, equipeId) {
   if (n <= 0) return startStr;
-  let d = new Date(startStr + 'T12:00:00');
-  while (WE_EXCLUDED.includes(d.getDay())) d.setDate(d.getDate() + 1);
+  let d = new Date(startStr + 'T12:00:00'), ds = d.toISOString().slice(0, 10);
+  while (!isWorkingDay(ds, equipeId)) { d.setDate(d.getDate() + 1); ds = d.toISOString().slice(0, 10); }
   let rem = n - 1;
   while (rem > 0) {
     d.setDate(d.getDate() + 1);
-    if (!WE_EXCLUDED.includes(d.getDay())) rem--;
+    ds = d.toISOString().slice(0, 10);
+    if (isWorkingDay(ds, equipeId)) rem--;
   }
-  return d.toISOString().slice(0, 10);
+  return ds;
 }
 
 function calcDateFin() {
@@ -664,7 +677,7 @@ function calcDateFin() {
     .reduce((s, eid) => s + (EQ_EFF[eid] || 0), 0);
   const totalNbEq = nbEq + otherNbEq;
   const nbJ = Math.ceil(mo / (TAUX_JOUR * totalNbEq));
-  document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ);
+  document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ, eqId);
 }
 
 function openAffModal(equipeId) {

@@ -3045,12 +3045,12 @@ def planning_mois(request):
     default_sem = 8 if profil.role in ('admin', 'responsable', 'rh') else 4
     nb_semaines = max(1, min(52, int(request.GET.get('semaines', '') or default_sem)))
 
+    today = date.today()
     debut_str = request.GET.get('debut', '')
     try:
         debut_grille = datetime.strptime(debut_str, '%Y-%m-%d').date()
         debut_grille -= timedelta(days=debut_grille.weekday())  # recaler au lundi
     except (ValueError, AttributeError):
-        today = date.today()
         debut_grille = today - timedelta(days=today.weekday())
 
     nb_jours   = nb_semaines * 7
