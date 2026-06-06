@@ -28,7 +28,8 @@ class ServiceAdmin(admin.ModelAdmin):
 
 @admin.register(Equipe)
 class EquipeAdmin(admin.ModelAdmin):
-    list_display = ['nom', 'service', 'encadrant', 'activite', 'actif', 'ordre']
+    list_display = ['nom', 'service', 'encadrant', 'nb_equipiers', 'activite', 'actif', 'ordre']
+    list_editable = ['nb_equipiers']
     list_filter = ['actif', 'activite', 'service__territoire', 'service']
     search_fields = ['nom']
     raw_id_fields = ['encadrant']

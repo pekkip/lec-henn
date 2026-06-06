@@ -3009,7 +3009,7 @@ def emargement_view(request):
                      queryset=Equipier.objects.filter(actif=True).order_by('nom', 'prenom'))
         ).order_by('nom')
     )
-    equipe_effectifs_json = {e.pk: e.equipiers.all().count() for e in panel_equipes_all}
+    equipe_effectifs_json = {e.pk: e.nb_equipiers for e in panel_equipes_all}
     jours_info = [(j, JOURS_FR[i]) for i, j in enumerate(jours)]
 
     return render(request, 'core/emargement.html', {
@@ -3113,10 +3113,7 @@ def planning_mois(request):
         .order_by('client__nom')
     )
     devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
-    equipe_effectifs_json = {
-        e.pk: Equipier.objects.filter(equipe=e, actif=True).count()
-        for e in equipes
-    }
+    equipe_effectifs_json = {e.pk: e.nb_equipiers for e in equipes}
 
     return render(request, 'core/planning.html', {
         'equipes': equipes,

@@ -22,7 +22,8 @@
 .tl-lbl.team{font-weight:500;color:var(--gray)}
 .tl-lbl .av{width:20px;height:20px;border-radius:50%;background:var(--prune-lt);color:var(--prune);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0}
 .tl-lbl .enc{font-size:10px;color:var(--gray-md)}
-.tl-lbl .add-btn{margin-left:auto;flex-shrink:0}
+.tl-lbl .add-btn{flex-shrink:0}
+.tl-eff{margin-left:auto;font-size:10px;background:var(--gray-lt);border-radius:99px;padding:1px 7px;color:var(--gray-md);flex-shrink:0}
 
 /* ── Sticky header ───────────────────────────────────── */
 .tl-hdr{position:sticky;top:0;z-index:8;background:#fff}
@@ -175,6 +176,7 @@ body.dragging-active .tl-bar{pointer-events:none}
               <span class="enc">{{ ligne.equipe.encadrant.first_name|slice:":1" }}.&nbsp;{{ ligne.equipe.encadrant.last_name }}</span>
               {% endif %}
             </div>
+            <span class="tl-eff" title="{{ ligne.equipe.nb_equipiers }} équipier{{ ligne.equipe.nb_equipiers|pluralize }}">{{ ligne.equipe.nb_equipiers }}</span>
             {% if ligne.peut_modifier %}
             <button class="ico-btn add-btn" onclick="openAffModal({{ ligne.equipe.pk }})" title="Affecter un chantier à {{ ligne.equipe.nom }}">
               <i class="ti ti-plus"></i>

@@ -67,6 +67,10 @@ class Equipe(models.Model):
         max_length=20, choices=ACTIVITE_CHOICES, blank=True,
         help_text="Filtre du suivi de production (gros / second œuvre)"
     )
+    nb_equipiers = models.PositiveSmallIntegerField(
+        default=4,
+        help_text="Effectif théorique (base de calcul de la durée en planning)"
+    )
     financeurs = models.ManyToManyField(
         'Financeur', blank=True, related_name='equipes',
         help_text="Financeurs affichés au pied de la fiche d'émargement"
