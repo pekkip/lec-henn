@@ -78,6 +78,12 @@ body.dragging-active .tl-bar{pointer-events:none}
 .tl-bar .bar-del:hover{opacity:1}
 .tl-bar[draggable="true"]{cursor:grab}
 .tl-bar[draggable="true"]:active{cursor:grabbing}
+/* Poignées de redimensionnement */
+.resize-l,.resize-r{position:absolute;top:4px;bottom:4px;width:7px;border-radius:3px;background:rgba(0,0,0,.15);opacity:0;transition:opacity .12s;cursor:ew-resize;z-index:4}
+.tl-bar:hover .resize-l,.tl-bar:hover .resize-r{opacity:1}
+.resize-l{left:2px}.resize-r{right:24px}
+/* Indicateur durée divergente de la durée calculée */
+.tl-bar.divergent{outline:2px dashed var(--amber);outline-offset:-2px}
 </style>
 {% endblock %}
 
@@ -185,9 +191,14 @@ body.dragging-active .tl-bar{pointer-events:none}
             <div class="tl-bar {{ barre.color }}{% if barre.starts_before %} clip-left{% endif %}{% if barre.ends_after %} clip-right{% endif %}"
                style="grid-column:{{ barre.col_debut }}/{{ barre.col_fin_excl }}"
                title="{{ barre.label }}"
-               {% if ligne.peut_modifier %}draggable="true" data-aff="{{ barre.aff.pk }}" data-debut="{{ barre.aff.date_debut|date:'Y-m-d' }}" data-fin="{{ barre.aff.date_fin|date:'Y-m-d' }}" data-equipe="{{ ligne.equipe.pk }}"{% endif %}>
+               data-devis="{{ barre.aff.tranche.devis.pk }}"
+               data-debut="{{ barre.aff.date_debut|date:'Y-m-d' }}"
+               data-fin="{{ barre.aff.date_fin|date:'Y-m-d' }}"
+               data-equipe="{{ ligne.equipe.pk }}"
+               {% if ligne.peut_modifier %}draggable="true" data-aff="{{ barre.aff.pk }}"{% endif %}>
+              {% if ligne.peut_modifier %}<span class="resize-l" draggable="true" data-side="left"></span>{% endif %}
               {{ barre.label }}
-              {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button>{% endif %}
+              {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button><span class="resize-r" draggable="true" data-side="right"></span>{% endif %}
             </div>
             {% endfor %}
             {% if not ligne.barres %}
@@ -272,12 +283,11 @@ function addCalendarDays(dateStr, n) {
   return d.toISOString().slice(0, 10);
 }
 
+// Déplacement de barre (move)
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
-    dragData = {
-      affId: bar.dataset.aff,
-      dur:   daysBetween(bar.dataset.debut, bar.dataset.fin),
-    };
+    if (e.target !== bar) return; // poignée enfant — laissera son propre dragstart gérer
+    dragData = { type: 'move', affId: bar.dataset.aff, dur: daysBetween(bar.dataset.debut, bar.dataset.fin) };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
     document.body.classList.add('dragging-active');
@@ -292,10 +302,40 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   });
 });
 
+// Poignées de redimensionnement
+document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
+  handle.addEventListener('dragstart', e => {
+    e.stopPropagation();
+    const bar  = handle.closest('.tl-bar');
+    const side = handle.dataset.side;
+    dragData = {
+      type:      'resize',
+      affId:     bar.dataset.aff,
+      equipeId:  bar.dataset.equipe,
+      side:      side,
+      otherDate: side === 'right' ? bar.dataset.debut : bar.dataset.fin,
+    };
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', bar.dataset.aff);
+    document.body.classList.add('dragging-active');
+    setTimeout(() => { bar.style.opacity = '.45'; }, 0);
+  });
+
+  handle.addEventListener('dragend', () => {
+    document.body.classList.remove('dragging-active');
+    const bar = handle.closest('.tl-bar');
+    if (bar) bar.style.opacity = '';
+    document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
+    dragData = null;
+  });
+});
+
 document.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
   cell.addEventListener('dragover', e => {
     if (!dragData) return;
     const eq = parseInt(cell.closest('.tl-track').dataset.equipe);
+    // Pour le resize, seule la même ligne est valide ; pour le move, toute ligne modifiable est ok
+    if (dragData.type === 'resize' && eq !== parseInt(dragData.equipeId)) return;
     if (!PEUT_GLOBAL && !MODIFIABLES.has(eq)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -310,11 +350,23 @@ document.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
   cell.addEventListener('drop', e => {
     if (!dragData) return;
     e.preventDefault();
-    const track    = cell.closest('.tl-track');
-    const newEquipe = parseInt(track.dataset.equipe);
-    if (!PEUT_GLOBAL && !MODIFIABLES.has(newEquipe)) return;
-    const newDebut = cell.dataset.date;
-    const newFin   = addCalendarDays(newDebut, dragData.dur);
+    const track     = cell.closest('.tl-track');
+    const trackEq   = parseInt(track.dataset.equipe);
+    if (!PEUT_GLOBAL && !MODIFIABLES.has(trackEq)) return;
+
+    let newDebut, newFin, newEquipe;
+    if (dragData.type === 'move') {
+      newDebut  = cell.dataset.date;
+      newFin    = addCalendarDays(newDebut, dragData.dur);
+      newEquipe = trackEq;
+    } else {
+      // resize : l'équipe ne change pas
+      if (dragData.side === 'right') { newDebut = dragData.otherDate; newFin = cell.dataset.date; }
+      else                           { newDebut = cell.dataset.date;  newFin = dragData.otherDate; }
+      newEquipe = parseInt(dragData.equipeId);
+      if (newFin < newDebut) { dragData = null; return; } // sanity check
+    }
+
     document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
     fetch(URL_MOVE, {
       method: 'POST',
@@ -326,6 +378,26 @@ document.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
     .catch(() => alert('Erreur réseau'));
     dragData = null;
   });
+});
+
+// ── Indicateur durée divergente de la durée calculée ──
+function workingDays(debut, fin) {
+  let d = new Date(debut + 'T12:00:00'), end = new Date(fin + 'T12:00:00'), n = 0;
+  while (d <= end) { if (![0,5,6].includes(d.getDay())) n++; d.setDate(d.getDate()+1); }
+  return n;
+}
+document.querySelectorAll('.tl-bar[data-devis]').forEach(bar => {
+  const devisId  = parseInt(bar.dataset.devis);
+  const equipeId = parseInt(bar.dataset.equipe);
+  const mo   = DEVIS_MO[devisId]  || 0;
+  const nbEq = EQ_EFF[equipeId]   || 0;
+  if (!mo || !nbEq) return;
+  const calcJ   = Math.ceil(mo / (TAUX_JOUR * nbEq));
+  const actualJ = workingDays(bar.dataset.debut, bar.dataset.fin);
+  if (Math.abs(actualJ - calcJ) > 1) {
+    bar.classList.add('divergent');
+    bar.title += ` · Durée calculée : ${calcJ} j, affectée : ${actualJ} j`;
+  }
 });
 
 // ── Suppression ────────────────────────────────────────
