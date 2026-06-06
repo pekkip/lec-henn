@@ -44,11 +44,30 @@ class Service(models.Model):
 
 
 class Equipe(models.Model):
+    ACTIVITE_CHOICES = [
+        ('gros_oeuvre',   'Gros œuvre'),
+        ('second_oeuvre', 'Second œuvre'),
+    ]
     service = models.ForeignKey(
         Service, on_delete=models.PROTECT, related_name='equipes'
     )
     nom = models.CharField(max_length=200)
     ordre = models.IntegerField(default=0)
+    # ── Module Planning (insertion) ──
+    encadrant = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='equipes_encadrees',
+        help_text="Chef d'équipe fixe (= ETI sur la fiche d'émargement)"
+    )
+    activite = models.CharField(
+        max_length=20, choices=ACTIVITE_CHOICES, blank=True,
+        help_text="Filtre du suivi de production (gros / second œuvre)"
+    )
+    financeurs = models.ManyToManyField(
+        'Financeur', blank=True, related_name='equipes',
+        help_text="Financeurs affichés au pied de la fiche d'émargement"
+    )
+    actif = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['service', 'ordre', 'nom']
@@ -68,6 +87,7 @@ class ProfilUtilisateur(models.Model):
         ('responsable',  'Responsable de service'),
         ('technicien',   'Technicien / Chargé de projet'),
         ('comptable',    'Comptable'),
+        ('rh',           'Ressources humaines'),
     ]
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name='profil'
@@ -104,6 +124,14 @@ class ProfilUtilisateur(models.Model):
     dashboard_config = models.JSONField(
         default=dict, blank=True,
         help_text="Disposition du tableau de bord (widgets, ordre, portée)"
+    )
+    production_config = models.JSONField(
+        default=dict, blank=True,
+        help_text="Disposition du suivi de production (widgets, ordre, portée)"
+    )
+    telephone = models.CharField(
+        max_length=50, blank=True,
+        help_text="Tél. de l'encadrant (affiché comme ETI sur la fiche d'émargement)"
     )
     invitation_envoyee = models.BooleanField(
         default=False,
@@ -221,6 +249,15 @@ class ParametresAssociation(models.Model):
     slogan = models.CharField(
         max_length=200, blank=True,
         default='La solidarité, un chantier à partager'
+    )
+    # ── Module Planning (insertion) ──
+    taux_jour_facturable = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('472.00'),
+        help_text="Convertit le coût MO d'un devis en jours facturables (coût MO / taux)"
+    )
+    cout_jour_salarie = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal('82.50'),
+        help_text="Coût d'un salarié·jour (pour la colonne coût réel du suivi de production)"
     )
 
     class Meta:
@@ -732,3 +769,299 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.created_at:%d/%m/%Y %H:%M} — {self.action[:60]}"
+
+
+# ══════════════════════════════════════════
+#  PLANNING & ÉMARGEMENT (insertion)
+# ══════════════════════════════════════════
+#
+#  Principe directeur : la PRÉSENCE est la SOURCE UNIQUE. L'encadrant pointe une
+#  seule fois (équipier × demi-journée), rattaché à une affectation (donc à un
+#  chantier). On en dérive sans re-saisie : la fiche d'émargement mensuelle
+#  (paie) ET le suivi de production (jours facturables / réalisés / écart).
+#
+#  Le chantier n'est PAS choisi cellule par cellule : il vient de l'affectation
+#  de l'équipe. Un équipier n'est sur un autre chantier que s'il est prêté à une
+#  autre équipe (sa présence pointe alors vers l'affectation de cette équipe).
+#
+#  Semaine travaillée = lundi→jeudi. Le vendredi se décide par équipe
+#  (Affectation.vendredi_actif) ; samedi/dimanche jamais travaillés. Le calcul
+#  des jours ouvrés exclut le vendredi sauf activation explicite.
+
+
+class Financeur(models.Model):
+    """Référentiel des financeurs (pied de page réglementaire de la fiche)."""
+    nom = models.CharField(max_length=200)
+    logo_cle = models.CharField(
+        max_length=100, blank=True,
+        help_text="Clé d'un logo statique embarqué (base64), comme le logo CB"
+    )
+    ordre = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['ordre', 'nom']
+        verbose_name = 'Financeur'
+
+    def __str__(self):
+        return self.nom
+
+
+class Equipier(models.Model):
+    """
+    Personne à pointer (salarié en insertion). Modèle léger sans compte.
+    Rattachée à une équipe « maison » mais empruntable par toute autre équipe.
+    Porte les infos contrat nécessaires à la fiche d'émargement réglementaire.
+    """
+    nom = models.CharField(max_length=100)
+    prenom = models.CharField(max_length=100)
+    equipe = models.ForeignKey(
+        Equipe, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='equipiers',
+        help_text="Équipe « maison » (rattachement par défaut)"
+    )
+    matricule = models.CharField(
+        max_length=50, blank=True,
+        help_text="Identifiant RH stable (clé pour l'import futur)"
+    )
+    type_contrat = models.CharField(
+        max_length=100, blank=True, default='CDDI - 26 heures'
+    )
+    heures_contrat_hebdo = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal('26.00'),
+        help_text="Base contractuelle hebdomadaire (pour le calcul de récup)"
+    )
+    date_debut_contrat = models.DateField(null=True, blank=True)
+    date_fin_contrat = models.DateField(null=True, blank=True)
+    date_visite_medicale = models.DateField(null=True, blank=True)
+    recup_base_heures = models.DecimalField(
+        max_digits=6, decimal_places=2, default=0,
+        help_text="Solde de récup de départ (saisi une fois)"
+    )
+    recup_base_date = models.DateField(
+        null=True, blank=True,
+        help_text="Date du solde de récup de départ"
+    )
+    droit_conges_jours = models.DecimalField(
+        max_digits=6, decimal_places=2, default=0,
+        help_text="Droit à congés (géré par la RH, non dérivé)"
+    )
+    actif = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['nom', 'prenom']
+        verbose_name = 'Équipier'
+
+    def __str__(self):
+        return f"{self.prenom} {self.nom}"
+
+
+class TrancheDevis(models.Model):
+    """
+    Découpage d'un chantier (devis) en blocs planifiables — PAS de Gantt/dépendances.
+    Tranche par défaut = « Chantier complet » (titres vides = tout le devis).
+    Le découpage en plusieurs tranches (par grand titre) est un commit ultérieur,
+    UI seule (le schéma est déjà en place).
+    """
+    devis = models.ForeignKey(
+        Devis, on_delete=models.CASCADE, related_name='tranches'
+    )
+    STATUT_CHOICES = [
+        ('en_cours', 'En cours'),
+        ('termine',  'Terminé (à facturer)'),
+        ('facture',  'Facturé'),
+    ]
+    nom = models.CharField(max_length=200, default='Chantier complet')
+    ordre = models.IntegerField(default=0)
+    titres = models.ManyToManyField(
+        LigneDevis, blank=True, related_name='tranches',
+        help_text="TITRE racines couverts (vide = tout le devis)"
+    )
+    # ── Clôture de chantier (signal « à facturer » du dashboard insertion) ──
+    statut = models.CharField(
+        max_length=10, choices=STATUT_CHOICES, default='en_cours',
+        help_text="termine = clôturé sur la timeline (à facturer) ; facture = signal levé"
+    )
+    termine_le = models.DateField(null=True, blank=True)
+    termine_par = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='chantiers_clotures'
+    )
+
+    class Meta:
+        ordering = ['devis', 'ordre']
+        verbose_name = 'Tranche de devis'
+
+    def __str__(self):
+        return f"{self.devis.reference} — {self.nom}"
+
+
+class Affectation(models.Model):
+    """
+    Dépose une tranche de chantier sur une équipe pour une période.
+    Pas d'unique_together : une même tranche peut être posée plusieurs fois
+    → multi-équipe natif (parallèle, renfort temporaire, passation).
+    Le budget jours est porté par la tranche (un seul pool) ; les jours réalisés
+    agrègent les présences de TOUTES les affectations de la tranche (pas de
+    double comptage).
+    """
+    equipe = models.ForeignKey(
+        Equipe, on_delete=models.CASCADE, related_name='affectations'
+    )
+    tranche = models.ForeignKey(
+        TrancheDevis, on_delete=models.CASCADE, related_name='affectations'
+    )
+    date_debut = models.DateField(null=True, blank=True)
+    date_fin = models.DateField(null=True, blank=True)
+    duree_jours = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True,
+        help_text="Longueur planifiée en jours ouvrés (défaut = jours facturables, "
+                  "ajustable aux poignées) — référence du décalage en cascade et du prévu"
+    )
+    epingle = models.BooleanField(
+        default=False,
+        help_text="Date fixe : exclue du décalage automatique (chantier à échéance)"
+    )
+    vendredi_actif = models.BooleanField(
+        default=False,
+        help_text="Cette équipe travaille le vendredi sur cette période"
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='affectations_creees'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['date_debut']
+        verbose_name = 'Affectation'
+
+    def __str__(self):
+        return f"{self.equipe.nom} → {self.tranche}"
+
+
+class Evenement(models.Model):
+    """
+    Événement posé sur le planning (formation, visite, réunion…).
+    `decale_chantier` = drapeau visuel signalant un report d'avancement ;
+    PAS de recalcul auto (l'encadrant réajuste les affectations à la main).
+    N'entre pas dans les jours réalisés (temps non-production).
+    """
+    TYPE_CHOICES = [
+        ('formation', 'Formation'),
+        ('visite',    'Visite'),
+        ('reunion',   'Réunion'),
+        ('autre',     'Autre'),
+    ]
+    CRENEAU_CHOICES = [
+        ('matin',   'Matin'),
+        ('aprem',   'Après-midi'),
+        ('journee', 'Journée'),
+    ]
+    equipe = models.ForeignKey(
+        Equipe, on_delete=models.CASCADE, related_name='evenements'
+    )
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='autre')
+    libelle = models.CharField(max_length=200, blank=True)
+    date_debut = models.DateField()
+    date_fin = models.DateField(null=True, blank=True)
+    creneau = models.CharField(
+        max_length=10, choices=CRENEAU_CHOICES, blank=True
+    )
+    decale_chantier = models.BooleanField(
+        default=False,
+        help_text="Repousse l'avancement du chantier (drapeau visuel, ajustement manuel)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['date_debut']
+        verbose_name = 'Événement'
+
+    def __str__(self):
+        return f"{self.get_type_display()} — {self.libelle or self.equipe.nom}"
+
+
+class Presence(models.Model):
+    """
+    Émargement réel — la donnée cœur. Une ligne = un équipier sur une demi-journée.
+    Présent = cellule avec des heures (pas de code « P »). Les codes ne servent
+    qu'aux absences ; un code renseigné ⇒ heures = 0.
+    L'affectation porte l'équipe + la tranche (donc le chantier via tranche.devis).
+    unique_together garantit qu'un équipier n'est qu'à un seul endroit par
+    demi-journée (gère le prêt entre équipes).
+    """
+    CRENEAU_CHOICES = [
+        ('matin', 'Matin'),
+        ('aprem', 'Après-midi'),
+    ]
+    CODE_CHOICES = [
+        ('C',     'Congé'),
+        ('R',     'Récupération'),
+        ('M',     'Maladie'),
+        ('AT',    'Accident du travail'),
+        ('A',     'Absence'),
+        ('AJ',    'Absence justifiée non rémunérée'),
+        ('S',     'Suspension'),
+        ('PMSMP', 'PMSMP'),
+        ('DE',    'Démarches externes'),
+        ('DI',    'Démarches internes'),
+        ('F',     'Férié'),
+    ]
+    equipier = models.ForeignKey(
+        Equipier, on_delete=models.CASCADE, related_name='presences'
+    )
+    affectation = models.ForeignKey(
+        Affectation, on_delete=models.CASCADE, related_name='presences'
+    )
+    date = models.DateField()
+    creneau = models.CharField(max_length=10, choices=CRENEAU_CHOICES)
+    heures = models.DecimalField(
+        max_digits=4, decimal_places=2, default=0,
+        help_text="Heures travaillées sur ce demi-journée (au quart d'heure)"
+    )
+    code = models.CharField(
+        max_length=10, choices=CODE_CHOICES, blank=True,
+        help_text="Code d'absence (vide = présent)"
+    )
+    observation = models.CharField(max_length=300, blank=True)
+    # Traçabilité paie : qui a pointé, quand.
+    saisi_par = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='presences_saisies'
+    )
+    saisi_le = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('equipier', 'date', 'creneau')
+        ordering = ['date', 'creneau']
+        verbose_name = 'Présence'
+
+    def __str__(self):
+        return f"{self.equipier} — {self.date:%d/%m/%Y} {self.get_creneau_display()}"
+
+
+class ClotureMois(models.Model):
+    """
+    Verrou mensuel par équipe : une fois la fiche remise à la RH (le 27),
+    on clôture le mois pour empêcher toute modification rétroactive des présences.
+    """
+    equipe = models.ForeignKey(
+        Equipe, on_delete=models.CASCADE, related_name='clotures'
+    )
+    annee = models.IntegerField()
+    mois = models.IntegerField()
+    cloture_par = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='clotures_faites'
+    )
+    cloture_le = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('equipe', 'annee', 'mois')
+        ordering = ['-annee', '-mois']
+        verbose_name = 'Clôture mensuelle'
+
+    def __str__(self):
+        return f"{self.equipe.nom} — {self.mois:02d}/{self.annee}"

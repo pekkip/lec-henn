@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Mockup — Fiche d'émargement mensuelle</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<style>
+:root{--prune:#6B1F3A;--teal:#2BBFA4;--amber:#E8A020;--gray-bd:#c9c8c6;--ink:#222}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#5b5b5b;color:var(--ink);padding:24px;font-size:12px}
+.bar{max-width:1180px;margin:0 auto 14px;display:flex;justify-content:space-between;align-items:center;color:#fff}
+.bar .t{font-size:13px;opacity:.85}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:6px;border:none;background:var(--teal);color:#fff;font-size:13px;cursor:pointer}
+.note{max-width:1180px;margin:0 auto 14px;background:#fdf3e1;color:#8B5E0A;border-left:3px solid var(--amber);padding:8px 12px;border-radius:6px;font-size:11.5px;line-height:1.5}
+
+.sheet{max-width:1180px;margin:0 auto;background:#fff;padding:18px 22px;box-shadow:0 6px 24px rgba(0,0,0,.3);position:relative}
+/* filigrane logo (option future, discret) */
+.sheet::before{content:'';position:absolute;top:14px;left:18px;width:54px;height:54px;opacity:.06;
+  background:radial-gradient(circle at 28% 22%,#2BBFA4 7px,transparent 8px),radial-gradient(circle at 72% 22%,#E8A020 7px,transparent 8px),radial-gradient(circle at 50% 18%,#6B1F3A 8px,transparent 9px);pointer-events:none}
+
+.head{display:grid;grid-template-columns:1.6fr .8fr;gap:14px;border-bottom:1.5px solid var(--ink);padding-bottom:8px;align-items:start}
+.head h1{font-size:14px;color:var(--prune);font-weight:700}
+.hrow{display:flex;gap:6px;margin-top:3px;font-size:11px}
+.hrow .lbl{color:#666}.hrow b{font-weight:700}
+.moisbox{text-align:right}
+
+.sal{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:6px 18px;padding:8px 0;border-bottom:1px solid var(--ink);font-size:11px}
+.sal .f{display:flex;gap:6px}.sal .lbl{color:#666}.sal b{font-weight:700}
+
+table{border-collapse:collapse;width:100%;margin-top:8px;table-layout:fixed}
+col.lab{width:104px}col.d{width:25px}col.sep{width:5px}
+th,td{border:1px solid var(--gray-bd);height:22px;text-align:center;font-size:10px;font-variant-numeric:tabular-nums}
+.wk{background:#efeded;font-weight:700;color:#555;text-transform:uppercase;font-size:9px;letter-spacing:.02em}
+.wk.prevh{background:#fbf2df;color:#8B5E0A}
+.dl{background:#f6f5f4;color:#666;font-size:9px;height:15px}
+.dn{font-weight:700;height:15px}
+.rowlab{background:#f6f5f4;text-align:left;padding-left:6px;font-weight:600;color:#444;font-size:9.5px}
+.rowlab.emarg{background:#eef6ff;color:#2a4a6a}
+td.h{font-weight:600}
+td input{width:100%;height:100%;border:none;background:transparent;text-align:center;font-size:10px;font-variant-numeric:tabular-nums;outline:none}
+td input:focus{background:#eafaf6;box-shadow:inset 0 0 0 1.5px var(--teal)}
+td.prev{background:#fdf6e8}
+td.prev input{color:#9a7b3a}
+td.code{font-weight:700;background:#eafaf6;color:#1E9081}
+td.code.m{background:#fdeceb;color:#C0392B}
+td.off{background:#fafafa}
+.sepcol{background:#fff;border-top:none;border-bottom:none}
+.chtxt{color:var(--prune);font-style:italic;font-weight:600}
+/* paraphes = 2 lignes de haut */
+.par{height:42px;background:#fcfcff}
+.par.eti{background:#fbfbf7}
+.sig{color:#7a8aa8;font-family:'Segoe Script','Comic Sans MS',cursive;font-size:12px}
+
+.foot{display:flex;justify-content:space-between;gap:16px;margin-top:10px;align-items:flex-end}
+.leg{font-size:9.5px;color:#555;line-height:1.7;columns:2;column-gap:24px}.leg b{color:#333}
+.fin{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.fin .lg{border:1px solid var(--gray-bd);border-radius:3px;padding:4px 7px;font-size:8.5px;color:#555;text-align:center;background:#fafafa;max-width:92px;line-height:1.2}
+.fin .lg b{display:block;font-size:9px;color:#333}
+@media print{body{background:#fff;padding:0}.bar,.note{display:none}.sheet{box-shadow:none;max-width:none}}
+</style>
+</head>
+<body>
+
+<div class="note"><b>Maquette statique</b> — Corrigée : plus de logo en haut à droite (un filigrane discret est posé en haut à gauche, à valider plus tard), plus de case « Signature ETI (mois) », <b>paraphes sur 2 lignes de haut</b> (salarié + ETI, 1 case/jour), et la <b>semaine 13</b> rétablie. Le bloc « mois précédent » (ocre) reste éditable.</div>
+
+<div class="bar">
+  <span class="t">Maquette · Fiche d'émargement mensuelle (par équipier)</span>
+  <button class="btn"><i class="ti ti-printer"></i> Imprimer · Toutes les fiches du mois</button>
+</div>
+
+<div class="sheet">
+  <div class="head">
+    <div>
+      <h1>Fiche d'Émargement Mensuelle — 2026</h1>
+      <div class="hrow"><span class="lbl">Chantier</span><b>Atelier de Quartier St Malo</b></div>
+      <div class="hrow"><span class="lbl">ETI</span><b>Laëtitia FAUCHOIX</b><span class="lbl" style="margin-left:12px">Tél</span><b>06 78 97 08 43</b></div>
+    </div>
+    <div class="moisbox">
+      <div class="hrow" style="justify-content:flex-end"><span class="lbl">Mois de :</span><b style="font-size:15px;color:var(--prune)">Mars</b></div>
+    </div>
+  </div>
+
+  <div class="sal">
+    <div class="f"><span class="lbl">Nom - Prénom</span><b>DAWLATZAI Allah-Mamad</b></div>
+    <div class="f"><span class="lbl">Début contrat</span><b>17/02/26</b></div>
+    <div class="f"><span class="lbl">Droit Récup (h)</span><b>9,8</b></div>
+    <div class="f"><span class="lbl">Contrat</span><b>CDDI - 26 heures</b></div>
+    <div class="f"><span class="lbl">Fin contrat</span><b>16/08/26</b></div>
+    <div class="f"><span class="lbl">Droit Congés (j)</span><b>6,72</b></div>
+    <div class="f"><span class="lbl">Visite médicale</span><b>21/03/26</b></div>
+  </div>
+
+  <table>
+    <colgroup>
+      <col class="lab"/>
+      <col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="sep"/>
+      <col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="sep"/>
+      <col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="sep"/>
+      <col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="sep"/>
+      <col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="d"/><col class="sep"/>
+      <col class="d"/><col class="d"/>
+    </colgroup>
+    <!-- semaines -->
+    <tr>
+      <th class="wk" style="background:#fff;border:none"></th>
+      <th class="wk prevh" colspan="5">Mois préc. · S9</th><th class="sepcol"></th>
+      <th class="wk" colspan="5">Semaine 10</th><th class="sepcol"></th>
+      <th class="wk" colspan="5">Semaine 11</th><th class="sepcol"></th>
+      <th class="wk" colspan="5">Semaine 12</th><th class="sepcol"></th>
+      <th class="wk" colspan="5">Semaine 13</th><th class="sepcol"></th>
+      <th class="wk" colspan="2">S14</th>
+    </tr>
+    <!-- lettres -->
+    <tr>
+      <td class="rowlab" style="background:#fff;border:none"></td>
+      <td class="dl">L</td><td class="dl">M</td><td class="dl">M</td><td class="dl">J</td><td class="dl">V</td><td class="sepcol"></td>
+      <td class="dl">L</td><td class="dl">M</td><td class="dl">M</td><td class="dl">J</td><td class="dl">V</td><td class="sepcol"></td>
+      <td class="dl">L</td><td class="dl">M</td><td class="dl">M</td><td class="dl">J</td><td class="dl">V</td><td class="sepcol"></td>
+      <td class="dl">L</td><td class="dl">M</td><td class="dl">M</td><td class="dl">J</td><td class="dl">V</td><td class="sepcol"></td>
+      <td class="dl">L</td><td class="dl">M</td><td class="dl">M</td><td class="dl">J</td><td class="dl">V</td><td class="sepcol"></td>
+      <td class="dl">L</td><td class="dl">M</td>
+    </tr>
+    <!-- numéros -->
+    <tr>
+      <td class="dn rowlab">&nbsp;</td>
+      <td class="dn prev">23</td><td class="dn prev">24</td><td class="dn prev">25</td><td class="dn prev">26</td><td class="dn prev">27</td><td class="sepcol"></td>
+      <td class="dn">2</td><td class="dn">3</td><td class="dn">4</td><td class="dn">5</td><td class="dn">6</td><td class="sepcol"></td>
+      <td class="dn">9</td><td class="dn">10</td><td class="dn">11</td><td class="dn">12</td><td class="dn">13</td><td class="sepcol"></td>
+      <td class="dn">16</td><td class="dn">17</td><td class="dn">18</td><td class="dn">19</td><td class="dn">20</td><td class="sepcol"></td>
+      <td class="dn">23</td><td class="dn">24</td><td class="dn">25</td><td class="dn">26</td><td class="dn">27</td><td class="sepcol"></td>
+      <td class="dn">30</td><td class="dn">31</td>
+    </tr>
+    <!-- MATIN -->
+    <tr>
+      <td class="rowlab">M (matin)</td>
+      <td class="prev"><input value="4"></td><td class="prev"><input value="4"></td><td class="prev"><input value="4"></td><td class="prev"><input value="4"></td><td class="prev off"></td><td class="sepcol"></td>
+      <td class="h">4</td><td class="h">4</td><td class="h">4</td><td class="h">4</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">4</td><td class="h">4</td><td class="code">C</td><td class="h">4</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">4</td><td class="h">4</td><td class="h">3.75</td><td class="h">4</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">4</td><td class="h">4</td><td class="h">4</td><td class="h">4</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">4</td><td class="h">4</td>
+    </tr>
+    <!-- APRÈS-MIDI -->
+    <tr>
+      <td class="rowlab">A (après-midi)</td>
+      <td class="prev"><input value="3"></td><td class="prev"><input value="3"></td><td class="prev"><input value="3"></td><td class="prev"><input value="3"></td><td class="prev off"></td><td class="sepcol"></td>
+      <td class="h">3</td><td class="h">3</td><td class="h">3</td><td class="h">3</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">3</td><td class="h">3</td><td class="code">C</td><td class="h">3</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">3</td><td class="h">3</td><td class="h">3</td><td class="code m">M</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">3</td><td class="h">3</td><td class="h">3</td><td class="h">3</td><td class="off"></td><td class="sepcol"></td>
+      <td class="h">3</td><td class="h">3</td>
+    </tr>
+    <!-- PARAPHE SALARIÉ -->
+    <tr>
+      <td class="rowlab emarg">Paraphe salarié</td>
+      <td class="par prev"></td><td class="par prev"></td><td class="par prev"></td><td class="par prev"></td><td class="par off"></td><td class="sepcol"></td>
+      <td class="par"></td><td class="par"></td><td class="par"></td><td class="par"></td><td class="par off"></td><td class="sepcol"></td>
+      <td class="par"></td><td class="par"></td><td class="par"></td><td class="par"></td><td class="par off"></td><td class="sepcol"></td>
+      <td class="par"></td><td class="par"></td><td class="par"></td><td class="par"></td><td class="par off"></td><td class="sepcol"></td>
+      <td class="par"></td><td class="par"></td><td class="par"></td><td class="par"></td><td class="par off"></td><td class="sepcol"></td>
+      <td class="par"></td><td class="par"></td>
+    </tr>
+    <!-- CHANTIER -->
+    <tr>
+      <td class="rowlab">Chantier</td>
+      <td class="chtxt prev" colspan="5">AQ St Malo</td><td class="sepcol"></td>
+      <td class="chtxt" colspan="5">AQ St Malo</td><td class="sepcol"></td>
+      <td class="chtxt" colspan="5">AQ St Malo</td><td class="sepcol"></td>
+      <td class="chtxt" colspan="5">AQ St Malo</td><td class="sepcol"></td>
+      <td class="chtxt" colspan="5">AQ St Malo</td><td class="sepcol"></td>
+      <td class="chtxt" colspan="2">AQ</td>
+    </tr>
+    <!-- OBSERVATION -->
+    <tr>
+      <td class="rowlab">Observation</td>
+      <td colspan="5"></td><td class="sepcol"></td>
+      <td colspan="5"></td><td class="sepcol"></td>
+      <td colspan="5" style="font-size:8.5px;color:#888">congé posé</td><td class="sepcol"></td>
+      <td colspan="5"></td><td class="sepcol"></td>
+      <td colspan="5"></td><td class="sepcol"></td>
+      <td colspan="2"></td>
+    </tr>
+    <!-- PARAPHE ETI -->
+    <tr>
+      <td class="rowlab emarg">Paraphe ETI</td>
+      <td class="par eti prev"></td><td class="par eti prev"></td><td class="par eti prev"></td><td class="par eti prev"></td><td class="par eti off"></td><td class="sepcol"></td>
+      <td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti off"></td><td class="sepcol"></td>
+      <td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti"></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti off"></td><td class="sepcol"></td>
+      <td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti off"></td><td class="sepcol"></td>
+      <td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td><td class="par eti off"></td><td class="sepcol"></td>
+      <td class="par eti"><span class="sig">LF</span></td><td class="par eti"><span class="sig">LF</span></td>
+    </tr>
+  </table>
+
+  <div class="foot">
+    <div class="leg">
+      <b>C</b> Congé &nbsp; <b>R</b> Récupération &nbsp; <b>M</b> Maladie &nbsp; <b>AT</b> Accident travail<br>
+      <b>A</b> Absence &nbsp; <b>AJ</b> Absence justifiée non rémunérée<br>
+      <b>S</b> Suspension &nbsp; <b>PMSMP</b> Période mise en situation pro<br>
+      <b>DE</b> Démarches externes &nbsp; <b>DI</b> Démarches internes &nbsp; <b>■</b> Férié
+    </div>
+    <div class="fin">
+      <span style="font-size:9px;color:#666;margin-right:4px">Cofinancé par</span>
+      <div class="lg"><b>UE — FSE+</b>Union européenne</div>
+      <div class="lg"><b>RF</b>République Française</div>
+      <div class="lg"><b>Ille-&-Vilaine</b>Département</div>
+      <div class="lg"><b>St-Malo Agglo</b>Communauté</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

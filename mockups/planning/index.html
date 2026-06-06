@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Mockups — Module Planning & Émargement</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_chrome.css"/>
+<style>
+body{overflow:auto;display:block;background:var(--bg)}
+.hero{background:var(--prune);color:#fff;padding:28px 32px;display:flex;align-items:center;gap:14px}
+.hero h1{font-size:20px;font-weight:700}
+.hero p{font-size:13px;color:rgba(255,255,255,.7);margin-top:3px}
+.wrap{max-width:980px;margin:24px auto;padding:0 24px}
+.mock-note{margin-bottom:1.4rem}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.mk{display:block;background:#fff;border:1px solid var(--gray-bd);border-radius:10px;overflow:hidden;transition:.15s;text-decoration:none;color:inherit}
+.mk:hover{border-color:var(--prune-bd);box-shadow:0 6px 20px rgba(0,0,0,.08);transform:translateY(-2px)}
+.mk .top{height:96px;display:flex;align-items:center;justify-content:center;font-size:40px;color:#fff;background:var(--teal)}
+.mk:nth-child(2) .top{background:var(--prune)}
+.mk:nth-child(3) .top{background:var(--amber)}
+.mk:nth-child(4) .top{background:#4a6b8a}
+.mk .b{padding:14px 16px}
+.mk .b h3{font-size:14px;color:var(--prune);display:flex;align-items:center;gap:7px}
+.mk .b .n{font-size:10px;background:var(--gray-lt);color:var(--gray-md);border-radius:99px;padding:1px 7px;font-weight:600}
+.mk .b p{font-size:12px;color:var(--gray-md);margin-top:6px;line-height:1.5}
+.steps{margin-top:1.6rem;background:#fff;border:1px solid var(--gray-bd);border-radius:10px;padding:16px 18px}
+.steps h2{font-size:13px;color:var(--prune);margin-bottom:8px}
+.steps ol{margin-left:18px;font-size:12px;color:var(--gray);line-height:1.9}
+</style>
+</head>
+<body>
+<div class="hero">
+  <svg width="44" height="44" viewBox="0 0 80 80"><circle cx="22" cy="17" r="8" fill="#2BBFA4"/><path d="M8 52Q8 34 22 34Q36 34 36 52Z" fill="#2BBFA4"/><circle cx="58" cy="17" r="8" fill="#E8A020"/><path d="M44 52Q44 34 58 34Q72 34 72 52Z" fill="#E8A020"/><circle cx="40" cy="13" r="8" fill="#fff"/><path d="M26 48Q26 30 40 30Q54 30 54 48Z" fill="#fff"/></svg>
+  <div><h1>Module Planning &amp; Émargement — maquettes</h1><p>4 vues statiques pour valider le visuel avant de coder. Données factices.</p></div>
+</div>
+
+<div class="wrap">
+  <div class="mock-note"><i class="ti ti-eye"></i><span>Ces pages sont des <b>maquettes jetables</b> (HTML/CSS, aucune base de données). Elles servent à valider la direction visuelle et l'ergonomie. Rien n'est encore branché.</span></div>
+
+  <div class="cards">
+    <a class="mk" href="1-planning-mois.html">
+      <div class="top"><i class="ti ti-calendar-month"></i></div>
+      <div class="b"><h3><span class="n">1</span> Planning — zoom mois</h3><p>Timeline des 6 équipes (repliables), barres de chantiers, palette de chantiers à glisser avec leurs jours facturables.</p></div>
+    </a>
+    <a class="mk" href="2-emargement-semaine.html">
+      <div class="top"><i class="ti ti-table"></i></div>
+      <div class="b"><h3><span class="n">2</span> Émargement — zoom semaine</h3><p>Saisie des heures par personne / demi-journée (pré-rempli 4/3), codes d'absence, équipier emprunté, rattachement chantier par cellule.</p></div>
+    </a>
+    <a class="mk" href="3-production.html">
+      <div class="top"><i class="ti ti-chart-bar"></i></div>
+      <div class="b"><h3><span class="n">3</span> Suivi de production</h3><p>Jours facturables vs réalisés vs écart par chantier — dérivé des émargements. Remplace le gros Excel, sans recalcul manuel.</p></div>
+    </a>
+    <a class="mk" href="4-feuille-emargement.html">
+      <div class="top"><i class="ti ti-file-text"></i></div>
+      <div class="b"><h3><span class="n">4</span> Fiche d'émargement mensuelle</h3><p>Reproduction fidèle de la fiche réglementaire FSE/CISP, par équipier, avec paraphe/jour (salarié + ETI) et mois précédent éditable. À imprimer pour signature.</p></div>
+    </a>
+  </div>
+
+  <div class="steps">
+    <h2>Ce que je te propose ensuite</h2>
+    <ol>
+      <li>Tu ouvres les 4 vues, tu me dis ce qui te plaît / ce qui cloche (couleurs, densité, ergonomie de saisie).</li>
+      <li>On ajuste les maquettes jusqu'à ce que le visuel te convienne.</li>
+      <li><b>Seulement après</b>, je code le vrai module (modèles → migration → vues), commit par commit.</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

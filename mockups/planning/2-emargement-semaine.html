@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Mockup — Émargement (zoom semaine)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_chrome.css"/>
+<style>
+.layout{display:grid;grid-template-columns:230px 1fr;gap:1rem;height:100%}
+
+/* ---- panneau équipiers (style bibliothèque devis) ---- */
+.biblio{align-self:start;display:flex;flex-direction:column;max-height:100%}
+.biblio .card-body{padding:.5rem;overflow:auto}
+.bsearch{position:relative;margin-bottom:.5rem}
+.bsearch i{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--gray-md)}
+.bsearch input{width:100%;padding:6px 8px 6px 28px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none}
+.cat{margin-bottom:6px}
+.cat-hd{display:flex;align-items:center;gap:6px;padding:5px 6px;background:var(--gray-lt);border-radius:var(--r);font-size:11px;font-weight:600;color:var(--gray);cursor:pointer}
+.cat-hd i{font-size:14px;color:var(--gray-md)}
+.cat-hd .ct{margin-left:auto;font-size:10px;color:var(--gray-md);font-weight:500}
+.art{display:flex;align-items:center;gap:6px;padding:5px 8px;margin:3px 0 3px 8px;border:1px solid var(--gray-bd);border-radius:var(--r);font-size:11px;cursor:grab;background:#fff}
+.art:hover{background:var(--teal-lt);border-color:var(--teal-bd)}
+.art .av{width:20px;height:20px;border-radius:50%;background:var(--prune-lt);color:var(--prune);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0}
+.art i.grip{margin-left:auto;color:#ccc;font-size:13px}
+
+/* ---- grille émargement (M/A sur 2 lignes) ---- */
+.egwrap{overflow:auto;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r)}
+.eg{display:grid;grid-template-columns:172px 24px repeat(5,84px) 70px;min-width:max-content}
+.eg>div{border-right:1px solid var(--gray-bd);border-bottom:1px solid var(--gray-bd)}
+.h{background:var(--gray-lt);font-size:11px;font-weight:600;color:var(--gray-md);display:flex;align-items:center;justify-content:center;text-align:center;padding:5px 2px;line-height:1.2}
+.h.day{flex-direction:column}
+.h.day b{color:var(--gray);font-size:12px}
+.h.day.off{background:#ECEAE7;color:#b3b1ad}
+.h.name{justify-content:flex-start;padding-left:.7rem}
+.h.mon{border-left:2px solid var(--prune-bd)}
+
+.nm{display:flex;align-items:center;gap:7px;padding:0 .6rem;font-size:12px;background:#fff}
+.nm .av{width:24px;height:24px;border-radius:50%;background:var(--prune-lt);color:var(--prune);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0}
+.nm.borrow{border-left:3px solid var(--amber)}
+.nm.borrow .av{background:var(--amber-lt);color:#8B5E0A}
+.nm small{color:var(--gray-md);font-size:10px;display:block}
+.matag{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--gray-md);background:#FAF9F8}
+
+.cell{position:relative;display:flex;align-items:center;justify-content:center;min-height:34px}
+.cell.mon{border-left:2px solid var(--prune-bd)}
+.cell input{width:100%;height:100%;border:none;background:transparent;text-align:center;font-size:13px;font-variant-numeric:tabular-nums;color:var(--gray);outline:none}
+.cell input:focus{background:var(--teal-lt);box-shadow:inset 0 0 0 2px var(--teal)}
+.cell::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.cha::before{background:var(--teal)}.chb::before{background:var(--amber)}.chc::before{background:var(--prune)}
+.cell.abs{font-size:12px;font-weight:700}
+.conge{background:var(--teal-lt);color:var(--teal-dk)}
+.malad{background:var(--red-lt);color:var(--red)}
+.cell.off{background:#F6F4F2}.cell.off::before{display:none}
+/* salarié emprunté ailleurs → grisé, pas à remplir ici */
+.cell.away{background:repeating-linear-gradient(45deg,#F0EEEC 0 6px,#E7E5E2 6px 12px);color:#a8a6a3;font-size:9px;font-weight:600}
+.cell.away::before{display:none}
+/* plage empruntée active mise en valeur */
+.cell.lent::before{background:var(--amber);height:3px}
+
+.gtot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:#FAF9F8}
+.gtot b{font-size:13px;font-variant-numeric:tabular-nums}
+.gtot small{font-size:9px}
+.rp{color:var(--teal-dk)}.rn{color:var(--red)}
+
+.addrow{grid-column:1/-1;border-bottom:1px solid var(--gray-bd);padding:6px .7rem;background:#FCFBFA;font-size:11.5px;color:var(--gray-md);display:flex;align-items:center;gap:6px}
+.addrow b{color:var(--amber);font-weight:600}
+
+.codes{margin-top:.9rem;font-size:11px;color:var(--gray-md);line-height:1.8}
+.kbd{font-family:var(--fm);background:var(--gray-lt);border:1px solid var(--gray-bd);border-radius:3px;padding:0 4px;font-size:10px}
+.legend{display:flex;gap:14px;align-items:center;font-size:11px;color:var(--gray-md);margin-bottom:.6rem;flex-wrap:wrap}
+.legend .sw{display:inline-flex;align-items:center;gap:5px}
+.legend .sw i{width:14px;height:8px;border-radius:2px;display:inline-block}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo-area">
+    <svg width="32" height="32" viewBox="0 0 80 80" fill="none"><circle cx="22" cy="17" r="8" fill="#2BBFA4"/><path d="M8 52Q8 34 22 34Q36 34 36 52Z" fill="#2BBFA4"/><circle cx="58" cy="17" r="8" fill="#E8A020"/><path d="M44 52Q44 34 58 34Q72 34 72 52Z" fill="#E8A020"/><circle cx="40" cy="13" r="8" fill="#6B1F3A"/><path d="M26 48Q26 30 40 30Q54 30 54 48Z" fill="#6B1F3A"/></svg>
+    <div class="logo-txt"><strong>compagnons bâtisseurs</strong><span>bretagne</span></div>
+  </div>
+  <div class="topbar-title">Maquette · grille d'émargement (zoom semaine)</div>
+  <div class="topbar-actions"><span class="btn btn-ghost btn-sm"><i class="ti ti-user"></i> Laurène (encadrante)</span></div>
+</div>
+
+<div class="body-wrap">
+  <div class="sidebar">
+    <div class="nav-sect">Principal</div>
+    <a class="nav-item"><i class="ti ti-layout-dashboard"></i><span>Tableau de bord</span></a>
+    <a class="nav-item"><i class="ti ti-calculator"></i><span>Devis</span></a>
+    <a class="nav-item"><i class="ti ti-cash"></i><span>Factures</span></a>
+    <a class="nav-item"><i class="ti ti-users"></i><span>Clients</span></a>
+    <div class="nav-sect">Insertion</div>
+    <a class="nav-item active"><i class="ti ti-calendar-month"></i><span>Planning</span></a>
+    <a class="nav-item"><i class="ti ti-chart-bar"></i><span>Production</span></a>
+    <a class="nav-item"><i class="ti ti-id-badge-2"></i><span>Équipiers</span></a>
+  </div>
+
+  <div class="main">
+    <div class="page-hd">
+      <div>
+        <div class="page-title">Émargement — SORM <span style="font-weight:400;color:var(--gray-md);font-size:13px">· Laurène</span></div>
+        <div class="page-sub">Heures par demi-journée (M et A sur 2 lignes, comme la feuille papier) · pré-rempli 4 / 3</div>
+      </div>
+      <div class="toolbar">
+        <div class="nav-arrows"><button><i class="ti ti-chevron-left"></i></button><span class="lbl">Semaine 24 · 8–12 juin</span><button><i class="ti ti-chevron-right"></i></button></div>
+        <div class="seg"><button>Jour</button><button>Mois</button><button class="on">Semaine</button></div>
+        <button class="btn btn-sm"><i class="ti ti-printer"></i> Feuille du mois</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="mock-note"><i class="ti ti-eye"></i><span><b>Maquette statique.</b> M et A sur <b>2 lignes</b> (proche du papier). À gauche, un panneau <b>équipiers</b> (équipes = catégories, salariés = articles à glisser), comme la bibliothèque des devis. <b>Prêt entre équipes</b> : on glisse un salarié sur une ½ journée / 1 jour / plusieurs jours / la semaine ; seule la plage prêtée est active, le reste est grisé (Nguyen, ci-dessous).</span></div>
+
+      <div class="legend">
+        <span class="sw"><i style="background:var(--teal)"></i> École Guillevic</span>
+        <span class="sw"><i style="background:var(--amber)"></i> Salle ASMR</span>
+        <span class="sw"><i style="background:var(--prune)"></i> Crèche</span>
+        <span class="sw" style="margin-left:auto"><i style="background:repeating-linear-gradient(45deg,#F0EEEC 0 4px,#E7E5E2 4px 8px)"></i> Grisé = pas à remplir ici</span>
+      </div>
+
+      <div class="layout">
+        <!-- PANNEAU ÉQUIPIERS -->
+        <div class="biblio card">
+          <div class="card-hd"><span class="card-title"><i class="ti ti-id-badge-2"></i> Équipiers</span></div>
+          <div class="card-body">
+            <div class="bsearch"><i class="ti ti-search"></i><input placeholder="Rechercher…"></div>
+            <div class="cat">
+              <div class="cat-hd"><i class="ti ti-chevron-down"></i> SORM <span class="ct">6</span></div>
+              <div class="art"><span class="av">DA</span> Dawlatzai A. <i class="ti ti-grip-vertical grip"></i></div>
+              <div class="art"><span class="av">AD</span> Adencisse C. <i class="ti ti-grip-vertical grip"></i></div>
+              <div class="art"><span class="av">TE</span> Tekie H. <i class="ti ti-grip-vertical grip"></i></div>
+            </div>
+            <div class="cat">
+              <div class="cat-hd"><i class="ti ti-chevron-right"></i> GOSM <span class="ct">8</span></div>
+            </div>
+            <div class="cat">
+              <div class="cat-hd"><i class="ti ti-chevron-down"></i> GORM <span class="ct">8</span></div>
+              <div class="art"><span class="av">NG</span> Nguyen N. <i class="ti ti-grip-vertical grip"></i></div>
+              <div class="art"><span class="av">HA</span> Hamada B. <i class="ti ti-grip-vertical grip"></i></div>
+            </div>
+            <div class="cat"><div class="cat-hd"><i class="ti ti-chevron-right"></i> AQSM <span class="ct">5</span></div></div>
+            <div class="cat"><div class="cat-hd"><i class="ti ti-chevron-right"></i> AQRM JF <span class="ct">5</span></div></div>
+          </div>
+        </div>
+
+        <!-- GRILLE -->
+        <div class="egwrap">
+          <div class="eg">
+            <!-- en-tête -->
+            <div class="h name" style="grid-column:1/3">Équipier</div>
+            <div class="h day mon">Lun<b>8</b></div><div class="h day">Mar<b>9</b></div><div class="h day">Mer<b>10</b></div><div class="h day">Jeu<b>11</b></div><div class="h day off">Ven<b>12</b></div>
+            <div class="h">Total</div>
+
+            <!-- Dawlatzai -->
+            <div class="nm" style="grid-row:span 2"><span class="av">DA</span><div>Dawlatzai A.<small>CDDI 26 h</small></div></div>
+            <div class="matag">M</div>
+            <div class="cell cha mon"><input value="4"></div><div class="cell cha"><input value="4"></div><div class="cell cha"><input value="3.75"></div><div class="cell abs conge">C</div><div class="cell off"></div>
+            <div class="gtot" style="grid-row:span 2"><b>20,75</b><small class="rp">récup +0,75</small></div>
+            <div class="matag">A</div>
+            <div class="cell cha mon"><input value="3"></div><div class="cell cha"><input value="3"></div><div class="cell cha"><input value="3"></div><div class="cell abs conge">C</div><div class="cell off"></div>
+
+            <!-- Adencisse -->
+            <div class="nm" style="grid-row:span 2"><span class="av">AD</span><div>Adencisse C.<small>CDDI 26 h</small></div></div>
+            <div class="matag">M</div>
+            <div class="cell cha mon"><input value="4"></div><div class="cell cha"><input value="4"></div><div class="cell chb"><input value="4"></div><div class="cell chb"><input value="4"></div><div class="cell off"></div>
+            <div class="gtot" style="grid-row:span 2"><b>27,00</b><small class="rp">récup +1,00</small></div>
+            <div class="matag">A</div>
+            <div class="cell cha mon"><input value="3"></div><div class="cell cha"><input value="3"></div><div class="cell chb"><input value="3"></div><div class="cell chb"><input value="2"></div><div class="cell off"></div>
+
+            <!-- Tekie -->
+            <div class="nm" style="grid-row:span 2"><span class="av">TE</span><div>Tekie H.<small>CDDI 26 h</small></div></div>
+            <div class="matag">M</div>
+            <div class="cell cha mon"><input value="4"></div><div class="cell abs malad">M</div><div class="cell chb"><input value="4"></div><div class="cell chb"><input value="4"></div><div class="cell off"></div>
+            <div class="gtot" style="grid-row:span 2"><b>21,00</b><small class="rn">récup −5,00</small></div>
+            <div class="matag">A</div>
+            <div class="cell cha mon"><input value="3"></div><div class="cell abs malad">M</div><div class="cell chb"><input value="3"></div><div class="cell chb"><input value="3"></div><div class="cell off"></div>
+
+            <!-- ligne de dépôt emprunt -->
+            <div class="addrow"><i class="ti ti-user-plus" style="color:var(--amber)"></i> Glisser un salarié ici → choisir la <b>plage</b> (½ j · 1 j · plusieurs j · semaine). Les jours hors plage restent grisés.</div>
+
+            <!-- Nguyen emprunté Lun-Mar uniquement -->
+            <div class="nm borrow" style="grid-row:span 2"><span class="av">NG</span><div>Nguyen N. <small style="color:#8B5E0A">emprunté à GORM · lun–mar</small></div></div>
+            <div class="matag">M</div>
+            <div class="cell chc lent mon"><input value="4"></div><div class="cell chc lent"><input value="4"></div><div class="cell away">↩ GORM</div><div class="cell away">↩ GORM</div><div class="cell off"></div>
+            <div class="gtot" style="grid-row:span 2"><b>14,00</b><small style="color:var(--gray-md)">2 j</small></div>
+            <div class="matag">A</div>
+            <div class="cell chc lent mon"><input value="3"></div><div class="cell chc lent"><input value="3"></div><div class="cell away">↩ GORM</div><div class="cell away">↩ GORM</div><div class="cell off"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="codes">
+        <b>Codes d'absence</b> (cellule sans heures) :
+        <span class="kbd">C</span> Congé · <span class="kbd">R</span> Récup · <span class="kbd">M</span> Maladie ·
+        <span class="kbd">AT</span> Acc. travail · <span class="kbd">A</span> Absence · <span class="kbd">AJ</span> Abs. justifiée ·
+        <span class="kbd">S</span> Suspension · <span class="kbd">PMSMP</span> · <span class="kbd">DE</span> Dém. ext. ·
+        <span class="kbd">DI</span> Dém. int. · <span class="kbd">F</span> Férié
+        <br>Astuce : <span class="kbd">Tab</span> de case en case · nombre = présent · lettre = code d'absence.
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

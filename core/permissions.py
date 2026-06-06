@@ -1,6 +1,6 @@
 # core/permissions.py
 
-from .models import ProfilUtilisateur
+from .models import ProfilUtilisateur, Equipe
 
 
 def get_profil_or_none(user):
@@ -286,6 +286,44 @@ def peut_supprimer_facture(user, facture):
 def peut_supprimer_client(user):
     """Suppression client réservée à l'admin."""
     return is_admin(user)
+
+
+# ══════════════════════════════════════════
+#  PLANNING & ÉMARGEMENT (insertion)
+# ══════════════════════════════════════════
+
+def peut_acceder_planning(user):
+    """
+    Accès au module Planning & Émargement.
+    Réservé à l'admin et aux encadrants (= chef d'au moins une équipe) — usage
+    Ille-et-Vilaine insertion, invisible pour les autres. Gate la sidebar ET les
+    vues planning. Extensible plus tard en ajoutant des conditions ici.
+    """
+    if not user.is_authenticated:
+        return False
+    profil = get_profil_or_none(user)
+    if not profil:
+        return False
+    if profil.role == 'admin':
+        return True
+    return Equipe.objects.filter(encadrant=user, actif=True).exists()
+
+
+def est_encadrant(user, equipe):
+    """
+    Peut éditer le planning/l'émargement de CETTE équipe ?
+    Vrai pour l'admin, le responsable, ou l'encadrant désigné de l'équipe.
+    (La lecture reste ouverte à tout utilisateur passant peut_acceder_planning,
+    pour pouvoir emprunter des équipiers ; seule l'édition est restreinte.)
+    """
+    if not user.is_authenticated:
+        return False
+    profil = get_profil_or_none(user)
+    if not profil:
+        return False
+    if profil.role in ('admin', 'responsable'):
+        return True
+    return equipe.encadrant_id == user.pk
 
 
 # ══════════════════════════════════════════

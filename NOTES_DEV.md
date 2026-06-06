@@ -4,8 +4,9 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (05/06/2026 — session 23) :** en test beta, en attente de retours
-des collègues. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
+**État du projet (06/06/2026 — session 24) :** en test beta, en attente de retours
+des collègues. **Module Planning & Émargement** en cours de conception (maquettes HTML
+validées, code pas encore écrit — voir session 24). **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
 `total_brut()`/`reste_a_facturer()`/`LigneDevis.total()` parcourent l'arbre des lignes en
 frappant la base à chaque nœud. Sur les **listes** (devis) c'était aggravé par un 2ᵉ calcul
 dans le template ; sur le **dashboard**, plusieurs widgets (CA, reste à facturer, CA mensuel,
@@ -290,6 +291,44 @@ le volume mais une **explosion du nombre de requêtes SQL** (même cause sur les
   sur les devis du widget « Derniers devis ». Diagnostic via `CaptureQueriesContext` (requêtes
   `SELECT 1 ... WHERE parent_id=N LIMIT 1` = `enfants.exists()`). Toujours vérifier les
   **templates**, pas seulement les vues.
+
+---
+
+## Session 24 — 06/06/2026 — Module Planning & Émargement (conception)
+
+### Contexte
+Nouveau module pour remplacer deux circuits manuels actuels :
+1. **Émargement/paie** — papier → assistante re-saisit dans Excel pour la RH.
+2. **Suivi de production** — assistante calcule manuellement la « fraction fine »
+   (répartition jours par chantier) à partir des émargements → compare jours facturables
+   vs réalisés dans un gros classeur Excel.
+
+**Principe directeur : saisie unique.** L'encadrant pointe une fois (personne / demi-journée /
+chantier) → tout se dérive : feuille de paie mensuelle réglementaire (FSE/CISP) ET
+suivi de production (jours facturables / réalisés / écart). Supprime les deux re-saisies.
+
+### État actuel (fin session 24)
+**Phase maquettes uniquement.** Aucun code Django écrit.
+- `mockups/planning/1-planning-mois.html` — timeline mois, 6 équipes repliables,
+  barres de chantiers (durée ajustable), événements au-dessus en voie haute, renfort
+  pointillé, demi-journées en pointillé léger, Sa/Di bloqués, vendredi `+` par équipe.
+- `mockups/planning/2-emargement-semaine.html` — grille hebdo, M/A sur 2 lignes, panel
+  équipiers façon bibliothèque, prêt par plage (grillé « ↩ équipe »).
+- `mockups/planning/3-production.html` — widgets configurables (réutilise dashboard).
+- `mockups/planning/4-feuille-emargement.html` — fiche réglementaire FSE/CISP, semaines
+  ISO, paraphes salarié + ETI (2 lignes), mois précédent éditable (ocre).
+
+### Plan d'implémentation
+Plan complet dans `.claude/plans/twinkly-whistling-wirth.md` (modèle de données, 7 commits,
+pièges, tests, URLs). `NOTES_PLANNING.md` sera créé à la 1ʳᵉ session de code.
+
+### Décisions actées (extrait)
+- Semaine = **Lun–Jeu** (vendredi activable par équipe via `+`, Sa/Di bloqués).
+- Pas de vendredi dans le calcul des jours facturables → helper `jours_ouvres(d1,d2)` Lun-Jeu.
+- `taux_jour_facturable` ≈ 472 €/j (onglet SORM du classeur Excel) — à confirmer uniforme.
+- Timeline : **CSS Grid + SVG background 232 px/semaine** (5j×40px + Sa16px + Di16px).
+- Module visible uniquement admin + encadrants (`peut_acceder_planning`).
+- Maquettes validées par David P. — prêt à passer au code commit 1 (modèles + migration).
 
 ---
 

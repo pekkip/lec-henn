@@ -3,7 +3,9 @@ from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
     ParametresAssociation, Client, ContactClient,
     Devis, LigneDevis, Facture, LigneFacture, AuditLog,
-    Bibliotheque
+    Bibliotheque,
+    Financeur, Equipier, TrancheDevis, Affectation,
+    Evenement, Presence, ClotureMois,
 )
 
 
@@ -26,9 +28,11 @@ class ServiceAdmin(admin.ModelAdmin):
 
 @admin.register(Equipe)
 class EquipeAdmin(admin.ModelAdmin):
-    list_display = ['nom', 'service', 'ordre']
-    list_filter = ['service__territoire', 'service']
+    list_display = ['nom', 'service', 'encadrant', 'activite', 'actif', 'ordre']
+    list_filter = ['actif', 'activite', 'service__territoire', 'service']
     search_fields = ['nom']
+    raw_id_fields = ['encadrant']
+    filter_horizontal = ['financeurs']
 
 
 @admin.register(ProfilUtilisateur)
@@ -95,12 +99,18 @@ class LigneDevisInline(admin.TabularInline):
     show_change_link = True
 
 
+class TrancheDevisInline(admin.TabularInline):
+    model = TrancheDevis
+    extra = 0
+    fields = ['nom', 'ordre']
+
+
 @admin.register(Devis)
 class DevisAdmin(admin.ModelAdmin):
     list_display = ['reference', 'client', 'equipe', 'chantier', 'status', 'date_creation']
     list_filter = ['status', 'equipe__service__territoire', 'equipe__service']
     search_fields = ['reference', 'client__nom', 'chantier']
-    inlines = [LigneDevisInline]
+    inlines = [TrancheDevisInline, LigneDevisInline]
     readonly_fields = ['created_at', 'updated_at', 'created_by']
 
 
@@ -139,3 +149,62 @@ class AuditLogAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+# ══════════════════════════════════════════
+#  PLANNING & ÉMARGEMENT (insertion)
+# ══════════════════════════════════════════
+
+@admin.register(Financeur)
+class FinanceurAdmin(admin.ModelAdmin):
+    list_display = ['nom', 'logo_cle', 'ordre']
+    ordering = ['ordre', 'nom']
+
+
+@admin.register(Equipier)
+class EquipierAdmin(admin.ModelAdmin):
+    list_display = ['prenom', 'nom', 'equipe', 'type_contrat', 'actif']
+    list_filter = ['actif', 'equipe']
+    search_fields = ['nom', 'prenom', 'matricule']
+    raw_id_fields = ['equipe']
+
+
+@admin.register(TrancheDevis)
+class TrancheDevisAdmin(admin.ModelAdmin):
+    list_display = ['nom', 'devis', 'statut', 'termine_le', 'ordre']
+    list_filter = ['statut']
+    search_fields = ['nom', 'devis__reference']
+    raw_id_fields = ['devis', 'termine_par']
+    filter_horizontal = ['titres']
+
+
+@admin.register(Affectation)
+class AffectationAdmin(admin.ModelAdmin):
+    list_display = ['equipe', 'tranche', 'date_debut', 'date_fin', 'duree_jours', 'epingle', 'vendredi_actif']
+    list_filter = ['epingle', 'vendredi_actif', 'equipe']
+    raw_id_fields = ['equipe', 'tranche', 'created_by']
+    readonly_fields = ['created_at']
+
+
+@admin.register(Evenement)
+class EvenementAdmin(admin.ModelAdmin):
+    list_display = ['type', 'libelle', 'equipe', 'date_debut', 'date_fin', 'decale_chantier']
+    list_filter = ['type', 'decale_chantier', 'equipe']
+    raw_id_fields = ['equipe']
+
+
+@admin.register(Presence)
+class PresenceAdmin(admin.ModelAdmin):
+    list_display = ['equipier', 'date', 'creneau', 'heures', 'code', 'affectation']
+    list_filter = ['creneau', 'code', 'date']
+    search_fields = ['equipier__nom', 'equipier__prenom']
+    raw_id_fields = ['equipier', 'affectation', 'saisi_par']
+    readonly_fields = ['saisi_le', 'created_at']
+
+
+@admin.register(ClotureMois)
+class ClotureMoisAdmin(admin.ModelAdmin):
+    list_display = ['equipe', 'mois', 'annee', 'cloture_par', 'cloture_le']
+    list_filter = ['annee', 'mois', 'equipe']
+    raw_id_fields = ['equipe', 'cloture_par']
+    readonly_fields = ['cloture_le']

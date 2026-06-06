@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Mockup — Planning (zoom mois)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_chrome.css"/>
+<style>
+/* ---- Timeline mois ---- */
+.layout{display:grid;grid-template-columns:212px 1fr;gap:1rem;height:100%}
+.palette{align-self:start}
+.palette .card-body{padding:.6rem}
+.chip{border:1px solid var(--gray-bd);border-left:3px solid var(--teal);border-radius:var(--r);padding:7px 9px;margin-bottom:7px;cursor:grab;background:#fff}
+.chip:hover{background:var(--gray-lt)}
+.chip .ch-nom{font-size:12px;font-weight:600;color:var(--gray)}
+.chip .ch-meta{font-size:11px;color:var(--gray-md);margin-top:2px;display:flex;justify-content:space-between}
+.chip .ch-j{font-weight:600;color:var(--teal-dk)}
+.chip.c2{border-left-color:var(--prune)}.chip.c2 .ch-j{color:var(--prune-dk)}
+.chip.c3{border-left-color:var(--amber)}.chip.c3 .ch-j{color:#8B5E0A}
+
+.tl{overflow:auto;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);height:100%}
+.tl-row{display:grid;grid-template-columns:190px 928px}
+.tl-label{position:sticky;left:0;z-index:4;background:#fff;border-right:1px solid var(--gray-bd);border-bottom:1px solid var(--gray-bd);padding:0 .6rem;display:flex;align-items:center;gap:6px;font-size:12px}
+.tl-track{position:relative;height:40px;border-bottom:1px solid var(--gray-bd);
+  background:
+    repeating-linear-gradient(90deg,transparent 0 231px,var(--prune-bd) 231px 232px),
+    repeating-linear-gradient(90deg,transparent 0 159px,rgba(0,0,0,.015) 159px 200px,rgba(0,0,0,.055) 200px 232px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='232' height='8'%3E%3Cline x1='20' y1='0' x2='20' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='60' y1='0' x2='60' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='100' y1='0' x2='100' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='140' y1='0' x2='140' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='180' y1='0' x2='180' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='40' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='80' y1='0' x2='80' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='120' y1='0' x2='120' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='160' y1='0' x2='160' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='200' y1='0' x2='200' y2='8' stroke='%23C5C0BA' stroke-width='1'/%3E%3Cline x1='216' y1='0' x2='216' y2='8' stroke='%23C5C0BA' stroke-width='1'/%3E%3C%2Fsvg%3E"),
+    #fff;
+  background-size:auto,auto,232px 8px,auto}
+.tl-track.tall2{height:58px}
+/* en-têtes collants */
+.tl-head{position:sticky;top:0;z-index:6}
+.tl-head .tl-label{background:var(--gray-lt);font-weight:600;color:var(--gray-md);font-size:11px}
+.wk-row .tl-track{height:24px;background:var(--gray-lt);display:grid;grid-template-columns:repeat(4,232px)}
+.wk{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:var(--gray-md);text-transform:uppercase;letter-spacing:.04em;border-right:1px solid var(--gray-bd)}
+.day-row .tl-track{height:30px;background:var(--white);display:grid;grid-template-columns:repeat(4,40px 40px 40px 40px 40px 16px 16px);border-bottom:1px solid var(--gray-bd)}
+.day{display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid var(--gray-bd);font-size:10px;color:var(--gray-md);line-height:1.2}
+.day.mon{border-left:2px solid var(--prune-bd)}
+.day b{font-size:11px;color:var(--gray)}
+.day.fer{background:var(--gray-lt);color:#aaa}
+.day.ven{background:#F3F2EF;color:var(--gray-md);cursor:default}
+/* bouton + vendredi sur la piste d'équipe (décision par équipe, pas globale) */
+.fri-btn{position:absolute;top:50%;transform:translateY(-50%);width:15px;height:15px;border-radius:50%;background:rgba(43,191,164,.13);border:1px dashed var(--teal-bd);color:var(--teal-dk);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;opacity:.7}
+.fri-btn:hover{opacity:1;background:var(--teal-lt)}
+.day.we{background:#ECEAE6;color:#b5b0a8;font-size:8px;padding:2px 0 3px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;cursor:default;border-right:1px solid #dedad5}
+
+/* barres d'affectation */
+.bar{position:absolute;top:7px;height:26px;border-radius:5px;display:flex;align-items:center;padding:0 11px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.08);cursor:grab}
+.bar small{font-weight:500;opacity:.8;margin-left:6px}
+/* poignées de redimensionnement (durée ajustable) */
+.bar::before,.bar::after{content:'';position:absolute;top:4px;bottom:4px;width:7px;cursor:ew-resize;border-radius:3px;background:rgba(0,0,0,.14);opacity:0;transition:opacity .12s}
+.bar::before{left:2px}.bar::after{right:2px}
+.bar:hover::before,.bar:hover::after{opacity:1}
+.bar:hover{box-shadow:0 2px 6px rgba(0,0,0,.16)}
+.c1{background:var(--teal-lt);border:1px solid var(--teal-bd);border-left:3px solid var(--teal);color:var(--teal-dk)}
+.c2{background:var(--prune-lt);border:1px solid var(--prune-bd);border-left:3px solid var(--prune);color:var(--prune-dk)}
+.c3{background:var(--amber-lt);border:1px solid #F0D9A8;border-left:3px solid var(--amber);color:#8B5E0A}
+.c4{background:#E6F1FB;border:1px solid #BBD6F0;border-left:3px solid #185FA5;color:#0C447C}
+.c5{background:var(--green-lt);border:1px solid #CFE3B4;border-left:3px solid #5a8a2a;color:var(--green)}
+/* événements (formation, visite…) — distincts des chantiers */
+.ev{position:absolute;top:7px;height:26px;border-radius:5px;display:flex;align-items:center;gap:4px;padding:0 8px;font-size:11px;font-weight:600;cursor:pointer;
+  background:repeating-linear-gradient(45deg,#ECE7F3 0 6px,#E2DAEF 6px 12px);border:1px solid #C7B8E0;color:#5b4b86;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.ev i{font-size:13px}
+.ev .shift{font-size:9px;background:var(--amber-lt);color:#8B5E0A;border-radius:99px;padding:0 5px;font-weight:600}
+/* affectation de renfort / 2e équipe = pointillés sur tout le tour du cartouche */
+.bar.renfort{border:2px dashed currentColor!important}
+/* extension de chantier (report dû à un événement qui décale) */
+.bar.ext{opacity:.4;border-style:dashed!important;box-shadow:none;justify-content:center}
+.bar.ext::before,.bar.ext::after{display:none}
+.bar .rf{font-size:9px;background:rgba(255,255,255,.6);border-radius:99px;padding:0 5px;margin-left:6px;font-weight:600}
+
+/* ════ Indicateur prévu / réalisé ════ */
+/* Style A — remplissage interne (réalisé) dans la barre (= prévu) */
+.bar .fill{position:absolute;top:0;bottom:0;left:0;background:rgba(0,0,0,.17);border-radius:4px 0 0 4px;pointer-events:none}
+.bar .fill.over{background:repeating-linear-gradient(45deg,rgba(193,57,43,.5) 0 5px,rgba(193,57,43,.32) 5px 10px)}
+/* moignon de débordement (réalisé > prévu), posé après la barre */
+.overflow{position:absolute;top:7px;height:26px;background:var(--red);border-radius:0 5px 5px 0;opacity:.75}
+/* badge d'écart (au bout de la barre) */
+.ecart{position:absolute;top:13px;font-size:9px;font-weight:700;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:1px 6px;z-index:3;white-space:nowrap}
+.ecart.pos{color:var(--teal-dk);border-color:var(--teal-bd)}
+.ecart.neg{color:var(--red);border-color:#E8B4B2}
+/* ligne « aujourd'hui » */
+.today-line{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed #C0392B;z-index:2;pointer-events:none}
+.today-line::before{content:"auj.";position:absolute;top:0;left:2px;font-size:8px;color:#C0392B;font-weight:700;background:#fff;padding:0 2px}
+/* Style C — jauge fine sous la barre + pastille couleur */
+.gauge{position:absolute;height:3px;border-radius:2px;background:rgba(0,0,0,.12);overflow:hidden}
+.gauge i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:var(--teal)}
+.gauge i.warn{background:var(--amber)}.gauge i.bad{background:var(--red)}
+.bar .dot{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+.dot.ok{background:var(--teal)}.dot.warn{background:var(--amber)}.dot.bad{background:var(--red)}
+
+/* ════ Clôture de chantier ════ */
+.bar .close-btn{position:absolute;right:4px;top:4px;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.9);border:1px solid currentColor;display:none;align-items:center;justify-content:center;font-size:10px;cursor:pointer;z-index:4}
+.bar:hover .close-btn{display:flex}
+.bar.done{opacity:.85}
+.bar.done .ti-check{margin-left:5px}
+.tag-fact{font-size:9px;font-weight:700;background:var(--amber);color:#fff;border-radius:99px;padding:1px 6px;display:inline-flex;align-items:center;gap:3px;margin-left:6px}
+
+.tl-caret{color:var(--gray-md);font-size:14px;width:14px;display:inline-flex;cursor:pointer}
+.tl-team{font-weight:600;color:var(--gray)}
+.tl-enc{color:var(--gray-md);font-size:11px}
+.tl-eff{margin-left:auto;font-size:10px;background:var(--gray-lt);border-radius:99px;padding:1px 7px;color:var(--gray-md)}
+/* sous-lignes équipiers (équipe dépliée) */
+.sub .tl-label{padding-left:1.7rem;color:var(--gray-md);font-size:11px;background:#FCFBFA}
+.sub .tl-track{height:30px;background:
+    repeating-linear-gradient(90deg,transparent 0 231px,var(--prune-bd) 231px 232px),
+    repeating-linear-gradient(90deg,transparent 0 159px,rgba(0,0,0,.015) 159px 200px,rgba(0,0,0,.055) 200px 232px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='232' height='8'%3E%3Cline x1='20' y1='0' x2='20' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='60' y1='0' x2='60' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='100' y1='0' x2='100' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='140' y1='0' x2='140' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='180' y1='0' x2='180' y2='4' stroke='%23CECCCA' stroke-width='1'/%3E%3Cline x1='40' y1='0' x2='40' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='80' y1='0' x2='80' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='120' y1='0' x2='120' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='160' y1='0' x2='160' y2='8' stroke='%23CFC9C3' stroke-width='1'/%3E%3Cline x1='200' y1='0' x2='200' y2='8' stroke='%23C5C0BA' stroke-width='1'/%3E%3Cline x1='216' y1='0' x2='216' y2='8' stroke='%23C5C0BA' stroke-width='1'/%3E%3C%2Fsvg%3E"),
+    #FCFBFA;
+  background-size:auto,auto,232px 8px,auto}
+.pz{position:absolute;top:6px;height:18px;border-radius:3px;background:var(--teal);opacity:.55}
+.drop-hint{position:absolute;inset:7px;border:2px dashed var(--teal-bd);border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--teal-dk);font-size:11px;font-weight:600;left:330px;right:120px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo-area">
+    <svg width="32" height="32" viewBox="0 0 80 80" fill="none"><circle cx="22" cy="17" r="8" fill="#2BBFA4"/><path d="M8 52Q8 34 22 34Q36 34 36 52Z" fill="#2BBFA4"/><circle cx="58" cy="17" r="8" fill="#E8A020"/><path d="M44 52Q44 34 58 34Q72 34 72 52Z" fill="#E8A020"/><circle cx="40" cy="13" r="8" fill="#6B1F3A"/><path d="M26 48Q26 30 40 30Q54 30 54 48Z" fill="#6B1F3A"/></svg>
+    <div class="logo-txt"><strong>compagnons bâtisseurs</strong><span>bretagne</span></div>
+  </div>
+  <div class="topbar-title">Maquette · vue Planning (zoom mois)</div>
+  <div class="topbar-actions"><span class="btn btn-ghost btn-sm"><i class="ti ti-user"></i> David P.</span></div>
+</div>
+
+<div class="body-wrap">
+  <div class="sidebar">
+    <div class="nav-sect">Principal</div>
+    <a class="nav-item"><i class="ti ti-layout-dashboard"></i><span>Tableau de bord</span></a>
+    <a class="nav-item"><i class="ti ti-calculator"></i><span>Devis</span></a>
+    <a class="nav-item"><i class="ti ti-cash"></i><span>Factures</span></a>
+    <a class="nav-item"><i class="ti ti-users"></i><span>Clients</span></a>
+    <div class="nav-sect">Insertion</div>
+    <a class="nav-item active"><i class="ti ti-calendar-month"></i><span>Planning</span></a>
+    <a class="nav-item"><i class="ti ti-chart-bar"></i><span>Production</span></a>
+    <a class="nav-item"><i class="ti ti-id-badge-2"></i><span>Équipiers</span></a>
+  </div>
+
+  <div class="main">
+    <div class="page-hd">
+      <div>
+        <div class="page-title">Planning des équipes</div>
+        <div class="page-sub">Glisse un chantier sur une équipe pour l'affecter · échelle demi-journée</div>
+      </div>
+      <div class="toolbar">
+        <div class="nav-arrows"><button><i class="ti ti-chevron-left"></i></button><span class="lbl">Juin 2026</span><button><i class="ti ti-chevron-right"></i></button></div>
+        <div class="seg"><button>Jour</button><button class="on">Mois</button><button>Semaine</button></div>
+        <button class="btn btn-sm"><i class="ti ti-calendar-plus"></i> Événement</button>
+        <button class="btn btn-prune btn-sm"><i class="ti ti-plus"></i> Assigner un devis</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="mock-note"><i class="ti ti-eye"></i><span><b>Maquette statique</b> — données factices. Démontre : timeline mois, 6 équipes repliables, barres de chantiers (longueur = durée), palette de chantiers à glisser, et une zone de dépôt. <b>Survole une barre</b> : les <b>poignées</b> aux extrémités apparaissent → durée <b>ajustable à la souris</b> (le devis estime, le réel diffère). <b>Événements</b> (formation, visite — violet hachuré) ; un événement qui <b>décale</b> se pose <b>au-dessus</b> du chantier en cours → voir <b>GOSM</b> (« Formation ↔ +1 j » au milieu de « Réno locaux », avec extension pointillée = report). <b>Multi-équipe</b> : même chantier sur plusieurs équipes (même couleur) — « Salle ASMR » sur SORM <i>et</i> en <b>renfort</b> sur AQRM CH (encadré pointillé). Les <b>traits verticaux légers</b> marquent les <b>demi-journées</b>. Semaine = <b>Lun–Jeu</b> (V grisé, <b>+</b> pour forcer ; Sa/Di bloqués) — les weekends ne comptent pas dans les jours calculés. <b>Prévu vs réalisé</b> (2 styles à comparer) : <b>SORM/GORM</b> = <i>remplissage interne</i> + ligne « auj. » (SORM en marge, GORM en <b>dépassement</b> rouge) ; <b>AQSM</b> = <i>jauge fine + pastille</i>. <b>Clôture</b> : survole une barre → bouton ✓ ; un chantier clôturé (voir <b>AQRM JF</b>) affiche <b>« à facturer »</b> (signal repris sur le dashboard insertion, sans lien vers la facturation devis).</span></div>
+
+      <div class="layout">
+        <!-- PALETTE -->
+        <div class="palette card">
+          <div class="card-hd"><span class="card-title"><i class="ti ti-stack-2"></i> Chantiers à planifier</span></div>
+          <div class="card-body">
+            <div class="chip" draggable="true"><div class="ch-nom">École Guillevic</div><div class="ch-meta"><span>Ville de Rennes</span><span class="ch-j">9,4 j</span></div></div>
+            <div class="chip c2" draggable="true"><div class="ch-nom">ISDND Hautes-Gayeulles</div><div class="ch-meta"><span>Dépt. déchets</span><span class="ch-j">11,5 j</span></div></div>
+            <div class="chip c3" draggable="true"><div class="ch-nom">Crèche H. Wallon</div><div class="ch-meta"><span>Ville de Rennes</span><span class="ch-j">3,1 j</span></div></div>
+            <div class="chip" draggable="true"><div class="ch-nom">Asso. F. Ferrer</div><div class="ch-meta"><span>Association</span><span class="ch-j">3,7 j</span></div></div>
+            <div class="chip c2" draggable="true"><div class="ch-nom">Mur caniparc</div><div class="ch-meta"><span>St-Malo</span><span class="ch-j">15,0 j</span></div></div>
+          </div>
+        </div>
+
+        <!-- TIMELINE -->
+        <div class="tl">
+          <!-- en-tête semaines -->
+          <div class="tl-row tl-head wk-row">
+            <div class="tl-label">Équipe</div>
+            <div class="tl-track"><div class="wk">Sem. 23</div><div class="wk">Sem. 24</div><div class="wk">Sem. 25</div><div class="wk">Sem. 26</div></div>
+          </div>
+          <!-- en-tête jours -->
+          <div class="tl-row tl-head day-row" style="top:24px">
+            <div class="tl-label">&nbsp;</div>
+            <div class="tl-track">
+              <div class="day mon">L<b>1</b></div><div class="day">M<b>2</b></div><div class="day">M<b>3</b></div><div class="day">J<b>4</b></div><div class="day ven">V<b>5</b></div><div class="day we">S</div><div class="day we">D</div>
+              <div class="day mon">L<b>8</b></div><div class="day">M<b>9</b></div><div class="day">M<b>10</b></div><div class="day">J<b>11</b></div><div class="day ven">V<b>12</b></div><div class="day we">S</div><div class="day we">D</div>
+              <div class="day mon">L<b>15</b></div><div class="day">M<b>16</b></div><div class="day">M<b>17</b></div><div class="day">J<b>18</b></div><div class="day ven">V<b>19</b></div><div class="day we">S</div><div class="day we">D</div>
+              <div class="day mon">L<b>22</b></div><div class="day">M<b>23</b></div><div class="day">M<b>24</b></div><div class="day">J<b>25</b></div><div class="day ven">V<b>26</b></div><div class="day we">S</div><div class="day we">D</div>
+            </div>
+          </div>
+
+          <!-- SORM (dépliée) -->
+          <div class="tl-row">
+            <div class="tl-label"><span class="tl-caret"><i class="ti ti-chevron-down"></i></span><span class="tl-team">SORM</span><span class="tl-enc">· Laurène</span><span class="tl-eff">6</span></div>
+            <div class="tl-track">
+              <div class="bar c1" style="left:2px;width:116px"><i class="fill" style="width:100%"></i>École Guillevic <small>1,4 j</small></div>
+              <!-- Style A : la barre = prévu, le remplissage foncé = réalisé, la ligne = aujourd'hui -->
+              <div class="bar c3" style="left:122px;width:380px"><i class="fill" style="width:62%"></i>Salle ASMR <small>7,4 j</small><span class="close-btn" title="Clôturer ce chantier"><i class="ti ti-check"></i></span></div>
+              <div class="today-line" style="left:430px"></div>
+              <div class="ecart pos" style="left:508px">marge +1,5 j</div>
+              <div class="fri-btn" style="left:173px" title="Activer vendredi 5/06 – SORM">+</div>
+              <div class="fri-btn" style="left:405px" title="Activer vendredi 12/06 – SORM">+</div>
+              <div class="fri-btn" style="left:637px" title="Activer vendredi 19/06 – SORM">+</div>
+              <div class="fri-btn" style="left:869px" title="Activer vendredi 26/06 – SORM">+</div>
+            </div>
+          </div>
+          <div class="tl-row sub"><div class="tl-label">Dawlatzai Allah-Mamad</div><div class="tl-track"><div class="pz" style="left:2px;width:500px"></div></div></div>
+          <div class="tl-row sub"><div class="tl-label">Adencisse Cabdukarim</div><div class="tl-track"><div class="pz" style="left:2px;width:348px"></div></div></div>
+          <div class="tl-row sub"><div class="tl-label">Tekie Habtom</div><div class="tl-track"><div class="pz" style="left:122px;width:380px"></div></div></div>
+
+          <!-- autres équipes (repliées) -->
+          <div class="tl-row">
+            <div class="tl-label"><span class="tl-caret"><i class="ti ti-chevron-right"></i></span><span class="tl-team">GORM</span><span class="tl-enc">· Josselin</span><span class="tl-eff">8</span></div>
+            <div class="tl-track"><div class="bar c2" style="left:234px;width:540px"><i class="fill over" style="width:100%"></i>ISDND Hautes-Gayeulles <small>11,5 j</small></div>
+              <!-- réalisé > prévu : débordement rouge + écart négatif -->
+              <div class="overflow" style="left:774px;width:32px"></div>
+              <div class="today-line" style="left:706px"></div>
+              <div class="ecart neg" style="left:812px">−1,3 j</div>
+              <div class="fri-btn" style="left:173px" title="Activer vendredi 5/06 – GORM">+</div>
+              <div class="fri-btn" style="left:405px" title="Activer vendredi 12/06 – GORM">+</div>
+              <div class="fri-btn" style="left:637px" title="Activer vendredi 19/06 – GORM">+</div>
+              <div class="fri-btn" style="left:869px" title="Activer vendredi 26/06 – GORM">+</div></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-label"><span class="tl-caret"><i class="ti ti-chevron-right"></i></span><span class="tl-team">AQSM</span><span class="tl-enc">· Laëtitia</span><span class="tl-eff">5</span></div>
+            <div class="tl-track">
+              <!-- Style C : barre inchangée, jauge fine dessous (% consommé) + pastille couleur -->
+              <div class="bar c2" style="left:2px;width:196px">Mur caniparc <small>5,0 j</small><span class="dot warn"></span></div>
+              <div class="gauge" style="left:2px;width:196px;top:34px"><i class="warn" style="width:92%"></i></div>
+              <div class="ev" style="left:314px;width:76px"><i class="ti ti-eye-check"></i> Visite</div>
+              <div class="bar c4" style="left:466px;width:196px">Crèche <small>4,2 j</small><span class="dot ok"></span></div>
+              <div class="gauge" style="left:466px;width:196px;top:34px"><i style="width:58%"></i></div>
+              <div class="fri-btn" style="left:173px" title="Activer vendredi 5/06 – AQSM">+</div>
+              <div class="fri-btn" style="left:405px" title="Activer vendredi 12/06 – AQSM">+</div>
+              <div class="fri-btn" style="left:637px" title="Activer vendredi 19/06 – AQSM">+</div>
+              <div class="fri-btn" style="left:869px" title="Activer vendredi 26/06 – AQSM">+</div>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-label"><span class="tl-caret"><i class="ti ti-chevron-right"></i></span><span class="tl-team">GOSM</span><span class="tl-enc">· Marin</span><span class="tl-eff">8</span></div>
+            <div class="tl-track tall2">
+              <!-- événement qui décale, posé AU-DESSUS du chantier (voie du haut) -->
+              <div class="ev" style="left:274px;width:76px;top:7px"><i class="ti ti-school"></i> Formation <span class="shift">↔ +1 j</span></div>
+              <!-- chantier en cours (voie du bas) + extension pointillée = report -->
+              <div class="bar c5" style="left:82px;width:420px;top:31px">Réno locaux <small>6,8 j</small></div>
+              <div class="bar c5 ext" style="left:502px;width:40px;top:31px"><i class="ti ti-arrow-bar-to-right" style="font-size:12px"></i></div>
+              <div class="fri-btn" style="left:173px" title="Activer vendredi 5/06 – GOSM">+</div>
+              <div class="fri-btn" style="left:405px" title="Activer vendredi 12/06 – GOSM">+</div>
+              <div class="fri-btn" style="left:637px" title="Activer vendredi 19/06 – GOSM">+</div>
+              <div class="fri-btn" style="left:869px" title="Activer vendredi 26/06 – GOSM">+</div>
+            </div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-label"><span class="tl-caret"><i class="ti ti-chevron-right"></i></span><span class="tl-team">AQRM JF</span><span class="tl-enc">· Julien</span><span class="tl-eff">5</span></div>
+            <div class="tl-track">
+              <!-- chantier clôturé sur la timeline → signal « à facturer » (remonte au dashboard insertion) -->
+              <div class="bar c1 done" style="left:2px;width:250px"><i class="fill" style="width:100%"></i>Asso. Ferrer <i class="ti ti-check"></i><span class="tag-fact"><i class="ti ti-coin-euro" style="font-size:10px"></i> à facturer</span></div>
+              <div class="drop-hint" style="left:420px"><i class="ti ti-arrow-down"></i>&nbsp; Déposer un chantier ici</div>
+              <div class="fri-btn" style="left:173px" title="Activer vendredi 5/06 – AQRM JF">+</div>
+              <div class="fri-btn" style="left:405px" title="Activer vendredi 12/06 – AQRM JF">+</div>
+              <div class="fri-btn" style="left:637px" title="Activer vendredi 19/06 – AQRM JF">+</div>
+              <div class="fri-btn" style="left:869px" title="Activer vendredi 26/06 – AQRM JF">+</div></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-label"><span class="tl-caret"><i class="ti ti-chevron-right"></i></span><span class="tl-team">AQRM CH</span><span class="tl-enc">· Chloé</span><span class="tl-eff">5</span></div>
+            <div class="tl-track"><div class="bar c1" style="left:2px;width:268px">Atelier Ferrer <small>3,7 j</small></div><div class="bar c3 renfort" style="left:314px;width:116px">Salle ASMR <span class="rf">renfort</span></div>
+              <div class="fri-btn" style="left:173px" title="Activer vendredi 5/06 – AQRM CH">+</div>
+              <div class="fri-btn" style="left:405px" title="Activer vendredi 12/06 – AQRM CH">+</div>
+              <div class="fri-btn" style="left:637px" title="Activer vendredi 19/06 – AQRM CH">+</div>
+              <div class="fri-btn" style="left:869px" title="Activer vendredi 26/06 – AQRM CH">+</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
