@@ -330,7 +330,7 @@
     <div class="field">
       <label>Chantier (devis accepté) *</label>
       <input class="input" id="aff-search" placeholder="Chercher par client ou chantier…" oninput="filterDevis(this.value)" autocomplete="off">
-      <select class="input" id="aff-devis" size="6" style="margin-top:4px;height:120px">
+      <select class="input" id="aff-devis" size="6" style="margin-top:4px;height:120px" onchange="calcDateFin()" onclick="calcDateFin()">
         {% for d in devis_dispo %}
         <option value="{{ d.pk }}">{{ d.client.nom }} — {{ d.chantier|default:"(sans titre)" }}</option>
         {% endfor %}
@@ -339,11 +339,11 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field">
         <label>Du *</label>
-        <input class="input" type="date" id="aff-debut" value="{{ lundi|date:'Y-m-d' }}">
+        <input class="input" type="date" id="aff-debut" value="{{ lundi|date:'Y-m-d' }}" onchange="calcDateFin()">
       </div>
       <div class="field">
-        <label>Au *</label>
-        <input class="input" type="date" id="aff-fin" value="{{ vendredi|date:'Y-m-d' }}">
+        <label>Au (calculé) *</label>
+        <input class="input" type="date" id="aff-fin">
       </div>
     </div>
     <div id="aff-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
@@ -362,6 +362,32 @@ const CSRF = '{{ csrf_token }}';
 const URL_PRES = '{% url "core:presence-save" %}';
 const URL_AFF  = '{% url "core:affectation-save" %}';
 const EQUIPE_ID = {{ equipe_sel.pk|default:'null' }};
+const DEVIS_MO  = {{ devis_mo_json|safe }};
+const EQ_EFF    = {{ equipe_effectifs_json|safe }};
+const TAUX_JOUR = 82.5;  // €/jour/équipier (Lun-Jeu, 4 j/semaine)
+
+function addWorkingDays(startStr, n) {
+  if (n <= 0) return startStr;
+  let d = new Date(startStr + 'T12:00:00');
+  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() + 1);
+  let rem = n - 1;
+  while (rem > 0) {
+    d.setDate(d.getDate() + 1);
+    if (![0, 5, 6].includes(d.getDay())) rem--;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+function calcDateFin() {
+  const devId = parseInt(document.getElementById('aff-devis').value);
+  const debut = document.getElementById('aff-debut').value;
+  if (!devId || !debut || !EQUIPE_ID) return;
+  const mo   = DEVIS_MO[devId]       || 0;
+  const nbEq = EQ_EFF[EQUIPE_ID]     || 0;
+  if (mo <= 0 || nbEq <= 0) return;
+  const nbJ = Math.ceil(mo / (TAUX_JOUR * nbEq));
+  document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ);
+}
 
 /* ── Auto-save présence ────────────────────────────────── */
 function saveCell(inp) {
@@ -443,6 +469,7 @@ function openAffModal() {
   document.getElementById('aff-err').style.display = 'none';
   document.getElementById('modal-aff').classList.remove('hidden');
   document.getElementById('aff-search').focus();
+  calcDateFin();
 }
 function closeAffModal() { document.getElementById('modal-aff').classList.add('hidden'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAffModal(); });

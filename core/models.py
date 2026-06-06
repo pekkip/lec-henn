@@ -555,7 +555,8 @@ class LigneDevis(models.Model):
     def total_mo(self):
         enfants = self.enfants.all()
         if not enfants.exists():
-            return self.quantite * (self.cout_unitaire or 0) if self.type_ligne == 'MO' else Decimal('0')
+            # FMO (Forfait MO) doit être inclus — bug corrigé
+            return self.quantite * (self.cout_unitaire or 0) if self.type_ligne in ('MO', 'FMO') else Decimal('0')
         mult = Decimal('1') if self.type_ligne == 'TITRE' else self.quantite
         return mult * sum(e.total_mo() for e in enfants)
 

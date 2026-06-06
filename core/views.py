@@ -43,7 +43,7 @@ from .permissions import (
     peut_acceder_planning, est_encadrant,
 )
 from .dashboard_widgets import resolve_dashboard, sanitize_config
-from .totaux import attacher_totaux_devis
+from .totaux import attacher_totaux_devis, total_mo_devis
 # ══════════════════════════════════════════
 #  HELPERS
 # ══════════════════════════════════════════
@@ -2998,8 +2998,18 @@ def emargement_view(request):
     devis_dispo = list(
         Devis.objects.filter(status='accepted')
         .select_related('client')
+        .prefetch_related('lignes')
         .order_by('client__nom')
     )
+    devis_mo_json  = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
+    panel_equipes_all = list(
+        Equipe.objects.filter(actif=True, service__module_planning=True)
+        .prefetch_related(
+            Prefetch('equipiers',
+                     queryset=Equipier.objects.filter(actif=True).order_by('nom', 'prenom'))
+        ).order_by('nom')
+    )
+    equipe_effectifs_json = {e.pk: e.equipiers.all().count() for e in panel_equipes_all}
     jours_info = [(j, JOURS_FR[i]) for i, j in enumerate(jours)]
 
     return render(request, 'core/emargement.html', {
@@ -3013,8 +3023,10 @@ def emargement_view(request):
         'aff_color': aff_color,
         'aff_default': aff_default,
         'grid_rows': grid_rows,
-        'panel_equipes': panel_equipes,
+        'panel_equipes': panel_equipes_all,
         'devis_dispo': devis_dispo,
+        'devis_mo_json': devis_mo_json,
+        'equipe_effectifs_json': equipe_effectifs_json,
         'semaine_prec': (lundi - timedelta(weeks=1)).isoformat(),
         'semaine_suiv': (lundi + timedelta(weeks=1)).isoformat(),
         'peut_modifier': est_encadrant(request.user, equipe_sel),
@@ -3095,8 +3107,16 @@ def planning_mois(request):
     suiv_debut = (debut_grille + timedelta(weeks=4)).isoformat()
 
     devis_dispo = list(
-        Devis.objects.filter(status='accepted').select_related('client').order_by('client__nom')
+        Devis.objects.filter(status='accepted')
+        .select_related('client')
+        .prefetch_related('lignes')
+        .order_by('client__nom')
     )
+    devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
+    equipe_effectifs_json = {
+        e.pk: Equipier.objects.filter(equipe=e, actif=True).count()
+        for e in equipes
+    }
 
     return render(request, 'core/planning.html', {
         'equipes': equipes,
@@ -3112,6 +3132,8 @@ def planning_mois(request):
         'peut_modifier_global': peut_modifier_global,
         'equipes_modifiables_ids': list(equipes_modifiables_ids),
         'devis_dispo': devis_dispo,
+        'devis_mo_json': devis_mo_json,
+        'equipe_effectifs_json': equipe_effectifs_json,
         'today': date.today(),
     })
 

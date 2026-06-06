@@ -1054,6 +1054,7 @@ Pour supprimer proprement :
 - **`gen_reference`** — calcule max+1 en Python → race condition sur la numérotation concurrente.
 - **`total_facture()`** (models.py) — double comptage potentiel acompte + facture, à confirmer vs compta.
 - **TVA** — "non applicable art. 293B CGI" à adapter selon le régime fiscal réel.
+- ✅ **`LigneDevis.total_mo()` ignorait les lignes FMO** — les feuilles de type `FMO` (Forfait main d'œuvre) retournaient 0 au lieu de `quantite × cout_unitaire`. Corrigé session 25 : condition étendue à `type_ligne in ('MO', 'FMO')`. `total_mo_devis()` ajouté dans `totaux.py` (même pattern sans N+1, compte MO + FMO).
 
 ### Code / archi
 - **URLs à homogénéiser** — mélange français/anglais (statut/status, supprimer/delete). Choisir une convention et corriger partout.

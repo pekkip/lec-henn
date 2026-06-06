@@ -70,6 +70,30 @@ def attacher_totaux_devis(devis_iterable):
         d.rtf = brut - total_facture_devis(d)
 
 
+def total_mo_devis(devis):
+    """Total main d'œuvre (lignes MO + FMO) d'un devis depuis ses lignes préchargées.
+
+    Nécessite `prefetch_related('lignes')` sur le queryset source.
+    Suit le même pattern que `total_brut_devis` (pas de N+1).
+    """
+    enfants = {}
+    for l in devis.lignes.all():
+        enfants.setdefault(l.parent_id, []).append(l)
+
+    def _mo(ligne):
+        sous = enfants.get(ligne.pk, [])
+        if ligne.type_ligne == 'TITRE':
+            return sum((_mo(e) for e in sous), Decimal('0'))
+        if sous:
+            return ligne.quantite * sum((_mo(e) for e in sous), Decimal('0'))
+        if ligne.type_ligne in ('MO', 'FMO') and ligne.cout_unitaire is not None:
+            return ligne.quantite * ligne.cout_unitaire
+        return Decimal('0')
+
+    racines = enfants.get(None, [])
+    return sum((_mo(l) for l in racines), Decimal('0'))
+
+
 def totaux_lignes(lignes_qs):
     """Renvoie `{ligne_id: total}` pour un ensemble de lignes, en chargeant les
     sous-arbres des devis concernés en **une** requête (pas de N+1).

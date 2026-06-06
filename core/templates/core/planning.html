@@ -48,6 +48,10 @@
 .tl-cell.mon-cell{border-left:2px solid var(--prune-bd)}
 .tl-cell.we-cell{background:#F5F3F1}
 .tl-cell.today-cell{background:rgba(43,191,164,.09)}
+/* Vendredi — optionnel, légèrement grisé */
+.tl-day.fri-hd{background:#F3F2EF;color:var(--gray-md)}
+.tl-day.fri-hd b{color:var(--gray-md)}
+.tl-cell.fri-cell{background:#F6F4F2}
 
 /* ── Affectation bars ────────────────────────────────── */
 .tl-bar{grid-row:1;position:relative;z-index:2;align-self:center;margin:0 2px;height:28px;border-radius:5px;display:flex;align-items:center;padding:0 10px;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08);transition:box-shadow .1s,filter .1s}
@@ -136,7 +140,7 @@
             <div class="tl-lbl">&nbsp;</div>
             <div class="tl-day-track" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
               {% for j in jours %}
-              <div class="tl-day{% if j.weekday == 0 %} mon-hd{% endif %}{% if j.weekday >= 5 %} we-hd{% endif %}{% if j == today %} today-hd{% endif %}">
+              <div class="tl-day{% if j.weekday == 0 %} mon-hd{% endif %}{% if j.weekday == 4 %} fri-hd{% endif %}{% if j.weekday >= 5 %} we-hd{% endif %}{% if j == today %} today-hd{% endif %}">
                 {% if j.weekday < 5 %}<b>{{ j|date:"j" }}</b>{% else %}{{ j|date:"D"|slice:":2" }}{% endif %}
               </div>
               {% endfor %}
@@ -164,7 +168,7 @@
           <div class="tl-track" style="grid-template-columns:repeat({{ nb_semaines }},minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) minmax(26px,1fr) 8px 8px)">
             {# Fond de cellules (auto-placed, une par jour) #}
             {% for j in jours %}
-            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" style="grid-row:1"></div>
+            <div class="tl-cell{% if j.weekday == 0 %} mon-cell{% endif %}{% if j.weekday == 4 %} fri-cell{% endif %}{% if j.weekday >= 5 %} we-cell{% endif %}{% if j == today %} today-cell{% endif %}" style="grid-row:1"></div>
             {% endfor %}
             {# Barres d'affectation (positionnées explicitement) #}
             {% for barre in ligne.barres %}
@@ -196,7 +200,7 @@
     <div class="modal-title">Affecter un chantier</div>
     <div class="field">
       <label>Équipe *</label>
-      <select class="input" id="aff-equipe">
+      <select class="input" id="aff-equipe" onchange="calcDateFin()">
         {% for e in equipes %}
         <option value="{{ e.pk }}"
           {% if not peut_modifier_global and e.pk not in equipes_modifiables_ids %}disabled{% endif %}>
@@ -208,7 +212,7 @@
     <div class="field">
       <label>Chantier (devis accepté) *</label>
       <input class="input" id="aff-search" placeholder="Chercher par client ou chantier…" oninput="filterDevis(this.value)" autocomplete="off">
-      <select class="input" id="aff-devis" size="5" style="margin-top:4px;height:110px">
+      <select class="input" id="aff-devis" size="5" style="margin-top:4px;height:110px" onchange="calcDateFin()" onclick="calcDateFin()">
         {% for d in devis_dispo %}
         <option value="{{ d.pk }}">{{ d.client.nom }} — {{ d.chantier|default:"(sans titre)" }}</option>
         {% endfor %}
@@ -217,10 +221,10 @@
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field">
         <label>Du *</label>
-        <input class="input" type="date" id="aff-debut" value="{{ debut_grille|date:'Y-m-d' }}">
+        <input class="input" type="date" id="aff-debut" value="{{ debut_grille|date:'Y-m-d' }}" onchange="calcDateFin()">
       </div>
       <div class="field">
-        <label>Au *</label>
+        <label>Au (calculé) *</label>
         <input class="input" type="date" id="aff-fin">
       </div>
     </div>
@@ -239,6 +243,34 @@ const CSRF    = '{{ csrf_token }}';
 const URL_AFF = '{% url "core:affectation-save" %}';
 const MODIFIABLES = new Set({{ equipes_modifiables_ids|safe }});
 const PEUT_GLOBAL = {{ peut_modifier_global|lower }};
+const DEVIS_MO  = {{ devis_mo_json|safe }};
+const EQ_EFF    = {{ equipe_effectifs_json|safe }};
+const TAUX_JOUR = 82.5;  // €/jour/équipier (base 4 j/semaine Lun-Jeu)
+
+// Ajoute n jours Lun-Jeu (vendredi/week-end exclus) à partir de startStr (YYYY-MM-DD)
+function addWorkingDays(startStr, n) {
+  if (n <= 0) return startStr;
+  let d = new Date(startStr + 'T12:00:00');
+  while ([0, 5, 6].includes(d.getDay())) d.setDate(d.getDate() + 1); // aligner Lun-Jeu
+  let rem = n - 1;
+  while (rem > 0) {
+    d.setDate(d.getDate() + 1);
+    if (![0, 5, 6].includes(d.getDay())) rem--;
+  }
+  return d.toISOString().slice(0, 10);
+}
+
+function calcDateFin() {
+  const eqId  = parseInt(document.getElementById('aff-equipe').value);
+  const devId = parseInt(document.getElementById('aff-devis').value);
+  const debut = document.getElementById('aff-debut').value;
+  if (!eqId || !devId || !debut) return;
+  const mo   = DEVIS_MO[devId] || 0;
+  const nbEq = EQ_EFF[eqId]    || 0;
+  if (mo <= 0 || nbEq <= 0) return;
+  const nbJ = Math.ceil(mo / (TAUX_JOUR * nbEq));
+  document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ);
+}
 
 function openAffModal(equipeId) {
   const sel = document.getElementById('aff-equipe');
@@ -252,6 +284,7 @@ function openAffModal(equipeId) {
   document.getElementById('aff-err').style.display = 'none';
   document.getElementById('modal-aff').classList.remove('hidden');
   document.getElementById('aff-search').focus();
+  calcDateFin();
 }
 function closeAffModal() { document.getElementById('modal-aff').classList.add('hidden'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAffModal(); });
