@@ -545,9 +545,10 @@ class Command(BaseCommand):
         nd = Devis.objects.filter(created_by=user, notes__contains=MARKER).count()
         nf = Facture.objects.filter(created_by=user, notes__contains=MARKER).count()
         nc = Client.objects.filter(created_by=user, nom__startswith=CLIENT_PREFIX).count()
+        ne = Equipier.objects.filter(matricule__startswith='(D)').count()
         self.stdout.write(self.style.SUCCESS(
             f"Démo créée pour « {user.username} » : {nd} devis, {nf} factures/avoirs, "
-            f"{nc} clients, sur {len(TEAMS)} équipes. "
+            f"{nc} clients, {ne} équipiers, sur {len(TEAMS)} équipes. "
             f"Tout est marqué SEED_DEMO — retirable avec : manage.py seed_demo --clear"))
 
     # ── Helpers ───────────────────────────────────────────────

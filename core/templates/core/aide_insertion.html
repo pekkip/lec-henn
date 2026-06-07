@@ -162,6 +162,14 @@
       </div>
 
       <div class="toc-section"><a href="#equipiers">4. Équipiers</a></div>
+
+      <div class="toc-section"><a href="#feuilles">5. Feuilles de présence</a></div>
+      <div class="toc-sub">
+        <a href="#feuilles-vue">Vue d'ensemble</a>
+        <a href="#feuilles-fiche">Lire et compléter</a>
+        <a href="#feuilles-codes">Codes de présence</a>
+        <a href="#feuilles-imprimer">Imprimer</a>
+      </div>
     </nav>
   </aside>
 
@@ -183,7 +191,7 @@
           <tr><td><strong>Encadrant</strong></td><td>Accès à son équipe uniquement</td></tr>
         </tbody>
       </table>
-      <p>La section <strong>Insertion</strong> apparaît dans le menu latéral uniquement pour ces rôles. Elle contient trois rubriques : <strong>Planning</strong>, <strong>Émargement</strong> et <strong>Équipiers</strong>.</p>
+      <p>La section <strong>Insertion</strong> apparaît dans le menu latéral uniquement pour ces rôles. Elle contient : <strong>Planning</strong>, <strong>Émargement</strong>, <strong>Feuilles de présence</strong>, <strong>Équipiers</strong> et un lien vers ce <strong>Manuel</strong>.</p>
     </div>
 
     <!-- 2. PLANNING -->
@@ -297,6 +305,55 @@
       <p>Cliquez sur le bouton <strong>Actif / Inactif</strong> à droite de l'équipier. Un équipier inactif n'apparaît plus dans les grilles d'émargement ni dans les prêts, mais son historique de présences est conservé.</p>
 
       <div class="tip"><strong>Nombre d'équipiers par équipe</strong> — le nombre affiché dans le planning (pour le calcul de la charge) correspond au champ <em>nb_équipiers</em> de l'équipe, défini dans l'administration. Il ne compte pas automatiquement les équipiers actifs de la liste.</div>
+    </div>
+
+    <!-- 5. FEUILLES DE PRÉSENCE -->
+    <div class="section" id="feuilles">
+      <h2>5. Feuilles de présence</h2>
+
+      <h3 id="feuilles-vue">Vue d'ensemble</h3>
+      <p>Les <strong>feuilles de présence mensuelles</strong> sont des documents réglementaires FSE/CISP. Elles sont générées automatiquement à partir des pointages saisis dans l'émargement hebdomadaire — aucune double saisie n'est nécessaire.</p>
+      <p>Accédez à la liste via <strong>Feuilles de présence</strong> dans le menu latéral. Sélectionnez une équipe et un mois pour voir le tableau de complétion de chaque équipier.</p>
+      <ul>
+        <li>Badge <strong>○</strong> — aucune présence saisie ce mois</li>
+        <li>Badge <strong>⏳</strong> — pointage partiel (en cours)</li>
+        <li>Badge <strong>✓</strong> — toutes les demi-journées du mois pointées</li>
+      </ul>
+      <div class="tip"><strong>Délai RH</strong> — les fiches doivent être remises avant le <strong>27 du mois</strong> pour la paie du 1er jour ouvré du mois suivant.</div>
+
+      <h3 id="feuilles-fiche">Lire et compléter une fiche</h3>
+      <p>Cliquez sur un équipier dans la liste pour ouvrir sa fiche individuelle. La fiche affiche une <strong>grille semaine par semaine</strong> (ISO) avec deux lignes par jour — Matin (M) et Après-midi (A).</p>
+      <ul>
+        <li>Les cellules <strong>pré-remplies</strong> proviennent de l'émargement hebdomadaire</li>
+        <li>Les cellules à fond <strong>ocre</strong> appartiennent au mois précédent (semaine à cheval sur deux mois) — elles sont éditables mais ne modifient pas la fiche du mois précédent</li>
+        <li>Les cellules à fond <strong>gris</strong> sont hors-mois (non éditables)</li>
+      </ul>
+      <p>Cliquez dans une cellule et saisissez un nombre d'heures ou un code d'absence. La sauvegarde est automatique (à la sortie de la cellule).</p>
+      <div class="warn"><strong>Valeurs non standard</strong> — une valeur différente du nombre d'heures par défaut de l'équipe s'affiche en <strong>gras italique</strong> pour attirer l'attention.</div>
+
+      <h3 id="feuilles-codes">Codes de présence</h3>
+      <p>Les codes suivants peuvent être saisis à la place d'un nombre d'heures :</p>
+      <table>
+        <thead><tr><th>Code</th><th>Signification</th></tr></thead>
+        <tbody>
+          <tr><td><strong>F</strong></td><td>Jour férié légal (pré-rempli automatiquement)</td></tr>
+          <tr><td><strong>R</strong></td><td>Pont / Récupération (pré-rempli si un événement "Pont → Récup" est créé)</td></tr>
+          <tr><td><strong>C</strong></td><td>Congé</td></tr>
+          <tr><td><strong>M</strong></td><td>Maladie</td></tr>
+          <tr><td><strong>AT</strong></td><td>Accident du travail</td></tr>
+          <tr><td><strong>A</strong></td><td>Absence non justifiée</td></tr>
+          <tr><td><strong>AJ</strong></td><td>Absence justifiée</td></tr>
+          <tr><td><strong>S</strong></td><td>Formation</td></tr>
+          <tr><td><strong>PMSMP</strong></td><td>Mise en situation en milieu professionnel</td></tr>
+          <tr><td><strong>DE</strong></td><td>Départ anticipé</td></tr>
+          <tr><td><strong>DI</strong></td><td>Disponibilité</td></tr>
+        </tbody>
+      </table>
+      <div class="tip"><strong>Jours fériés</strong> — les jours fériés légaux (1er janvier, Pâques, 1er mai…) sont pré-remplis automatiquement avec le code <strong>F</strong>. Si votre équipe organise un pont, un événement de type "Pont → Récup" créé dans le Planning pré-remplira le code <strong>R</strong>. Ces pré-remplissages ne s'appliquent que si la cellule n'a pas encore de valeur saisie.</div>
+
+      <h3 id="feuilles-imprimer">Imprimer</h3>
+      <p>Cliquez sur le bouton <strong>Imprimer</strong> en haut de la fiche. La feuille est formatée en <strong>A4 paysage</strong> pour correspondre au document réglementaire : en-tête avec nom du chantier, ETI, mois, lignes de signature, légende des codes et logos des financeurs.</p>
+      <p>Pour imprimer toutes les fiches d'une équipe en une seule opération, utilisez le bouton <strong>Imprimer toutes les fiches</strong> sur la page de liste — chaque fiche occupe une page A4.</p>
     </div>
 
   </main>

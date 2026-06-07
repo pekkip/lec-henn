@@ -13,7 +13,9 @@
 **État du projet (07/06/2026 — session 31) :** en test beta. **Module Planning & Émargement**
 opérationnel sur railway (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
-**Feuilles de présence mensuelles livrées (session 31).** Vue Production reste à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
+**Feuilles de présence mensuelles livrées (session 31)** : grille calendrier ISO corrigée (4 bugs),
+jours fériés légaux FR (code F) + ponts Pont→Récup (code R) sur fiche et émargement.
+Vue Production reste à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
 `total_brut()`/`reste_a_facturer()`/`LigneDevis.total()` parcourent l'arbre des lignes en
 frappant la base à chaque nœud. Sur les **listes** (devis) c'était aggravé par un 2ᵉ calcul
 dans le template ; sur le **dashboard**, plusieurs widgets (CA, reste à facturer, CA mensuel,
@@ -202,6 +204,16 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 /compta/clients/<pk>/contacts/    client_contacts_get (GET JSON)
 /compta/contacts/creation-rapide/ contact_client_create (POST JSON)
 /compta/contacts/<pk>/supprimer/  contact_client_delete (POST — admin)
+
+# MODULE INSERTION (peut_acceder_planning)
+/planning/                                  planning_mois (calendrier mensuel)
+/planning/emargement/                       emargement_view (grille hebdo)
+/planning/equipiers/                        equipiers_list
+/planning/feuilles/                         feuilles_liste (liste fiches mensuelles)
+/planning/feuilles/<eq_pk>/<annee>/<mois>/  presence_feuille (fiche individuelle)
+/planning/feuilles/note/                    fiche_note_save (POST JSON — chantier/obs)
+/planning/feuilles/presence/               fiche_presence_save (POST JSON — M/A)
+/insertion/aide/                           aide_insertion_view (manuel insertion)
 ```
 
 ⚠️ **Aperçu réutilisé** : les factures compta utilisent la route existante
@@ -225,6 +237,16 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 Les feuilles de présence mensuelles sont des documents réglementaires FSE/CISP que les ETIs remettent à la RH avant le 27 du mois pour la paie. Mise en page à reproduire fidèlement (obligation des financeurs). Objectif : saisir une fois (émargement hebdo) → tout se dérive.
 
 ### Livré
+- **Fix `_build_grille`** (4 bugs corrigés) :
+  - S31 (juillet) non éditable : logique `first_current_mon` ne gérait pas les mois démarrant sam/dim
+  - Juin 29/30 (fiche juillet) et août 31 (fiche septembre) grisés au lieu d'ambre : `in_range` manquait `d < first`
+  - Août S30 superflu : le 26 juillet est dimanche → `week26_mon = lun 20 juil` → S30 ajoutée inutilement → ajout de `start_prev` qui utilise la semaine du dernier jour ouvré du mois précédent si le 26 est sam/dim
+  - CSS ambre par cellule plutôt que par bloc : `jour.is_prev` (flag au niveau jour) remplace `bloc.is_prev` dans le template
+- **Jours fériés légaux FR** : nouvelle fonction `_jours_feries(annee)` (algorithme Grégorien anonyme pour Pâques). Lundi de Pentecôte **exclu** (journée de solidarité travaillée chez CB Bretagne). Code `F` pré-rempli sur la fiche (via `SPECIAL_MAP` JSON injecté en JS) et dans l'émargement (`special_code`)
+- **Ponts** : Evenements type `journee_ferie` → code `R` sur fiche et émargement (même mécanisme que `F`, priorité sur F)
+- **Renommage** : `('journee_ferie', 'Jour férié / pont')` → `('journee_ferie', 'Pont → Récup')` dans `models.py`
+- **Fiche** : suppression des placeholders (heures par défaut n'apparaissent plus à l'écran) ; cases Émarg. Salarié/ETI hauteur 3× (22px → 66px) ; icônes sidebar swappées (émargement `ti-clipboard-list` ↔ feuilles de présence `ti-signature`)
+- **`seed_demo`** : équipiers créés avec tous les champs contrat (`date_debut_contrat`, `date_fin_contrat`, `date_visite_medicale`, `recup_base_heures`, `recup_base_date`, `droit_conges_jours`) ; message de fin mis à jour (affiche le nombre d'équipiers)
 - **Migration 0024** (`fichenote_equipe_nullable_presence`) :
   - `Presence.affectation` → nullable + `on_delete=SET_NULL` (fix bloquant : émargement sans chantier assigné)
   - `Equipe` + 4 champs : `nom_programme`, `heures_matin_defaut`, `heures_aprem_defaut`, `afficher_plie`
@@ -246,14 +268,17 @@ Les feuilles de présence mensuelles sont des documents réglementaires FSE/CISP
 - **JSON injection** : `presence_map_json`, `note_map_json`, `chantier_json` passés au template pour pré-remplissage JS (Django templates ne supportent pas les lookups dict à clé calculée)
 
 ### Fichiers modifiés
-- `core/models.py` — FicheNote, Presence.affectation nullable, Equipe +4 champs, ROLE_CHOICES +encadrant
+- `core/models.py` — FicheNote, Presence.affectation nullable, Equipe +4 champs, ROLE_CHOICES +encadrant ; `journee_ferie` renommé "Pont → Récup"
 - `core/migrations/0024_fichenote_equipe_nullable_presence.py` — nouvelle migration
 - `core/permissions.py` — `est_encadrant` inclut `rh`
-- `core/views.py` — 4 vues + helpers `_build_grille` + `_get_chantier_semaine` ; fix `presence_save` + `emargement_view` ; import Count, FicheNote, ClotureMois, Financeur
-- `core/urls.py` — 4 routes
-- `core/templates/core/base.html` — lien sidebar
+- `core/views.py` — `_jours_feries(annee)` (jours fériés légaux FR) ; `_build_grille` corrigé (4 bugs) ; 4 vues + helper `_get_chantier_semaine` ; fix `presence_save` + `emargement_view` ; `presence_feuille` + `emargement_view` : `special_code` / `SPECIAL_MAP`
+- `core/urls.py` — 4 routes feuilles + route `insertion/aide/`
+- `core/templates/core/base.html` — lien sidebar ; icônes émargement ↔ feuilles swappées
 - `core/templates/core/feuilles_liste.html` — nouveau
-- `core/templates/core/presence_feuille.html` — nouveau
+- `core/templates/core/presence_feuille.html` — SPECIAL_MAP JS, `jour.is_prev` pour CSS, suppression placeholders
+- `core/templates/core/emargement.html` — `special_code` (F/R), hauteur Émarg Salarié/ETI 3×
+- `core/templates/core/aide_insertion.html` — section 5 "Feuilles de présence" ajoutée
+- `core/management/commands/seed_demo.py` — champs contrat équipiers + message fin (+ nb équipiers)
 
 ### À faire (prochaine session)
 - Renseigner `Equipe.nom_programme` pour chaque équipe en admin
