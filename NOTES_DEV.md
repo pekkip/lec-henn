@@ -10,7 +10,7 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
-**État du projet (07/06/2026 — session 29) :** en test beta. **Module Planning & Émargement**
+**État du projet (07/06/2026 — session 30) :** en test beta. **Module Planning & Émargement**
 opérationnel en prod (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
 Feuille de paie mensuelle et vue Production restent à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
@@ -216,6 +216,21 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 30 — 07/06/2026 — Insertion : manuel "Fonctions insertion"
+
+### Livré
+- **Page manuel Insertion** (`/insertion/aide/`) — page autonome (hors layout app) avec table des matières latérale, même style CSS que `aide.html` (Montserrat, prune, teal)
+- **4 sections** : Accès et rôles, Planning (vue, wizard affecter, drag&drop, événements, prêt), Émargement (saisie, prêts), Équipiers
+- **Lien "Fonctions insertion"** dans la section Insertion de la sidebar (visible uniquement pour `peut_acceder_planning`)
+
+### Fichiers modifiés
+- `core/urls.py` — route `insertion/aide/` → `aide-insertion`
+- `core/views.py` — vue `aide_insertion_view`
+- `core/templates/core/base.html` — lien sidebar dans le bloc Insertion
+- `core/templates/core/aide_insertion.html` — nouveau template
 
 ---
 
