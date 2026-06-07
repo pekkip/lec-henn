@@ -4018,9 +4018,9 @@ def _jours_feries(annee):
         date(annee, 11,  1),
         date(annee, 11, 11),
         date(annee, 12, 25),
-        paques + timedelta(days=1),
-        paques + timedelta(days=39),
-        paques + timedelta(days=50),
+        paques + timedelta(days=1),    # Lundi de Pâques
+        paques + timedelta(days=39),   # Ascension
+        # Lundi de Pentecôte exclu : journée de solidarité travaillée
     })
 
 
