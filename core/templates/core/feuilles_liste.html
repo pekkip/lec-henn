@@ -1,0 +1,147 @@
+{% extends 'core/base.html' %}
+{% block title %}Feuilles de présence{% endblock %}
+{% block nav_feuilles %}active{% endblock %}
+{% block topbar_title %}Feuilles de présence mensuelles{% endblock %}
+
+{% block extra_css %}
+<style>
+.fl-layout{display:grid;grid-template-columns:220px 1fr;gap:1rem;flex:1;overflow:hidden;padding:1rem 1.25rem}
+.fl-sidebar{display:flex;flex-direction:column;gap:.5rem;overflow-y:auto}
+.fl-main{overflow-y:auto}
+
+/* Sélecteur équipe */
+.eq-list{list-style:none;padding:0;margin:0}
+.eq-list li a{display:block;padding:6px 10px;border-radius:var(--r);font-size:13px;color:var(--gray);text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq-list li a:hover{background:var(--gray-lt)}
+.eq-list li a.active{background:var(--teal-lt);color:var(--teal);font-weight:600}
+
+/* Navigation mois */
+.mois-nav{display:flex;align-items:center;gap:.5rem;margin-bottom:1rem}
+.mois-nav a,.mois-nav button{border:1px solid var(--gray-bd);background:#fff;border-radius:var(--r);padding:4px 10px;font-size:13px;cursor:pointer;text-decoration:none;color:var(--gray)}
+.mois-nav a:hover{background:var(--gray-lt)}
+.mois-nom{font-size:1rem;font-weight:600;min-width:160px;text-align:center}
+
+/* Tableau équipiers */
+.eq-table{width:100%;border-collapse:collapse}
+.eq-table th{font-size:11px;font-weight:600;color:var(--gray-md);text-align:left;padding:6px 10px;border-bottom:2px solid var(--gray-bd)}
+.eq-table td{padding:8px 10px;border-bottom:1px solid var(--gray-bd);font-size:13px;vertical-align:middle}
+.eq-table tr:hover td{background:var(--gray-lt)}
+
+/* Badges statut */
+.badge-vide{display:inline-flex;align-items:center;gap:4px;color:#999;font-size:12px}
+.badge-partiel{display:inline-flex;align-items:center;gap:4px;color:#f59e0b;font-size:12px}
+.badge-complet{display:inline-flex;align-items:center;gap:4px;color:#10b981;font-size:12px}
+.badge-vide i,.badge-partiel i,.badge-complet i{font-size:15px}
+
+.btn-fiche{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:var(--r);background:var(--teal);color:#fff;font-size:12px;text-decoration:none;border:none;cursor:pointer}
+.btn-fiche:hover{background:var(--teal-dk)}
+
+.empty-state{text-align:center;padding:3rem;color:var(--gray-md)}
+.empty-state i{font-size:3rem;display:block;margin-bottom:.5rem}
+
+.print-all-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:var(--r);background:var(--gray-lt);color:var(--gray);font-size:12px;text-decoration:none;border:1px solid var(--gray-bd);cursor:pointer}
+.print-all-btn:hover{background:var(--gray-bd)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fl-layout">
+
+  <!-- Sidebar équipes -->
+  <div class="fl-sidebar">
+    <div class="card">
+      <div class="card-hd"><span>Équipes</span></div>
+      <div class="card-body" style="padding:.5rem">
+        <ul class="eq-list">
+          {% for eq in equipes %}
+          <li>
+            <a href="?equipe={{ eq.pk }}&annee={{ annee }}&mois={{ mois }}"
+               class="{% if equipe_sel and equipe_sel.pk == eq.pk %}active{% endif %}"
+               title="{{ eq.nom }}">{{ eq.nom }}</a>
+          </li>
+          {% empty %}
+          <li style="padding:6px 10px;font-size:12px;color:var(--gray-md)">Aucune équipe</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="fl-main">
+
+    <!-- Navigation mois -->
+    <div class="mois-nav">
+      <a href="?equipe={{ equipe_sel.pk|default:'' }}&annee={{ prev_annee }}&mois={{ prev_mois }}">
+        <i class="ti ti-chevron-left"></i>
+      </a>
+      <span class="mois-nom">{{ mois_nom }} {{ annee }}</span>
+      <a href="?equipe={{ equipe_sel.pk|default:'' }}&annee={{ next_annee }}&mois={{ next_mois }}">
+        <i class="ti ti-chevron-right"></i>
+      </a>
+    </div>
+
+    {% if not equipe_sel %}
+    <div class="empty-state">
+      <i class="ti ti-clipboard-list"></i>
+      <p>Sélectionnez une équipe dans le panneau gauche.</p>
+    </div>
+
+    {% elif not equipe_data %}
+    <div class="empty-state">
+      <i class="ti ti-users"></i>
+      <p>Aucun équipier actif dans cette équipe.</p>
+    </div>
+
+    {% else %}
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+      <h2 style="font-size:1rem;font-weight:600;margin:0">{{ equipe_sel.nom }}</h2>
+      <a href="{% url 'core:feuilles-liste' %}?equipe={{ equipe_sel.pk }}&annee={{ annee }}&mois={{ mois }}&imprimer=1"
+         target="_blank" class="print-all-btn">
+        <i class="ti ti-printer"></i> Imprimer toutes les fiches
+      </a>
+    </div>
+
+    <div class="card">
+      <table class="eq-table">
+        <thead>
+          <tr>
+            <th>Équipier</th>
+            <th>Statut</th>
+            <th>Demi-journées pointées</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in equipe_data %}
+          <tr>
+            <td><strong>{{ row.equipier.prenom }} {{ row.equipier.nom }}</strong></td>
+            <td>
+              {% if row.statut == 'vide' %}
+                <span class="badge-vide"><i class="ti ti-circle"></i> Non commencée</span>
+              {% elif row.statut == 'partiel' %}
+                <span class="badge-partiel"><i class="ti ti-clock"></i> En cours</span>
+              {% else %}
+                <span class="badge-complet"><i class="ti ti-circle-check"></i> Complète</span>
+              {% endif %}
+            </td>
+            <td style="font-size:12px;color:var(--gray-md)">
+              {{ row.n_realise }} / {{ row.n_theorique }}
+            </td>
+            <td>
+              <a href="{% url 'core:presence-feuille' row.equipier.pk annee mois %}"
+                 class="btn-fiche">
+                <i class="ti ti-file-text"></i> Ouvrir la fiche
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% endif %}
+  </div><!-- fl-main -->
+</div><!-- fl-layout -->
+{% endblock %}

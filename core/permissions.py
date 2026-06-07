@@ -323,7 +323,7 @@ def est_encadrant(user, equipe):
     profil = get_profil_or_none(user)
     if not profil:
         return False
-    if profil.role in ('admin', 'responsable'):
+    if profil.role in ('admin', 'responsable', 'rh'):
         return True
     return equipe.encadrant_id == user.pk
 
