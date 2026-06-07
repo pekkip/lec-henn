@@ -2954,6 +2954,18 @@ def emargement_view(request):
         ).exclude(affectation__equipe=equipe_sel):
             away_set.add((p.equipier_id, p.date.isoformat(), p.creneau))
 
+    # Jours où un équipier maison est prêté à une autre équipe cette semaine
+    pret_away_map = {}  # (equipier_id, date_iso) -> nom équipe hôte
+    if equipiers_maison:
+        for p in Pret.objects.filter(
+            equipier__in=equipiers_maison,
+            date_fin__gte=lundi,
+            date_debut__lte=vendredi,
+        ).exclude(equipe_hote=equipe_sel).select_related('equipe_hote'):
+            for jour in jours:
+                if p.date_debut <= jour <= p.date_fin:
+                    pret_away_map[(p.equipier_id, jour.isoformat())] = p.equipe_hote.nom
+
     def _build_cren_rows(eq, is_borrowed, pret=None):
         total_h = Decimal('0')
         cren_rows = []
@@ -2970,10 +2982,13 @@ def emargement_view(request):
                     in_loan = pret.date_debut <= jour <= pret.date_fin
                     is_lent = in_loan and not is_off
                     is_away = not in_loan and not is_off
+                    away_team_nom = None
                     aff_c = pres.affectation if pres else (day_aff.get(jour, aff_default) if in_loan else None)
                 else:
+                    pret_away_team = pret_away_map.get((eq.pk, date_iso))
                     is_lent = False
-                    is_away = key in away_set
+                    is_away = (key in away_set) or bool(pret_away_team)
+                    away_team_nom = pret_away_team
                     aff_c = pres.affectation if pres else day_aff.get(jour, aff_default)
                 cells.append({
                     'jour': jour,
@@ -2982,6 +2997,7 @@ def emargement_view(request):
                     'is_off': is_off,
                     'is_away': is_away,
                     'is_lent': is_lent,
+                    'away_team_nom': away_team_nom,
                     'color': aff_color.get(aff_c.pk, '') if aff_c else '',
                     'aff_id': aff_c.pk if aff_c else '',
                     'default_h': DEF_H[creneau],

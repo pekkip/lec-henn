@@ -280,7 +280,7 @@
             data-aff-id="{{ cell.aff_id }}"
             data-date="{{ cell.date_iso }}"
             data-creneau="{{ cr.creneau }}">
-            {% if cell.is_away %}<span title="Pointé ailleurs">↩</span>
+            {% if cell.is_away %}<span title="{% if cell.away_team_nom %}Prêté à {{ cell.away_team_nom }}{% else %}Pointé ailleurs{% endif %}" style="font-size:9px">↩{% if cell.away_team_nom %} {{ cell.away_team_nom }}{% endif %}</span>
             {% elif cell.is_off %}
             {% elif not cell.aff_id %}<span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
             {% elif code %}
