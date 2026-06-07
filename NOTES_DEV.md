@@ -4,6 +4,12 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
+## Consignes de collaboration
+
+- **Doute sur ce que l'utilisateur voit ou veut** → poser des questions ciblées plutôt que partir sur des hypothèses. Utiliser l'outil `AskUserQuestion` pour des questions à choix, ou poser une question directe dans le chat.
+- **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
+- **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
+
 **État du projet (07/06/2026 — session 28) :** en test beta. **Module Planning & Émargement**
 opérationnel en prod (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
