@@ -454,17 +454,38 @@ function snapFin(dateStr, equipeId) {
 
 // ── Drag & drop ────────────────────────────────────────
 let dragData = null;
+let cellPositionCache = null; // {equipeId: [{cell,left,right}]} — construit au dragstart
+let rafDragPending = false, rafDragX = 0, rafDragTrack = null;
+
+function buildCellPositionCache() {
+  const cache = {};
+  document.querySelectorAll('.tl-track[data-equipe]').forEach(tr => {
+    const eq = tr.dataset.equipe;
+    cache[eq] = [];
+    tr.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
+      const r = cell.getBoundingClientRect();
+      cache[eq].push({ cell, left: r.left, right: r.right });
+    });
+  });
+  return cache;
+}
 
 function cellAtX(track, clientX) {
+  const eq = track.dataset.equipe;
+  const entries = (cellPositionCache && cellPositionCache[eq]) || (() => {
+    const a = [];
+    track.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
+      const r = cell.getBoundingClientRect();
+      a.push({ cell, left: r.left, right: r.right });
+    });
+    return a;
+  })();
   let best = null, bestDist = Infinity;
-  track.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
-    const r = cell.getBoundingClientRect();
-    // d=0 si le curseur est dans la cellule, sinon distance au bord le plus proche
-    const d = (clientX >= r.left && clientX <= r.right)
-      ? 0
-      : Math.min(Math.abs(clientX - r.left), Math.abs(clientX - r.right));
+  for (const { cell, left, right } of entries) {
+    const d = (clientX >= left && clientX <= right)
+      ? 0 : Math.min(Math.abs(clientX - left), Math.abs(clientX - right));
     if (d < bestDist) { bestDist = d; best = cell; }
-  });
+  }
   return best;
 }
 
@@ -475,7 +496,7 @@ function clearDropOver() {
 // Déplacement de barre (move)
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
-    if (e.target !== bar) return;
+    if (e.target.closest('.bar-del')) { e.preventDefault(); return; }
     const eid = parseInt(bar.dataset.equipe);
     dragData = {
       type:      'move',
@@ -486,6 +507,7 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
+    cellPositionCache = buildCellPositionCache();
     document.body.classList.add('dragging-active');
     setTimeout(() => { bar.style.opacity = '.45'; }, 0);
   });
@@ -495,6 +517,7 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
     bar.style.opacity = '';
     clearDropOver();
     dragData = null;
+    cellPositionCache = null;
   });
 });
 
@@ -513,6 +536,7 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
+    cellPositionCache = buildCellPositionCache();
     document.body.classList.add('dragging-active');
     setTimeout(() => { bar.style.opacity = '.45'; }, 0);
   });
@@ -523,6 +547,7 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
     if (bar) bar.style.opacity = '';
     clearDropOver();
     dragData = null;
+    cellPositionCache = null;
   });
 });
 
@@ -536,9 +561,19 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
     if (!PEUT_GLOBAL && !MODIFIABLES.has(eq)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    clearDropOver();
-    const cell = cellAtX(track, e.clientX);
-    if (cell) cell.classList.add('drop-over');
+    // Mise à jour visuelle throttlée via RAF — e.preventDefault() doit rester synchrone
+    rafDragX = e.clientX;
+    rafDragTrack = track;
+    if (!rafDragPending) {
+      rafDragPending = true;
+      requestAnimationFrame(() => {
+        rafDragPending = false;
+        if (!dragData || !rafDragTrack) return;
+        clearDropOver();
+        const cell = cellAtX(rafDragTrack, rafDragX);
+        if (cell) cell.classList.add('drop-over');
+      });
+    }
   });
 
 
