@@ -25,7 +25,7 @@ from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
 
 logger = logging.getLogger(__name__)
 
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
 
 from .models import (
     Client, ContactClient, Devis, LigneDevis,
@@ -33,6 +33,7 @@ from .models import (
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
     BibliothèqueAides,
     Equipier, TrancheDevis, Affectation, Presence, Evenement, Pret,
+    FicheNote, ClotureMois, Financeur,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -2981,9 +2982,10 @@ def emargement_view(request):
         .select_related('equipe').order_by('nom', 'prenom')
     )
 
+    # Filtre par équipier maison (pas par affectation — nullable depuis migration 0024)
     presences_qs = list(
         Presence.objects.filter(
-            affectation__equipe=equipe_sel,
+            equipier__equipe=equipe_sel,
             date__range=(lundi, vendredi),
         ).select_related('equipier', 'affectation')
     )
@@ -3004,6 +3006,7 @@ def emargement_view(request):
         for p in Presence.objects.filter(
             equipier__in=equipiers_maison,
             date__range=(lundi, vendredi),
+            affectation__isnull=False,  # presences sans affectation ne sont pas « away »
         ).exclude(affectation__equipe=equipe_sel):
             away_set.add((p.equipier_id, p.date.isoformat(), p.creneau))
 
@@ -3851,23 +3854,48 @@ def presence_save(request):
     saved = deleted = 0
     for item in data.get('presences', []):
         try:
-            equipier_id    = int(item.get('equipier_id', 0))
-            affectation_id = int(item.get('affectation_id', 0))
-            d       = datetime.strptime(item.get('date', ''), '%Y-%m-%d').date()
-            creneau = item.get('creneau', '')
+            equipier_id = int(item.get('equipier_id', 0))
+            d           = datetime.strptime(item.get('date', ''), '%Y-%m-%d').date()
+            creneau     = item.get('creneau', '')
         except (ValueError, TypeError):
             continue
         if creneau not in ('matin', 'aprem'):
             continue
 
-        aff = Affectation.objects.select_related('equipe').filter(pk=affectation_id).first()
-        if not aff or not est_encadrant(request.user, aff.equipe):
-            continue
-        equipier = Equipier.objects.filter(pk=equipier_id, actif=True).first()
+        equipier = Equipier.objects.select_related('equipe').filter(pk=equipier_id, actif=True).first()
         if not equipier:
             continue
 
-        code      = (item.get('code') or '').strip().upper()
+        # Résolution de l'affectation — nullable depuis migration 0024.
+        aff_id_raw = item.get('affectation_id')
+        aff = None
+        if aff_id_raw:
+            try:
+                aff = Affectation.objects.select_related('equipe').filter(pk=int(aff_id_raw)).first()
+            except (ValueError, TypeError):
+                pass
+
+        # Gate permission : via l'affectation si elle existe, sinon via l'équipe maison.
+        if aff:
+            if not est_encadrant(request.user, aff.equipe):
+                continue
+        else:
+            if not equipier.equipe or not est_encadrant(request.user, equipier.equipe):
+                continue
+            # Auto-lookup : affectation active à cette date sur l'équipe maison.
+            aff = (
+                Affectation.objects.filter(
+                    equipe=equipier.equipe,
+                    date_debut__lte=d,
+                    date_fin__gte=d,
+                ).order_by('date_debut').first()
+                or Affectation.objects.filter(
+                    equipe=equipier.equipe,
+                    date_fin__lt=d,
+                ).order_by('-date_fin').first()
+            )
+
+        code       = (item.get('code') or '').strip().upper()
         heures_raw = (item.get('heures') or '')
         heures = Decimal('0') if code else to_decimal(heures_raw, None)
 
@@ -3883,6 +3911,7 @@ def presence_save(request):
                     'affectation': aff,
                     'heures': heures if heures is not None else Decimal('0'),
                     'code': code,
+                    'saisi_par': request.user,
                 }
             )
             saved += 1
@@ -3949,3 +3978,399 @@ def pret_save(request):
         return JsonResponse({'ok': False, 'error': 'Équipier introuvable.'}, status=400)
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=400)
+
+
+# ══════════════════════════════════════════
+#  FEUILLES DE PRÉSENCE MENSUELLES (insertion)
+# ══════════════════════════════════════════
+
+import calendar
+from django.db.models import Q as _Q
+
+
+def _build_grille(annee, mois):
+    """
+    Grille semaines ISO pour la fiche mensuelle.
+
+    Règle métier : la fiche doit toujours montrer le mois précédent jusqu'au 26
+    (délai de remise RH). Le 26 peut tomber un samedi/dimanche : dans ce cas
+    il n'apparaît pas sur la fiche (Mon-Fri uniquement), mais la semaine qui
+    le contient est quand même affichée en ambré.
+
+    Algorithme :
+      1. `first_current_mon` = premier lundi ayant des jours ouvrés du mois courant.
+         Si le 1er est sam/dim, c'est le lundi suivant.
+      2. `week26_mon` = lundi de la semaine ISO contenant le 26 du mois précédent.
+      3. Blocs ambré : toutes les semaines de week26_mon jusqu'à first_current_mon
+         (exclue). Si même semaine → rien (le 26 visible en gris dans le 1er bloc).
+      4. Blocs courants : de first_current_mon jusqu'à la fin du mois.
+         Jours hors mois courant = gris (non éditables).
+    """
+    first    = date(annee, mois, 1)
+    last_day = calendar.monthrange(annee, mois)[1]
+    last     = date(annee, mois, last_day)
+
+    # Premier lundi avec des jours ouvrés du mois courant
+    dow = first.isoweekday()  # 1=lun … 5=ven  6=sam  7=dim
+    if dow <= 5:
+        first_current_mon = first - timedelta(days=dow - 1)
+    else:
+        first_current_mon = first + timedelta(days=8 - dow)
+
+    # 26 du mois précédent
+    prev_mois  = mois - 1 if mois > 1 else 12
+    prev_annee = annee if mois > 1 else annee - 1
+    day26      = date(prev_annee, prev_mois, 26)
+    week26_mon = day26 - timedelta(days=day26.isoweekday() - 1)
+
+    JOURS_LABELS = ['L', 'M', 'M', 'J', 'V']
+
+    def make_bloc(mon, is_prev=False):
+        jours = []
+        for i in range(5):
+            d = mon + timedelta(days=i)
+            in_range = True if is_prev else (d.month == mois)
+            jours.append({
+                'date':     d,
+                'date_iso': d.isoformat(),
+                'label':    JOURS_LABELS[i],
+                'num':      d.day,
+                'in_range': in_range,
+            })
+        iso_cal = mon.isocalendar()
+        return {
+            'num_semaine': iso_cal[1],
+            'annee_iso':   iso_cal[0],
+            'is_prev':     is_prev,
+            'jours':       jours,
+        }
+
+    blocs = []
+
+    # Blocs ambré : semaines du mois précédent jusqu'à first_current_mon (exclue)
+    cur = week26_mon
+    while cur < first_current_mon:
+        blocs.append(make_bloc(cur, is_prev=True))
+        cur += timedelta(7)
+
+    # Blocs courants : de first_current_mon jusqu'à la fin du mois
+    cur = first_current_mon
+    while cur <= last:
+        blocs.append(make_bloc(cur, is_prev=False))
+        cur += timedelta(7)
+
+    return blocs
+
+
+def _get_chantier_semaine(equipier, annee, mois, note_map):
+    """
+    Construit le dict {num_semaine: chantier_str} pour un équipier.
+    Priorité : FicheNote > affectation active > référence devis.
+    """
+    result = {}
+    # Semaines couvertes par le mois
+    first = date(annee, mois, 1)
+    last_day = calendar.monthrange(annee, mois)[1]
+    last  = date(annee, mois, last_day)
+
+    # Presences du mois pour cet équipier
+    presences = list(
+        Presence.objects.filter(
+            equipier=equipier,
+            date__year=annee, date__month=mois,
+            affectation__isnull=False,
+        ).select_related('affectation__tranche__devis').order_by('date')
+    )
+
+    # Indexer par semaine : première affectation connue de la semaine
+    aff_par_semaine = {}
+    for p in presences:
+        sem = p.date.isocalendar()[1]
+        if sem not in aff_par_semaine:
+            aff_par_semaine[sem] = p.affectation
+
+    grille = _build_grille(annee, mois)
+    for bloc in grille:
+        sem = bloc['num_semaine']
+        note = note_map.get(sem)
+        if note and note.chantier_texte:
+            result[sem] = note.chantier_texte
+        elif sem in aff_par_semaine:
+            aff = aff_par_semaine[sem]
+            chantier_raw = getattr(aff.tranche.devis, 'chantier', '') or ''
+            if chantier_raw:
+                result[sem] = chantier_raw.split('\n')[0][:60]
+            else:
+                result[sem] = aff.tranche.devis.reference
+        else:
+            result[sem] = ''
+    return result
+
+
+@login_required
+def feuilles_liste(request):
+    if not peut_acceder_planning(request.user):
+        return HttpResponseForbidden("Accès réservé au module Insertion.")
+
+    profil = get_profil(request.user)
+    today  = date.today()
+
+    try:
+        annee = int(request.GET.get('annee', today.year))
+        mois  = int(request.GET.get('mois',  today.month))
+    except ValueError:
+        annee, mois = today.year, today.month
+    annee = max(2020, min(annee, today.year + 1))
+    mois  = max(1, min(mois, 12))
+
+    if profil.role in ('admin', 'responsable', 'rh'):
+        equipes = Equipe.objects.filter(actif=True, service__module_planning=True).select_related('service').order_by('nom')
+    else:
+        equipes = Equipe.objects.filter(encadrant=request.user, actif=True, service__module_planning=True).select_related('service').order_by('nom')
+
+    equipe_id = request.GET.get('equipe', '')
+    equipe_sel = equipes.filter(pk=equipe_id).first() if equipe_id else equipes.first()
+
+    # Calcul complétion par équipier
+    jours_ouvres = sum(
+        1 for d in (date(annee, mois, day) for day in range(1, calendar.monthrange(annee, mois)[1] + 1))
+        if d.weekday() < 5
+    )
+    n_theorique = jours_ouvres * 2  # matin + aprem
+
+    equipe_data = []
+    if equipe_sel:
+        equipiers = list(
+            Equipier.objects.filter(equipe=equipe_sel, actif=True).order_by('nom', 'prenom')
+        )
+        presences_mois = Presence.objects.filter(
+            equipier__in=equipiers,
+            date__year=annee, date__month=mois,
+        ).values('equipier_id').annotate(n=Count('pk'))
+        pres_count = {row['equipier_id']: row['n'] for row in presences_mois}
+
+        for eq in equipiers:
+            n = pres_count.get(eq.pk, 0)
+            if n == 0:
+                statut = 'vide'
+            elif n >= n_theorique:
+                statut = 'complet'
+            else:
+                statut = 'partiel'
+            equipe_data.append({'equipier': eq, 'n_realise': n, 'n_theorique': n_theorique, 'statut': statut})
+
+    # Navigation mois prev/next
+    if mois == 1:
+        prev_annee, prev_mois = annee - 1, 12
+    else:
+        prev_annee, prev_mois = annee, mois - 1
+    if mois == 12:
+        next_annee, next_mois = annee + 1, 1
+    else:
+        next_annee, next_mois = annee, mois + 1
+
+    MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+               'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+
+    return render(request, 'core/feuilles_liste.html', {
+        'equipes':      equipes,
+        'equipe_sel':   equipe_sel,
+        'equipe_data':  equipe_data,
+        'annee':        annee,
+        'mois':         mois,
+        'mois_nom':     MOIS_FR[mois],
+        'prev_annee':   prev_annee,
+        'prev_mois':    prev_mois,
+        'next_annee':   next_annee,
+        'next_mois':    next_mois,
+        'peut_modifier': est_encadrant(request.user, equipe_sel) if equipe_sel else False,
+    })
+
+
+@login_required
+def presence_feuille(request, eq_pk, annee, mois):
+    if not peut_acceder_planning(request.user):
+        return HttpResponseForbidden("Accès réservé au module Insertion.")
+
+    equipier = get_object_or_404(Equipier, pk=eq_pk)
+    equipe   = equipier.equipe
+    if not equipe:
+        return HttpResponseForbidden("Cet équipier n'est rattaché à aucune équipe.")
+
+    MOIS_FR = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+               'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+
+    blocs = _build_grille(annee, mois)
+
+    # Toutes les presences du mois (+ 1re semaine potentiellement du mois préc.)
+    first = date(annee, mois, 1)
+    last_day = calendar.monthrange(annee, mois)[1]
+    last  = date(annee, mois, last_day)
+    # Inclure la semaine du mois précédent si le 1er n'est pas un lundi
+    range_start = first - timedelta(days=first.isoweekday() - 1)
+
+    presences = list(
+        Presence.objects.filter(
+            equipier=equipier,
+            date__range=(range_start, last),
+        ).select_related('affectation')
+    )
+    # presence_map : clé "date_iso,creneau" pour faciliter le rendu JSON
+    presence_map = {}
+    for p in presences:
+        key = p.date.isoformat() + ',' + p.creneau
+        h_defaut = equipe.heures_matin_defaut if p.creneau == 'matin' else equipe.heures_aprem_defaut
+        presence_map[key] = {
+            'heures':       '{:g}'.format(float(p.heures)),
+            'code':         p.code,
+            'is_nondefaut': p.heures != h_defaut or bool(p.code),
+        }
+
+    # FicheNotes du mois
+    notes = list(FicheNote.objects.filter(equipier=equipier, annee=annee, mois=mois))
+    note_map = {n.num_semaine: n for n in notes}
+
+    chantier_par_semaine = _get_chantier_semaine(equipier, annee, mois, note_map)
+
+    # Sérialisation JSON pour injection dans le template
+    note_map_json = json.dumps({
+        sem: {'chantier_texte': n.chantier_texte, 'observation_texte': n.observation_texte}
+        for sem, n in note_map.items()
+    })
+    chantier_json = json.dumps({sem: txt for sem, txt in chantier_par_semaine.items()})
+
+    encadrant = equipe.encadrant
+    encadrant_profil = None
+    if encadrant:
+        try:
+            encadrant_profil = encadrant.profil
+        except Exception:
+            pass
+
+    def fmt_h(val):
+        """Formate un Decimal d'heures sans décimales inutiles : 4.00→'4', 1.50→'1.5'"""
+        return '{:g}'.format(float(val))
+
+    return render(request, 'core/presence_feuille.html', {
+        'equipier':         equipier,
+        'equipe':           equipe,
+        'encadrant':        encadrant,
+        'encadrant_profil': encadrant_profil,
+        'blocs':            blocs,
+        'presence_map_json': json.dumps(presence_map),
+        'note_map_json':    note_map_json,
+        'chantier_json':    chantier_json,
+        'annee':            annee,
+        'mois':             mois,
+        'mois_nom':         MOIS_FR[mois],
+        'peut_modifier':    est_encadrant(request.user, equipe),
+        'def_matin':        fmt_h(equipe.heures_matin_defaut),
+        'def_aprem':        fmt_h(equipe.heures_aprem_defaut),
+    })
+
+
+@login_required
+@require_POST
+def fiche_presence_save(request):
+    """
+    Sauvegarde d'une présence depuis la fiche mensuelle (ou l'émargement hebdo).
+    Lookup affectation automatique — null autorisé depuis migration 0024.
+    """
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    try:
+        equipier_id = int(data.get('equipier_id', 0))
+        d           = datetime.strptime(data.get('date', ''), '%Y-%m-%d').date()
+        creneau     = data.get('creneau', '')
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Paramètres invalides'}, status=400)
+
+    if creneau not in ('matin', 'aprem'):
+        return JsonResponse({'ok': False, 'error': 'Créneau invalide'}, status=400)
+
+    equipier = Equipier.objects.select_related('equipe').filter(pk=equipier_id, actif=True).first()
+    if not equipier or not equipier.equipe:
+        return JsonResponse({'ok': False, 'error': 'Équipier introuvable'}, status=404)
+
+    if not est_encadrant(request.user, equipier.equipe):
+        return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
+
+    # Résolution affectation : présence existante → active → dernière → None
+    existing = Presence.objects.filter(equipier=equipier, date=d, creneau=creneau).select_related('affectation').first()
+    if existing and existing.affectation:
+        aff = existing.affectation
+    else:
+        aff = (
+            Affectation.objects.filter(equipe=equipier.equipe, date_debut__lte=d, date_fin__gte=d)
+            .order_by('date_debut').first()
+            or Affectation.objects.filter(equipe=equipier.equipe, date_fin__lt=d)
+            .order_by('-date_fin').first()
+        )
+
+    code       = (data.get('code') or '').strip().upper()
+    heures_raw = (data.get('heures') or '')
+    heures = Decimal('0') if code else to_decimal(heures_raw, None)
+
+    if heures is None and not code:
+        Presence.objects.filter(equipier=equipier, date=d, creneau=creneau).delete()
+        return JsonResponse({'ok': True, 'action': 'deleted'})
+
+    Presence.objects.update_or_create(
+        equipier=equipier, date=d, creneau=creneau,
+        defaults={
+            'affectation': aff,
+            'heures':      heures if heures is not None else Decimal('0'),
+            'code':        code,
+            'saisi_par':   request.user,
+        }
+    )
+    return JsonResponse({'ok': True, 'action': 'saved'})
+
+
+@login_required
+@require_POST
+def fiche_note_save(request):
+    """
+    Sauvegarde du chantier et/ou de l'observation d'une semaine ISO (FicheNote).
+    Endpoint partagé entre émargement hebdo et fiche mensuelle.
+    """
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    try:
+        equipier_id = int(data.get('equipier_id', 0))
+        annee       = int(data.get('annee', 0))
+        mois        = int(data.get('mois', 0))
+        num_semaine = int(data.get('num_semaine', 0))
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Paramètres invalides'}, status=400)
+
+    equipier = Equipier.objects.select_related('equipe').filter(pk=equipier_id, actif=True).first()
+    if not equipier or not equipier.equipe:
+        return JsonResponse({'ok': False, 'error': 'Équipier introuvable'}, status=404)
+
+    if not est_encadrant(request.user, equipier.equipe):
+        return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
+
+    defaults = {}
+    if 'chantier_texte' in data:
+        defaults['chantier_texte'] = (data['chantier_texte'] or '').strip()[:200]
+    if 'observation_texte' in data:
+        defaults['observation_texte'] = (data['observation_texte'] or '').strip()
+
+    if defaults:
+        FicheNote.objects.update_or_create(
+            equipier=equipier, annee=annee, mois=mois, num_semaine=num_semaine,
+            defaults=defaults,
+        )
+
+    return JsonResponse({'ok': True})
