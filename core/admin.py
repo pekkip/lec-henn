@@ -5,7 +5,7 @@ from .models import (
     Devis, LigneDevis, Facture, LigneFacture, AuditLog,
     Bibliotheque,
     Financeur, Equipier, TrancheDevis, Affectation,
-    Evenement, Presence, ClotureMois,
+    Evenement, Presence, ClotureMois, Pret,
 )
 
 
@@ -215,3 +215,11 @@ class ClotureMoisAdmin(admin.ModelAdmin):
     list_filter = ['annee', 'mois', 'equipe']
     raw_id_fields = ['equipe', 'cloture_par']
     readonly_fields = ['cloture_le']
+
+
+@admin.register(Pret)
+class PretAdmin(admin.ModelAdmin):
+    list_display = ['equipier', 'equipe_hote', 'date_debut', 'date_fin', 'cree_par', 'cree_le']
+    list_filter = ['equipe_hote']
+    raw_id_fields = ['equipier', 'equipe_hote', 'cree_par']
+    readonly_fields = ['cree_le']

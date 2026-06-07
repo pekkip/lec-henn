@@ -1098,3 +1098,29 @@ class ClotureMois(models.Model):
 
     def __str__(self):
         return f"{self.equipe.nom} — {self.mois:02d}/{self.annee}"
+
+
+class Pret(models.Model):
+    """Prêt temporaire d'un équipier à une équipe hôte."""
+    equipier = models.ForeignKey(
+        Equipier, on_delete=models.CASCADE, related_name='prets'
+    )
+    equipe_hote = models.ForeignKey(
+        Equipe, on_delete=models.CASCADE, related_name='prets_recus'
+    )
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+    cree_par = models.ForeignKey(
+        User, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='prets_crees'
+    )
+    cree_le = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['date_debut']
+        unique_together = ('equipier', 'equipe_hote')
+        verbose_name = "Prêt d'équipier"
+        verbose_name_plural = "Prêts d'équipiers"
+
+    def __str__(self):
+        return f"{self.equipier} → {self.equipe_hote} ({self.date_debut}–{self.date_fin})"

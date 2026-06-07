@@ -103,6 +103,7 @@ urlpatterns = [
     path('planning/evenement/sauvegarder/',      views.evenement_save,         name='evenement-save'),
     path('planning/evenement/supprimer/',        views.evenement_delete,       name='evenement-delete'),
     path('planning/presence/sauvegarder/',       views.presence_save,         name='presence-save'),
+    path('planning/pret/sauvegarder/',           views.pret_save,             name='pret-save'),
 
     # Gestion utilisateurs
     path('utilisateurs/', views.utilisateurs_list, name='utilisateurs-list'),

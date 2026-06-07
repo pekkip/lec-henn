@@ -32,7 +32,7 @@ from .models import (
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
     BibliothèqueAides,
-    Equipier, TrancheDevis, Affectation, Presence, Evenement,
+    Equipier, TrancheDevis, Affectation, Presence, Evenement, Pret,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -2936,14 +2936,15 @@ def emargement_view(request):
     )
     pres_map = {(p.equipier_id, p.date.isoformat(), p.creneau): p for p in presences_qs}
 
-    equip_empruntes_ids = {
-        p.equipier_id for p in presences_qs
-        if p.equipier.equipe_id != equipe_sel.pk
-    }
-    equip_empruntes = (
-        list(Equipier.objects.filter(pk__in=equip_empruntes_ids).select_related('equipe'))
-        if equip_empruntes_ids else []
+    prets_semaine = list(
+        Pret.objects.filter(
+            equipe_hote=equipe_sel,
+            date_fin__gte=lundi,
+            date_debut__lte=vendredi,
+        ).select_related('equipier__equipe')
     )
+    equip_empruntes = [p.equipier for p in prets_semaine]
+    pret_map = {p.equipier_id: p for p in prets_semaine}
 
     away_set = set()
     if equipiers_maison:
@@ -2953,9 +2954,7 @@ def emargement_view(request):
         ).exclude(affectation__equipe=equipe_sel):
             away_set.add((p.equipier_id, p.date.isoformat(), p.creneau))
 
-    grid_rows = []
-    for eq in equipiers_maison + equip_empruntes:
-        is_borrowed = eq.equipe_id != equipe_sel.pk
+    def _build_cren_rows(eq, is_borrowed, pret=None):
         total_h = Decimal('0')
         cren_rows = []
         for creneau, label in CRENEAUX:
@@ -2966,26 +2965,44 @@ def emargement_view(request):
                 pres = pres_map.get(key)
                 if pres and pres.heures:
                     total_h += pres.heures
-                is_off  = (jour.weekday() == 4)
-                is_away = key in away_set
-                aff_c   = pres.affectation if pres else day_aff.get(jour, aff_default)
+                is_off = (jour.weekday() == 4)
+                if is_borrowed:
+                    in_loan = pret.date_debut <= jour <= pret.date_fin
+                    is_lent = in_loan and not is_off
+                    is_away = not in_loan and not is_off
+                    aff_c = pres.affectation if pres else (day_aff.get(jour, aff_default) if in_loan else None)
+                else:
+                    is_lent = False
+                    is_away = key in away_set
+                    aff_c = pres.affectation if pres else day_aff.get(jour, aff_default)
                 cells.append({
                     'jour': jour,
                     'date_iso': date_iso,
                     'pres': pres,
                     'is_off': is_off,
                     'is_away': is_away,
+                    'is_lent': is_lent,
                     'color': aff_color.get(aff_c.pk, '') if aff_c else '',
                     'aff_id': aff_c.pk if aff_c else '',
                     'default_h': DEF_H[creneau],
                     'is_mon': (jour.weekday() == 0),
                 })
             cren_rows.append({'label': label, 'creneau': creneau, 'cells': cells})
-        grid_rows.append({
-            'equipier': eq,
-            'is_borrowed': is_borrowed,
-            'cren_rows': cren_rows,
-            'total_h': total_h,
+        return cren_rows, total_h
+
+    grid_rows_maison = []
+    for eq in equipiers_maison:
+        cren_rows, total_h = _build_cren_rows(eq, is_borrowed=False)
+        grid_rows_maison.append({'equipier': eq, 'is_borrowed': False, 'pret_id': None, 'cren_rows': cren_rows, 'total_h': total_h})
+
+    grid_rows_empruntes = []
+    for eq in equip_empruntes:
+        pret = pret_map[eq.pk]
+        cren_rows, total_h = _build_cren_rows(eq, is_borrowed=True, pret=pret)
+        grid_rows_empruntes.append({
+            'equipier': eq, 'is_borrowed': True, 'pret_id': pret.pk,
+            'pret_debut': pret.date_debut, 'pret_fin': pret.date_fin,
+            'cren_rows': cren_rows, 'total_h': total_h,
         })
 
     panel_equipes = list(
@@ -3023,7 +3040,8 @@ def emargement_view(request):
         'affectations': affectations,
         'aff_color': aff_color,
         'aff_default': aff_default,
-        'grid_rows': grid_rows,
+        'grid_rows_maison': grid_rows_maison,
+        'grid_rows_empruntes': grid_rows_empruntes,
         'panel_equipes': panel_equipes_all,
         'devis_dispo': devis_dispo,
         'devis_mo_json': devis_mo_json,
@@ -3721,3 +3739,34 @@ def presence_save(request):
             saved += 1
 
     return JsonResponse({'ok': True, 'saved': saved, 'deleted': deleted})
+
+
+@login_required
+def pret_save(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'POST requis'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+    action = data.get('action', 'create')
+    if action == 'delete':
+        Pret.objects.filter(pk=data.get('pret_id')).delete()
+        return JsonResponse({'ok': True})
+
+    try:
+        pret, _ = Pret.objects.update_or_create(
+            equipier_id=int(data['equipier_id']),
+            equipe_hote_id=int(data['equipe_hote_id']),
+            defaults={
+                'date_debut': data['date_debut'],
+                'date_fin': data['date_fin'],
+                'cree_par': request.user,
+            },
+        )
+        return JsonResponse({'ok': True, 'pret_id': pret.pk})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=400)

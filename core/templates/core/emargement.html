@@ -43,7 +43,7 @@
 .h.name{justify-content:flex-start;padding-left:.7rem}
 .h.mon{border-left:2px solid var(--prune-bd)}
 
-.nm{display:flex;align-items:center;gap:7px;padding:0 .6rem;font-size:12px;background:#fff}
+.nm{position:relative;display:flex;align-items:center;gap:7px;padding:0 .6rem;font-size:12px;background:#fff}
 .nm .av{width:24px;height:24px;border-radius:50%;background:var(--prune-lt);color:var(--prune);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0}
 .nm.borrow{border-left:3px solid var(--amber)}
 .nm.borrow .av{background:var(--amber-lt);color:#8B5E0A}
@@ -100,6 +100,14 @@
 /* ── saisie cellules ─────────────────────── */
 .cinp-def{color:#bbb}
 .cinp.inp-err{color:var(--red);font-weight:700}
+
+/* ── prêt équipier ───────────────────────── */
+.cell.lent::before{background:var(--amber)}
+.pret-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:18px;height:18px;border:none;background:transparent;color:var(--gray-md);cursor:pointer;font-size:15px;line-height:1;border-radius:3px;display:flex;align-items:center;justify-content:center}
+.pret-del:hover{background:var(--red-lt);color:var(--red)}
+.art[draggable]{cursor:grab}
+.art[draggable]:active{cursor:grabbing}
+.addrow.drag-over{background:var(--amber-lt);outline:2px dashed var(--amber-bd,#d97706)}
 </style>
 {% endblock %}
 
@@ -181,9 +189,11 @@
           </div>
           <div class="cat-items" {% if eq.pk != equipe_sel.pk %}style="display:none"{% endif %}>
             {% for art in eq.equipiers.all %}
-            <div class="art {% if eq.pk != equipe_sel.pk %}away-eq{% endif %}" data-nom="{{ art.prenom }} {{ art.nom }}">
+            <div class="art {% if eq.pk != equipe_sel.pk %}away-eq{% endif %}" data-nom="{{ art.prenom }} {{ art.nom }}"
+              {% if eq.pk != equipe_sel.pk %}draggable="true" data-equipier-id="{{ art.pk }}" data-equipe-nom="{{ eq.nom }}"{% endif %}>
               <span class="av">{{ art.prenom|slice:":1" }}{{ art.nom|slice:":1" }}</span>
               {{ art.prenom }} {{ art.nom|slice:":6" }}.
+              {% if eq.pk != equipe_sel.pk %}<i class="ti ti-grip-vertical" style="margin-left:auto;color:#ccc;font-size:13px"></i>{% endif %}
             </div>
             {% endfor %}
           </div>
@@ -226,21 +236,17 @@
           {% endfor %}
           <div class="h">Total</div>
 
-          <!-- Lignes équipiers -->
-          {% for row in grid_rows %}
-          <div class="nm{% if row.is_borrowed %} borrow{% endif %}" style="grid-row:span 2">
+          <!-- Lignes équipiers maison -->
+          {% for row in grid_rows_maison %}
+          <div class="nm" style="grid-row:span 2">
             <span class="av">{{ row.equipier.prenom|slice:":1" }}{{ row.equipier.nom|slice:":1" }}</span>
             <div style="overflow:hidden">
               <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px">
                 {{ row.equipier.prenom }} {{ row.equipier.nom }}
               </div>
-              <small>
-                {% if row.is_borrowed %}emprunté à {{ row.equipier.equipe.nom }}
-                {% else %}{{ row.equipier.type_contrat|default:"" }}{% endif %}
-              </small>
+              <small>{{ row.equipier.type_contrat|default:"" }}</small>
             </div>
           </div>
-
           {% for cr in row.cren_rows %}
           <div class="matag">{{ cr.label }}</div>
           {% for cell in cr.cells %}
@@ -256,33 +262,77 @@
             data-aff-id="{{ cell.aff_id }}"
             data-date="{{ cell.date_iso }}"
             data-creneau="{{ cr.creneau }}">
-            {% if cell.is_away %}
-              <span title="Pointé ailleurs">↩</span>
+            {% if cell.is_away %}<span title="Pointé ailleurs">↩</span>
             {% elif cell.is_off %}
-            {% elif not cell.aff_id %}
-              <span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
+            {% elif not cell.aff_id %}<span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
             {% elif code %}
-              {% if peut_modifier %}
-              <input class="cinp" type="text" value="{{ code }}"
-                data-init="{{ code }}"
-                onfocus="this.select()"
-                oninput="onCellInput(this)"
-                onblur="saveCell(this)">
-              {% else %}
-              <span>{{ code }}</span>
-              {% endif %}
+              {% if peut_modifier %}<input class="cinp" type="text" value="{{ code }}" data-init="{{ code }}" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
+              {% else %}<span>{{ code }}</span>{% endif %}
             {% else %}
-              {% if peut_modifier %}
-              <input class="cinp{% if heures is None %} cinp-def{% endif %}" type="text"
-                value="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% else %}{{ cell.default_h }}{% endif %}"
-                data-init="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% endif %}"
-                inputmode="decimal"
-                onfocus="this.select()"
-                oninput="onCellInput(this)"
-                onblur="saveCell(this)">
-              {% else %}
-              <span>{% if heures %}{{ heures|floatformat:'-2' }}{% endif %}</span>
-              {% endif %}
+              {% if peut_modifier %}<input class="cinp{% if heures is None %} cinp-def{% endif %}" type="text" value="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% else %}{{ cell.default_h }}{% endif %}" data-init="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% endif %}" inputmode="decimal" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
+              {% else %}<span>{% if heures %}{{ heures|floatformat:'-2' }}{% endif %}</span>{% endif %}
+            {% endif %}
+            </div>
+          {% endwith %}
+          {% endfor %}
+          {% if forloop.first %}
+          <div class="gtot" style="grid-row:span 2" data-equip="{{ row.equipier.pk }}">
+            <b>{{ row.total_h|floatformat:"-2" }}</b><small>h</small>
+          </div>
+          {% endif %}
+          {% endfor %}
+          {% endfor %}
+
+          <!-- Zone de dépôt : prêt d'équipier -->
+          {% if peut_modifier %}
+          <div class="addrow" id="pret-dropzone"
+               ondragover="event.preventDefault();this.classList.add('drag-over')"
+               ondragleave="this.classList.remove('drag-over')"
+               ondrop="onPretDrop(event)">
+            <i class="ti ti-user-plus" style="color:var(--amber)"></i>
+            Glisser un équipier d'une autre équipe ici pour le prêter cette semaine
+          </div>
+          {% endif %}
+
+          <!-- Lignes équipiers empruntés -->
+          {% for row in grid_rows_empruntes %}
+          <div class="nm borrow" style="grid-row:span 2">
+            <span class="av">{{ row.equipier.prenom|slice:":1" }}{{ row.equipier.nom|slice:":1" }}</span>
+            <div style="overflow:hidden">
+              <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px">
+                {{ row.equipier.prenom }} {{ row.equipier.nom }}
+              </div>
+              <small style="color:#8B5E0A">emprunté à {{ row.equipier.equipe.nom }} · {{ row.pret_debut|date:"j/m" }}–{{ row.pret_fin|date:"j/m" }}</small>
+            </div>
+            {% if peut_modifier %}
+            <button class="pret-del" onclick="deletePret({{ row.pret_id }})" title="Retirer ce prêt">×</button>
+            {% endif %}
+          </div>
+          {% for cr in row.cren_rows %}
+          <div class="matag">{{ cr.label }}</div>
+          {% for cell in cr.cells %}
+          {% with code=cell.pres.code heures=cell.pres.heures %}
+          <div class="cell
+            {% if cell.is_away %}away
+            {% elif cell.is_off %}off
+            {% elif code %}abs {% if code == 'C' %}conge{% elif code == 'M' or code == 'AT' %}malad{% else %}abs-oth{% endif %}
+            {% elif cell.aff_id %}{{ cell.color }}{% if cell.is_lent %} lent{% endif %}
+            {% elif cell.is_lent %}lent
+            {% else %}no-aff{% endif %}
+            {% if cell.is_mon %} mon{% endif %}"
+            data-equipier-id="{{ row.equipier.pk }}"
+            data-aff-id="{{ cell.aff_id }}"
+            data-date="{{ cell.date_iso }}"
+            data-creneau="{{ cr.creneau }}">
+            {% if cell.is_away %}<span title="Hors plage de prêt" style="font-size:9px">↩ {{ row.equipier.equipe.nom }}</span>
+            {% elif cell.is_off %}
+            {% elif not cell.aff_id %}<span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
+            {% elif code %}
+              {% if peut_modifier %}<input class="cinp" type="text" value="{{ code }}" data-init="{{ code }}" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
+              {% else %}<span>{{ code }}</span>{% endif %}
+            {% else %}
+              {% if peut_modifier %}<input class="cinp{% if heures is None %} cinp-def{% endif %}" type="text" value="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% else %}{{ cell.default_h }}{% endif %}" data-init="{% if heures is not None %}{{ heures|floatformat:'-2' }}{% endif %}" inputmode="decimal" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
+              {% else %}<span>{% if heures %}{{ heures|floatformat:'-2' }}{% endif %}</span>{% endif %}
             {% endif %}
             </div>
           {% endwith %}
@@ -296,7 +346,7 @@
           {% endfor %}
 
           <!-- Pied de grille -->
-          {% if not grid_rows %}
+          {% if not grid_rows_maison and not grid_rows_empruntes %}
           <div style="grid-column:1/-1;padding:2rem;text-align:center;color:var(--gray-md);font-size:12px">
             Aucun équipier actif dans cette équipe.
           </div>
@@ -328,6 +378,32 @@
 {% endblock %}
 
 {% block modals %}
+{% if peut_modifier %}
+<div id="modal-pret" class="modal-bg hidden">
+  <div class="modal" style="width:420px">
+    <div class="modal-title">Prêt d'équipier</div>
+    <p style="font-size:13px;color:var(--gray-md);margin-bottom:.75rem">
+      Ajouter <strong id="pret-eq-nom"></strong> à <strong>{{ equipe_sel.nom }}</strong> pour&nbsp;:
+    </p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="field">
+        <label>Du *</label>
+        <input class="input" type="date" id="pret-debut">
+      </div>
+      <div class="field">
+        <label>Au *</label>
+        <input class="input" type="date" id="pret-fin">
+      </div>
+    </div>
+    <div id="pret-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
+    <div class="modal-acts">
+      <button type="button" class="btn" onclick="closePretModal()">Annuler</button>
+      <button type="button" class="btn btn-teal" onclick="submitPret()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if peut_modifier %}
 <div id="modal-aff" class="modal-bg hidden">
   <div class="modal" style="width:480px">
@@ -367,10 +443,13 @@
 const CSRF = '{{ csrf_token }}';
 const URL_PRES = '{% url "core:presence-save" %}';
 const URL_AFF  = '{% url "core:affectation-save" %}';
+const URL_PRET = '{% url "core:pret-save" %}';
 const EQUIPE_ID = {{ equipe_sel.pk|default:'null' }};
 const DEVIS_MO  = {{ devis_mo_json|safe }};
 const EQ_EFF    = {{ equipe_effectifs_json|safe }};
 const TAUX_JOUR = 82.5;  // €/jour/équipier (Lun-Jeu, 4 j/semaine)
+const LUNDI_ISO   = '{{ lundi|date:"Y-m-d" }}';
+const VENDREDI_ISO = '{{ vendredi|date:"Y-m-d" }}';
 
 function addWorkingDays(startStr, n) {
   if (n <= 0) return startStr;
@@ -523,7 +602,72 @@ function openAffModal() {
   calcDateFin();
 }
 function closeAffModal() { document.getElementById('modal-aff').classList.add('hidden'); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAffModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeAffModal(); closePretModal(); } });
+
+/* ── Prêt d'équipier : drag depuis panneau ─────────────────────────── */
+let _dragEq = null, _pendingPretEqId = null;
+
+document.querySelectorAll('.art[draggable]').forEach(art => {
+  art.addEventListener('dragstart', e => {
+    _dragEq = {id: art.dataset.equipierId, nom: art.dataset.nom, equipeNom: art.dataset.equipeNom};
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+  art.addEventListener('dragend', () => {
+    _dragEq = null;
+    document.getElementById('pret-dropzone')?.classList.remove('drag-over');
+  });
+});
+
+function onPretDrop(e) {
+  e.preventDefault();
+  document.getElementById('pret-dropzone')?.classList.remove('drag-over');
+  if (!_dragEq) return;
+  openPretModal(_dragEq);
+}
+
+function openPretModal(eq) {
+  document.getElementById('pret-eq-nom').textContent = eq.nom + ' (' + eq.equipeNom + ')';
+  document.getElementById('pret-debut').value = LUNDI_ISO;
+  document.getElementById('pret-fin').value = VENDREDI_ISO;
+  document.getElementById('pret-err').style.display = 'none';
+  _pendingPretEqId = eq.id;
+  document.getElementById('modal-pret').classList.remove('hidden');
+  document.getElementById('pret-debut').focus();
+}
+
+function closePretModal() {
+  document.getElementById('modal-pret').classList.add('hidden');
+  _pendingPretEqId = null;
+}
+
+function submitPret() {
+  const debut = document.getElementById('pret-debut').value;
+  const fin   = document.getElementById('pret-fin').value;
+  const err   = document.getElementById('pret-err');
+  if (!debut || !fin) { err.textContent = 'Renseignez les deux dates.'; err.style.display = ''; return; }
+  if (fin < debut)    { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
+  err.style.display = 'none';
+  fetch(URL_PRET, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({action:'create', equipier_id:parseInt(_pendingPretEqId), equipe_hote_id:EQUIPE_ID, date_debut:debut, date_fin:fin})
+  })
+  .then(r => r.json())
+  .then(d => { if (d.ok) location.reload(); else { err.textContent = d.error || 'Erreur'; err.style.display = ''; } })
+  .catch(() => { err.textContent = 'Erreur réseau'; err.style.display = ''; });
+}
+
+function deletePret(pretId) {
+  if (!confirm('Retirer cet équipier de la semaine ?')) return;
+  fetch(URL_PRET, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({action:'delete', pret_id:pretId})
+  })
+  .then(r => r.json())
+  .then(d => { if (d.ok) location.reload(); })
+  .catch(() => {});
+}
 
 /* ── Tab colonne-majeur : M→A→M→A par jour, équipier par équipier ─── */
 let _TAB_ORDER = null;
