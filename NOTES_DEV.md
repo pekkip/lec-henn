@@ -10,10 +10,10 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
-**État du projet (07/06/2026 — session 30) :** en test beta. **Module Planning & Émargement**
-opérationnel en prod (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
+**État du projet (07/06/2026 — session 31) :** en test beta. **Module Planning & Émargement**
+opérationnel sur railway (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
-Feuille de paie mensuelle et vue Production restent à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
+**Feuilles de présence mensuelles livrées (session 31).** Vue Production reste à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
 `total_brut()`/`reste_a_facturer()`/`LigneDevis.total()` parcourent l'arbre des lignes en
 frappant la base à chaque nœud. Sur les **listes** (devis) c'était aggravé par un 2ᵉ calcul
 dans le template ; sur le **dashboard**, plusieurs widgets (CA, reste à facturer, CA mensuel,
@@ -216,6 +216,60 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 31 — 07/06/2026 — Insertion : feuilles de présence mensuelles (FSE/CISP)
+
+### Contexte
+Les feuilles de présence mensuelles sont des documents réglementaires FSE/CISP que les ETIs remettent à la RH avant le 27 du mois pour la paie. Mise en page à reproduire fidèlement (obligation des financeurs). Objectif : saisir une fois (émargement hebdo) → tout se dérive.
+
+### Livré
+- **Migration 0024** (`fichenote_equipe_nullable_presence`) :
+  - `Presence.affectation` → nullable + `on_delete=SET_NULL` (fix bloquant : émargement sans chantier assigné)
+  - `Equipe` + 4 champs : `nom_programme`, `heures_matin_defaut`, `heures_aprem_defaut`, `afficher_plie`
+  - `ProfilUtilisateur.ROLE_CHOICES` + `('encadrant', 'Encadrant / ETI')`
+  - Nouveau modèle `FicheNote(equipier, annee, mois, num_semaine, chantier_texte, observation_texte)` — override chantier/obs par semaine ISO
+- **Fix `presence_save`** : accepte `affectation_id=null` + lookup automatique (active → dernière → None). Corrige le "dash" (cellules non éditables sans affectation)
+- **Fix `emargement_view`** : presences filtrées par `equipier__equipe` (et non plus `affectation__equipe`) → tous les équipiers actifs affichés même sans chantier planifié. `away_set` exclut les presences sans affectation
+- **`permissions.py`** : `est_encadrant` étendu à `rh` (RH peut modifier les fiches)
+- **4 nouvelles vues** : `feuilles_liste`, `presence_feuille`, `fiche_presence_save`, `fiche_note_save`
+- **4 nouvelles routes** : `planning/feuilles/`, `planning/feuilles/<eq_pk>/<annee>/<mois>/`, `.../note/`, `.../presence/`
+- **Sidebar** : lien "Feuilles de présence" (icône `ti-clipboard-list`) dans section Insertion
+- **Templates** : `feuilles_liste.html` (vue liste + badges ○/⏳/✓) + `presence_feuille.html` (fiche format A4 paysage, auto-save JS blur + debounce)
+
+### Choix techniques
+- **Pas de bouton Clôturer** : auto-save partout, cohérent avec l'émargement. Statut = comptage presences vs théorique
+- **Chantier en tête** = `Equipe.nom_programme` (dénomination réglementaire), pas le nom du devis
+- **Données contrat** (ligne équipier sur la fiche) : champs éditables manuels pour l'instant. Intégration outil externe de contrats = future évolution
+- **Navigation** : émargement hebdo conservé + feuilles de présence mensuelles coexistent (même data Presence)
+- **JSON injection** : `presence_map_json`, `note_map_json`, `chantier_json` passés au template pour pré-remplissage JS (Django templates ne supportent pas les lookups dict à clé calculée)
+
+### Fichiers modifiés
+- `core/models.py` — FicheNote, Presence.affectation nullable, Equipe +4 champs, ROLE_CHOICES +encadrant
+- `core/migrations/0024_fichenote_equipe_nullable_presence.py` — nouvelle migration
+- `core/permissions.py` — `est_encadrant` inclut `rh`
+- `core/views.py` — 4 vues + helpers `_build_grille` + `_get_chantier_semaine` ; fix `presence_save` + `emargement_view` ; import Count, FicheNote, ClotureMois, Financeur
+- `core/urls.py` — 4 routes
+- `core/templates/core/base.html` — lien sidebar
+- `core/templates/core/feuilles_liste.html` — nouveau
+- `core/templates/core/presence_feuille.html` — nouveau
+
+### À faire (prochaine session)
+- Renseigner `Equipe.nom_programme` pour chaque équipe en admin
+- Tester la fiche avec des données réelles (équipiers démo avec `(D)` dans le nom)
+- Vue Production (jours facturables/réalisés/écart)
+- Intégration outil externe contrats (hors scope session 31)
+- **Après migration hébergement définitif** : créer les Evenements "Pont → Récup" pour
+  les lundis de Pentecôte (journée de solidarité, non férié chez CB Bretagne).
+  Dans Django admin → Evenements → Ajouter :
+  - Type : Pont → Récup
+  - Libellé : Pentecôte (journée de solidarité)
+  - Date début = Date fin : la date du lundi de Pentecôte de l'année
+    (2026 : 25/05, 2027 : 14/06, 2028 : 05/06…)
+  - Créneau : Journée
+  - Équipes : laisser vide (= toutes équipes)
+  La cellule apparaîtra alors en ambré avec le code R dans l'émargement et la fiche.
 
 ---
 
