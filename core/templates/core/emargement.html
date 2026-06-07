@@ -286,7 +286,7 @@
           {% with code=cell.pres.code heures=cell.pres.heures %}
           <div class="cell
             {% if cell.is_away %}away
-            {% elif cell.is_ferie %}ferie
+            {% elif cell.special_code and not cell.pres %}ferie
             {% elif cell.is_off %}off
             {% elif code %}abs {% if code == 'C' %}conge{% elif code == 'M' or code == 'AT' %}malad{% else %}abs-oth{% endif %}
             {% elif cell.aff_id %}{{ cell.color }}
@@ -297,7 +297,9 @@
             data-date="{{ cell.date_iso }}"
             data-creneau="{{ cr.creneau }}">
             {% if cell.is_away %}<span title="{% if cell.away_team_nom %}Prêté à {{ cell.away_team_nom }}{% else %}Pointé ailleurs{% endif %}" style="font-size:9px">↩{% if cell.away_team_nom %} {{ cell.away_team_nom }}{% endif %}</span>
-            {% elif cell.is_ferie %}<span title="{{ cell.ferie_label }}">{{ cell.ferie_label|default:"Férié" }}</span>
+            {% elif cell.special_code and not cell.pres %}
+              {% if peut_modifier %}<input class="cinp code" type="text" value="{{ cell.special_code }}" data-init="" title="{{ cell.ferie_label }}" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
+              {% else %}<span title="{{ cell.ferie_label }}">{{ cell.special_code }}</span>{% endif %}
             {% elif cell.is_off %}
             {% elif not cell.aff_id %}<span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
             {% elif code %}
@@ -349,7 +351,7 @@
           {% with code=cell.pres.code heures=cell.pres.heures %}
           <div class="cell
             {% if cell.is_away %}away
-            {% elif cell.is_ferie %}ferie
+            {% elif cell.special_code and not cell.pres %}ferie
             {% elif cell.is_off %}off
             {% elif code %}abs {% if code == 'C' %}conge{% elif code == 'M' or code == 'AT' %}malad{% else %}abs-oth{% endif %}
             {% elif cell.aff_id %}{{ cell.color }}{% if cell.is_lent %} lent{% endif %}
@@ -361,7 +363,9 @@
             data-date="{{ cell.date_iso }}"
             data-creneau="{{ cr.creneau }}">
             {% if cell.is_away %}<span title="Hors plage de prêt" style="font-size:9px">↩ {{ row.equipier.equipe.nom }}</span>
-            {% elif cell.is_ferie %}<span title="{{ cell.ferie_label }}">{{ cell.ferie_label|default:"Férié" }}</span>
+            {% elif cell.special_code and not cell.pres %}
+              {% if peut_modifier %}<input class="cinp code" type="text" value="{{ cell.special_code }}" data-init="" title="{{ cell.ferie_label }}" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
+              {% else %}<span title="{{ cell.ferie_label }}">{{ cell.special_code }}</span>{% endif %}
             {% elif cell.is_off %}
             {% elif not cell.aff_id %}<span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
             {% elif code %}

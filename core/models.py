@@ -75,6 +75,22 @@ class Equipe(models.Model):
         'Financeur', blank=True, related_name='equipes',
         help_text="Financeurs affichés au pied de la fiche d'émargement"
     )
+    nom_programme = models.CharField(
+        max_length=200, blank=True,
+        help_text="Nom complet réglementaire du chantier d'insertion (ex. 'Atelier de Quartier Saint-Malo')"
+    )
+    heures_matin_defaut = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('4.00'),
+        help_text="Heures par défaut pour la demi-journée matin (émargement)"
+    )
+    heures_aprem_defaut = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('3.00'),
+        help_text="Heures par défaut pour la demi-journée après-midi (émargement)"
+    )
+    afficher_plie = models.BooleanField(
+        default=False,
+        help_text="Afficher le tampon PLIE en en-tête de la fiche d'émargement mensuelle"
+    )
     actif = models.BooleanField(default=True)
 
     class Meta:
@@ -96,6 +112,7 @@ class ProfilUtilisateur(models.Model):
         ('technicien',   'Technicien / Chargé de projet'),
         ('comptable',    'Comptable'),
         ('rh',           'Ressources humaines'),
+        ('encadrant',    'Encadrant / ETI'),
     ]
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, related_name='profil'
@@ -973,7 +990,7 @@ class Evenement(models.Model):
         ('formation',     'Formation'),
         ('visite',        'Visite'),
         ('reunion',       'Réunion'),
-        ('journee_ferie', 'Jour férié / pont'),
+        ('journee_ferie', 'Pont → Récup'),
         ('jour_sup',      'Jour supplémentaire'),
         ('autre',         'Autre'),
     ]
@@ -1046,7 +1063,8 @@ class Presence(models.Model):
         Equipier, on_delete=models.CASCADE, related_name='presences'
     )
     affectation = models.ForeignKey(
-        Affectation, on_delete=models.CASCADE, related_name='presences'
+        Affectation, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='presences'
     )
     date = models.DateField()
     creneau = models.CharField(max_length=10, choices=CRENEAU_CHOICES)
@@ -1099,6 +1117,30 @@ class ClotureMois(models.Model):
 
     def __str__(self):
         return f"{self.equipe.nom} — {self.mois:02d}/{self.annee}"
+
+
+class FicheNote(models.Model):
+    """
+    Override chantier et observation par équipier + semaine ISO.
+    Écrit depuis l'émargement hebdo ou la fiche mensuelle.
+    Partagé par les deux vues (même donnée, deux points d'entrée).
+    """
+    equipier    = models.ForeignKey(
+        Equipier, on_delete=models.CASCADE, related_name='fiche_notes'
+    )
+    annee       = models.PositiveSmallIntegerField()
+    mois        = models.PositiveSmallIntegerField()
+    num_semaine = models.PositiveSmallIntegerField()
+    chantier_texte    = models.CharField(max_length=200, blank=True)
+    observation_texte = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('equipier', 'annee', 'mois', 'num_semaine')
+        verbose_name = 'Note de fiche'
+        verbose_name_plural = 'Notes de fiche'
+
+    def __str__(self):
+        return f"{self.equipier} — S{self.num_semaine}/{self.annee}"
 
 
 class Pret(models.Model):

@@ -2935,6 +2935,9 @@ def emargement_view(request):
     jours_off_force  = set()   # jours on devenus off (formation, décalé, etc.)
     events_by_jour  = {j: [] for j in jours}
     jours_feries_ev = {}  # jour -> Evenement de type journee_ferie
+    feries_legaux   = _jours_feries(lundi.year)
+    if vendredi.year != lundi.year:
+        feries_legaux = feries_legaux | _jours_feries(vendredi.year)
     for ev in evs_semaine:
         cur = max(ev.date_debut, lundi)
         end = min(ev.date_fin or ev.date_debut, vendredi)
@@ -3034,9 +3037,11 @@ def emargement_view(request):
                 pres = pres_map.get(key)
                 if pres and pres.heures:
                     total_h += pres.heures
-                is_off = is_jour_off(jour)
-                is_ferie = jour in jours_feries_ev
-                ferie_label = jours_feries_ev[jour].libelle if is_ferie else ''
+                is_off         = is_jour_off(jour)
+                is_ferie       = jour in jours_feries_ev
+                ferie_label    = jours_feries_ev[jour].libelle if is_ferie else ''
+                is_ferie_legal = jour in feries_legaux
+                special_code   = 'R' if is_ferie else ('F' if is_ferie_legal else None)
                 if is_borrowed:
                     loan = _in_loan(jour, creneau, pret) and not is_off
                     is_lent = loan
@@ -3056,6 +3061,8 @@ def emargement_view(request):
                     'is_off': is_off,
                     'is_ferie': is_ferie,
                     'ferie_label': ferie_label,
+                    'is_ferie_legal': is_ferie_legal,
+                    'special_code': special_code,
                     'is_away': is_away,
                     'is_lent': is_lent,
                     'away_team_nom': away_team_nom,
@@ -3988,6 +3995,35 @@ import calendar
 from django.db.models import Q as _Q
 
 
+def _jours_feries(annee):
+    """Retourne le frozenset des jours fériés légaux français pour l'année donnée."""
+    def _paques(y):
+        a = y % 19; b = y // 100; c = y % 100
+        d = b // 4; e = b % 4; f = (b + 8) // 25
+        g = (b - f + 1) // 3
+        h = (19*a + b - d - g + 15) % 30
+        i = c // 4; k = c % 4
+        l = (32 + 2*e + 2*i - h - k) % 7
+        m = (a + 11*h + 22*l) // 451
+        month = (h + l - 7*m + 114) // 31
+        day   = ((h + l - 7*m + 114) % 31) + 1
+        return date(y, month, day)
+    paques = _paques(annee)
+    return frozenset({
+        date(annee, 1,  1),
+        date(annee, 5,  1),
+        date(annee, 5,  8),
+        date(annee, 7, 14),
+        date(annee, 8, 15),
+        date(annee, 11,  1),
+        date(annee, 11, 11),
+        date(annee, 12, 25),
+        paques + timedelta(days=1),
+        paques + timedelta(days=39),
+        paques + timedelta(days=50),
+    })
+
+
 def _build_grille(annee, mois):
     """
     Grille semaines ISO pour la fiche mensuelle.
@@ -4246,6 +4282,35 @@ def presence_feuille(request, eq_pk, annee, mois):
 
     chantier_par_semaine = _get_chantier_semaine(equipier, annee, mois, note_map)
 
+    # Jours fériés légaux + Evenements type journee_ferie (ponts → R)
+    all_dates = [j['date'] for b in blocs for j in b['jours']]
+    fiche_start = min(all_dates) if all_dates else first
+    fiche_end   = max(all_dates) if all_dates else last
+    feries_legaux = _jours_feries(fiche_end.year)
+    if fiche_start.year != fiche_end.year:
+        feries_legaux = feries_legaux | _jours_feries(fiche_start.year)
+    ponts_qs = Evenement.objects.filter(
+        type='journee_ferie',
+        date_debut__lte=fiche_end,
+    ).filter(
+        Q(date_fin__isnull=True, date_debut__gte=fiche_start) | Q(date_fin__gte=fiche_start)
+    ).filter(
+        Q(equipes=equipe) | Q(equipes__isnull=True)
+    ).distinct()
+    pont_dates = set()
+    for ev in ponts_qs:
+        d_cur = max(ev.date_debut, fiche_start)
+        d_end = min(ev.date_fin or ev.date_debut, fiche_end)
+        while d_cur <= d_end:
+            pont_dates.add(d_cur)
+            d_cur += timedelta(days=1)
+    special_map = {}
+    for d_sp in feries_legaux:
+        if fiche_start <= d_sp <= fiche_end:
+            special_map[d_sp.isoformat()] = 'F'
+    for d_sp in pont_dates:
+        special_map[d_sp.isoformat()] = 'R'   # pont écrase légal si même jour
+
     # Sérialisation JSON pour injection dans le template
     note_map_json = json.dumps({
         sem: {'chantier_texte': n.chantier_texte, 'observation_texte': n.observation_texte}
@@ -4278,6 +4343,7 @@ def presence_feuille(request, eq_pk, annee, mois):
         'mois':             mois,
         'mois_nom':         MOIS_FR[mois],
         'peut_modifier':    est_encadrant(request.user, equipe),
+        'special_map_json':  json.dumps(special_map),
         'def_matin':        fmt_h(equipe.heures_matin_defaut),
         'def_aprem':        fmt_h(equipe.heures_aprem_defaut),
     })
@@ -4334,11 +4400,13 @@ def fiche_presence_save(request):
         Presence.objects.filter(equipier=equipier, date=d, creneau=creneau).delete()
         return JsonResponse({'ok': True, 'action': 'deleted'})
 
+    # Heures = 0 pour les codes d'absence / jours fériés / ponts
+    heures_val = heures if heures is not None else Decimal('0')
     Presence.objects.update_or_create(
         equipier=equipier, date=d, creneau=creneau,
         defaults={
             'affectation': aff,
-            'heures':      heures if heures is not None else Decimal('0'),
+            'heures':      heures_val,
             'code':        code,
             'saisi_par':   request.user,
         }

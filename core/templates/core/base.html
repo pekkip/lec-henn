@@ -228,10 +228,13 @@ tbody tr:hover td{background:#FAFAF8}
       <i class="ti ti-calendar-month"></i><span class="nav-label">Planning</span>
     </a>
     <a href="{% url 'core:emargement' %}" title="Émargement" class="nav-item {% block nav_emargement %}{% endblock %}">
-      <i class="ti ti-calendar-week"></i><span class="nav-label">Émargement</span>
+      <i class="ti ti-clipboard-list"></i><span class="nav-label">Émargement</span>
     </a>
     <a href="{% url 'core:equipiers' %}" title="Équipiers" class="nav-item {% block nav_equipiers %}{% endblock %}">
       <i class="ti ti-id-badge-2"></i><span class="nav-label">Équipiers</span>
+    </a>
+    <a href="{% url 'core:feuilles-liste' %}" title="Feuilles de présence" class="nav-item {% block nav_feuilles %}{% endblock %}">
+      <i class="ti ti-signature"></i><span class="nav-label">Feuilles de présence</span>
     </a>
     <a href="{% url 'core:aide-insertion' %}" title="Fonctions insertion" class="nav-item {% block nav_aide_insertion %}{% endblock %}">
       <i class="ti ti-help"></i><span class="nav-label">Fonctions insertion</span>

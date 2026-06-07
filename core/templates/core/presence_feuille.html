@@ -48,7 +48,7 @@
 .cell-input.nondefaut{font-weight:700;font-style:italic}
 
 /* Lignes spéciales */
-.row-sig td{height:22px;background:#fafafa}
+.row-sig td{height:66px;background:#fafafa;vertical-align:bottom}
 .row-label{width:90px;text-align:right !important;font-size:10px;color:#555;font-weight:600;background:#f5f5f5}
 
 /* Chantier / Observation */
@@ -176,7 +176,6 @@
                    data-mois="{{ mois }}"
                    data-semaine="{{ bloc.num_semaine }}"
                    data-defaut="{{ def_matin }}"
-                   placeholder="{{ def_matin }}"
                    {% if not peut_modifier %}readonly{% endif %}>
             {% endif %}
           </td>
@@ -197,7 +196,6 @@
                    data-mois="{{ mois }}"
                    data-semaine="{{ bloc.num_semaine }}"
                    data-defaut="{{ def_aprem }}"
-                   placeholder="{{ def_aprem }}"
                    {% if not peut_modifier %}readonly{% endif %}>
             {% endif %}
           </td>
@@ -276,9 +274,10 @@
 
 <!-- Données injectées depuis la vue (JSON) -->
 <script>
-const PRES_DATA    = {{ presence_map_json|safe }};
-const NOTE_DATA    = {{ note_map_json|safe }};
+const PRES_DATA     = {{ presence_map_json|safe }};
+const NOTE_DATA     = {{ note_map_json|safe }};
 const CHANTIER_DATA = {{ chantier_json|safe }};
+const SPECIAL_MAP   = {{ special_map_json|safe }};
 const SAVE_URL_PRES = "{% url 'core:fiche-presence-save' %}";
 const SAVE_URL_NOTE = "{% url 'core:fiche-note-save' %}";
 const CSRF_TOKEN    = "{{ csrf_token }}";
@@ -310,16 +309,16 @@ function debounce(fn, delay) {
 
 const CODES = new Set(['C','R','M','AT','A','AJ','S','PMSMP','DE','DI','F']);
 
-// ── Pré-remplissage depuis PRES_DATA ──
+// ── Pré-remplissage : presences sauvegardées, puis jours fériés/ponts ──
 document.querySelectorAll('.cell-input').forEach(input => {
-  const date   = input.dataset.date;
-  const creneau = input.dataset.creneau;
-  const key = date + ',' + creneau;
+  const key = input.dataset.date + ',' + input.dataset.creneau;
   const p = PRES_DATA[key];
   if (p) {
     input.value = p.code || p.heures;
-    applyStyle(input);
+  } else if (SPECIAL_MAP[input.dataset.date]) {
+    input.value = SPECIAL_MAP[input.dataset.date];
   }
+  applyStyle(input);
 });
 
 // Chantier et observation
