@@ -3992,19 +3992,15 @@ def _build_grille(annee, mois):
     """
     Grille semaines ISO pour la fiche mensuelle.
 
-    Règle métier : la fiche doit toujours montrer le mois précédent jusqu'au 26
-    (délai de remise RH). Le 26 peut tomber un samedi/dimanche : dans ce cas
-    il n'apparaît pas sur la fiche (Mon-Fri uniquement), mais la semaine qui
-    le contient est quand même affichée en ambré.
-
-    Algorithme :
-      1. `first_current_mon` = premier lundi ayant des jours ouvrés du mois courant.
-         Si le 1er est sam/dim, c'est le lundi suivant.
-      2. `week26_mon` = lundi de la semaine ISO contenant le 26 du mois précédent.
-      3. Blocs ambré : toutes les semaines de week26_mon jusqu'à first_current_mon
-         (exclue). Si même semaine → rien (le 26 visible en gris dans le 1er bloc).
-      4. Blocs courants : de first_current_mon jusqu'à la fin du mois.
-         Jours hors mois courant = gris (non éditables).
+    Règle :
+      - Blocs ambré : toutes les semaines ISO du mois précédent visibles dans la
+        fiche (lun-ven), en partant de la semaine du 26 du mois précédent si le 26
+        est un jour ouvré ; sinon, de la semaine du dernier jour ouvré du mois
+        précédent (le 26 sam/dim n'apparaissant pas sur la fiche).
+      - Blocs courants : de first_current_mon (premier lundi avec des jours du mois
+        courant) jusqu'à la fin du mois. Les jours du mois précédent qui se trouvent
+        dans le premier bloc courant sont aussi affichés en ambré (jour.is_prev=True)
+        et éditables, les jours du mois suivant restent gris.
     """
     first    = date(annee, mois, 1)
     last_day = calendar.monthrange(annee, mois)[1]
@@ -4023,19 +4019,37 @@ def _build_grille(annee, mois):
     day26      = date(prev_annee, prev_mois, 26)
     week26_mon = day26 - timedelta(days=day26.isoweekday() - 1)
 
+    # Début des blocs ambré :
+    # - 26 ouvrable (lun-ven) → semaine du 26
+    # - 26 sam/dim → semaine du dernier jour ouvré du mois précédent
+    if day26.isoweekday() <= 5:
+        start_prev = week26_mon
+    else:
+        prev_last = first - timedelta(days=1)
+        if prev_last.isoweekday() > 5:          # sam ou dim → reculer au ven
+            prev_last -= timedelta(days=prev_last.isoweekday() - 5)
+        start_prev = prev_last - timedelta(days=prev_last.isoweekday() - 1)
+
     JOURS_LABELS = ['L', 'M', 'M', 'J', 'V']
 
     def make_bloc(mon, is_prev=False):
         jours = []
         for i in range(5):
             d = mon + timedelta(days=i)
-            in_range = True if is_prev else (d.month == mois)
+            # in_range : le jour a un input (éditable)
+            # - tous les jours des blocs ambré (is_prev=True)
+            # - jours du mois courant dans les blocs courants
+            # - jours du mois précédent dans le 1er bloc courant (d < first)
+            in_range = is_prev or d.month == mois or d < first
+            # is_prev au niveau du jour : détermine le fond ambré dans le template
+            jour_is_prev = is_prev or d < first
             jours.append({
                 'date':     d,
                 'date_iso': d.isoformat(),
                 'label':    JOURS_LABELS[i],
                 'num':      d.day,
                 'in_range': in_range,
+                'is_prev':  jour_is_prev,
             })
         iso_cal = mon.isocalendar()
         return {
@@ -4047,8 +4061,8 @@ def _build_grille(annee, mois):
 
     blocs = []
 
-    # Blocs ambré : semaines du mois précédent jusqu'à first_current_mon (exclue)
-    cur = week26_mon
+    # Blocs ambré : de start_prev jusqu'à first_current_mon (exclue)
+    cur = start_prev
     while cur < first_current_mon:
         blocs.append(make_bloc(cur, is_prev=True))
         cur += timedelta(7)

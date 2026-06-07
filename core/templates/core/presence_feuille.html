@@ -1,0 +1,418 @@
+{% extends 'core/base.html' %}
+{% block title %}Fiche — {{ equipier.prenom }} {{ equipier.nom }} — {{ mois_nom }} {{ annee }}{% endblock %}
+{% block nav_feuilles %}active{% endblock %}
+{% block topbar_title %}Fiche de présence — {{ equipier.prenom }} {{ equipier.nom }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout général ─────────────────────── */
+.fiche-wrap{padding:1rem 1.5rem;max-width:1400px;overflow-x:auto}
+.fiche-actions{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
+.btn-retour{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r);border:1px solid var(--gray-bd);background:#fff;color:var(--gray);font-size:13px;text-decoration:none;cursor:pointer}
+.btn-retour:hover{background:var(--gray-lt)}
+.btn-print{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r);background:var(--teal);color:#fff;font-size:13px;border:none;cursor:pointer}
+.btn-print:hover{background:var(--teal-dk)}
+
+/* ── Fiche (format A4 paysage) ─────────── */
+.fiche{background:#fff;border:1px solid #ccc;padding:10px 12px;font-size:11px;font-family:Arial,sans-serif;min-width:900px}
+
+/* En-tête */
+.fiche-header{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;border-bottom:2px solid #333;padding-bottom:6px;margin-bottom:6px}
+.fiche-title{font-size:14px;font-weight:bold}
+.fiche-meta{font-size:11px;line-height:1.6}
+
+/* Ligne équipier */
+.eq-info{display:flex;gap:16px;flex-wrap:wrap;padding:4px 0 6px;border-bottom:1px solid #bbb;font-size:10.5px}
+.eq-field{display:flex;gap:4px;align-items:baseline}
+.eq-field label{color:#555;white-space:nowrap}
+.eq-field input[type=text]{border:none;border-bottom:1px solid #aaa;font-size:10.5px;font-family:Arial,sans-serif;outline:none;min-width:60px;max-width:160px;padding:1px 2px}
+.eq-field input[type=text]:focus{border-bottom-color:#1a7f6f}
+
+/* Tableau principal */
+.fiche-table{width:100%;border-collapse:collapse;margin-top:6px;font-size:10.5px}
+.fiche-table th,.fiche-table td{border:1px solid #bbb;padding:2px 3px;text-align:center;vertical-align:middle}
+.fiche-table th{background:#e8e8e8;font-weight:600;font-size:10px}
+
+.th-sem{background:#d0d0d0;font-weight:700;font-size:10px}
+.th-prev{background:#fdf6e8;color:#a07000}
+.th-jour{font-weight:600}
+.th-num{font-size:9px;color:#666}
+
+/* Cellules présence */
+.cell-input{border:none;width:100%;text-align:center;font-size:10.5px;font-family:Arial,sans-serif;outline:none;background:transparent;padding:0;min-width:28px}
+.cell-input:focus{background:#e8f5f2}
+.cell-off{background:#f0f0f0;color:#bbb}
+.cell-prev{background:#fdf6e8}
+
+.cell-input.code{color:#c00;font-weight:600}
+.cell-input.nondefaut{font-weight:700;font-style:italic}
+
+/* Lignes spéciales */
+.row-sig td{height:22px;background:#fafafa}
+.row-label{width:90px;text-align:right !important;font-size:10px;color:#555;font-weight:600;background:#f5f5f5}
+
+/* Chantier / Observation */
+.cell-text input{border:none;width:100%;font-size:10px;font-family:Arial,sans-serif;outline:none;background:transparent;padding:1px 3px}
+.cell-text input:focus{background:#e8f5f2}
+.cell-text input::placeholder{color:#bbb}
+
+/* Pied de page */
+.fiche-footer{margin-top:8px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-top:1px solid #bbb;padding-top:6px}
+.legende{font-size:9px;color:#555;line-height:1.5}
+.legende strong{color:#333}
+.logos{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* Toast */
+#toast{position:fixed;bottom:20px;right:20px;background:#1a7f6f;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+#toast.show{opacity:1}
+
+/* ── Impression ─────────────────────────── */
+@media print {
+  .sidebar,.topbar,.fiche-actions,#toast{display:none !important}
+  body,.main-content{overflow:visible !important}
+  .fiche-wrap{padding:0}
+  .fiche{border:none;page-break-after:always}
+  .fiche:last-child{page-break-after:auto}
+  @page{size:A4 landscape;margin:8mm 10mm}
+  .cell-input:focus{background:transparent}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fiche-wrap">
+
+  <!-- Barre d'actions -->
+  <div class="fiche-actions">
+    <a href="{% url 'core:feuilles-liste' %}?equipe={{ equipe.pk }}&annee={{ annee }}&mois={{ mois }}"
+       class="btn-retour"><i class="ti ti-arrow-left"></i> Retour</a>
+    <button class="btn-print" onclick="window.print()">
+      <i class="ti ti-printer"></i> Imprimer
+    </button>
+  </div>
+
+  <!-- ═══ FICHE ═══ -->
+  <div class="fiche">
+
+    <!-- En-tête -->
+    <div class="fiche-header">
+      <div>
+        <div class="fiche-title">Fiche d'Émargement Mensuelle — {{ annee }}</div>
+        <div class="fiche-meta">
+          Chantier d'Insertion : <strong>{{ equipe.nom_programme|default:equipe.nom }}</strong><br>
+          {% if encadrant %}ETI : <strong>{{ encadrant.get_full_name }}</strong>{% if encadrant_profil and encadrant_profil.telephone %} — Tél. {{ encadrant_profil.telephone }}{% endif %}<br>{% endif %}
+          Mois de : <strong>{{ mois_nom }} {{ annee }}</strong>
+        </div>
+      </div>
+      <div style="text-align:right;font-size:9px;color:#777">
+        Compagnons Bâtisseurs<br>Bretagne
+      </div>
+    </div>
+
+    <!-- Ligne équipier -->
+    <div class="eq-info">
+      <div class="eq-field"><label>Équipier :</label> <strong>{{ equipier.prenom }} {{ equipier.nom|upper }}</strong></div>
+      <div class="eq-field">
+        <label>Début contrat :</label>
+        <input type="text" value="{{ equipier.date_debut_contrat|default:''|date:'d/m/Y' }}" placeholder="jj/mm/aaaa" {% if not peut_modifier %}readonly{% endif %}>
+      </div>
+      <div class="eq-field">
+        <label>Fin :</label>
+        <input type="text" value="{{ equipier.date_fin_contrat|default:''|date:'d/m/Y' }}" placeholder="jj/mm/aaaa" {% if not peut_modifier %}readonly{% endif %}>
+      </div>
+      <div class="eq-field">
+        <label>Type :</label>
+        <input type="text" value="{{ equipier.type_contrat }}" style="min-width:120px" {% if not peut_modifier %}readonly{% endif %}>
+      </div>
+      <div class="eq-field">
+        <label>Récup (h) :</label>
+        <input type="text" value="{{ equipier.recup_base_heures }}" style="min-width:36px" {% if not peut_modifier %}readonly{% endif %}>
+      </div>
+      <div class="eq-field">
+        <label>Congés (j) :</label>
+        <input type="text" value="{{ equipier.droit_conges_jours }}" style="min-width:36px" {% if not peut_modifier %}readonly{% endif %}>
+      </div>
+      <div class="eq-field">
+        <label>Visite médicale :</label>
+        <input type="text" value="{{ equipier.date_visite_medicale|default:''|date:'d/m/Y' }}" placeholder="jj/mm/aaaa" {% if not peut_modifier %}readonly{% endif %}>
+      </div>
+    </div>
+
+    <!-- ── Tableau émargement ── -->
+    <table class="fiche-table" id="fiche-table">
+      <thead>
+        <tr>
+          <th class="row-label" rowspan="3" style="width:90px">Semaine</th>
+          {% for bloc in blocs %}
+          <th class="th-sem {% if bloc.is_prev %}th-prev{% endif %}" colspan="5">
+            {% if bloc.is_prev %}Mois préc.{% else %}Sem.{% endif %} S{{ bloc.num_semaine }}
+          </th>
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for bloc in blocs %}{% for jour in bloc.jours %}
+          <th class="th-jour {% if not jour.in_range %}cell-off{% elif jour.is_prev %}cell-prev{% endif %}">{{ jour.label }}</th>
+          {% endfor %}{% endfor %}
+        </tr>
+        <tr>
+          {% for bloc in blocs %}{% for jour in bloc.jours %}
+          <th class="th-num {% if not jour.in_range %}cell-off{% elif jour.is_prev %}cell-prev{% endif %}">{{ jour.num }}</th>
+          {% endfor %}{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- Matin -->
+        <tr>
+          <td class="row-label">M</td>
+          {% for bloc in blocs %}{% for jour in bloc.jours %}
+          <td class="{% if not jour.in_range %}cell-off{% elif jour.is_prev %}cell-prev{% endif %}">
+            {% if jour.in_range %}
+            <input class="cell-input"
+                   data-date="{{ jour.date_iso }}"
+                   data-creneau="matin"
+                   data-equipier="{{ equipier.pk }}"
+                   data-annee="{{ annee }}"
+                   data-mois="{{ mois }}"
+                   data-semaine="{{ bloc.num_semaine }}"
+                   data-defaut="{{ def_matin }}"
+                   placeholder="{{ def_matin }}"
+                   {% if not peut_modifier %}readonly{% endif %}>
+            {% endif %}
+          </td>
+          {% endfor %}{% endfor %}
+        </tr>
+
+        <!-- Après-midi -->
+        <tr>
+          <td class="row-label">A</td>
+          {% for bloc in blocs %}{% for jour in bloc.jours %}
+          <td class="{% if not jour.in_range %}cell-off{% elif jour.is_prev %}cell-prev{% endif %}">
+            {% if jour.in_range %}
+            <input class="cell-input"
+                   data-date="{{ jour.date_iso }}"
+                   data-creneau="aprem"
+                   data-equipier="{{ equipier.pk }}"
+                   data-annee="{{ annee }}"
+                   data-mois="{{ mois }}"
+                   data-semaine="{{ bloc.num_semaine }}"
+                   data-defaut="{{ def_aprem }}"
+                   placeholder="{{ def_aprem }}"
+                   {% if not peut_modifier %}readonly{% endif %}>
+            {% endif %}
+          </td>
+          {% endfor %}{% endfor %}
+        </tr>
+
+        <!-- Émargement Salarié -->
+        <tr class="row-sig">
+          <td class="row-label" style="font-size:9px">Émarg.<br>Salarié</td>
+          {% for bloc in blocs %}{% for jour in bloc.jours %}
+          <td class="{% if not jour.in_range %}cell-off{% elif jour.is_prev %}cell-prev{% endif %}"></td>
+          {% endfor %}{% endfor %}
+        </tr>
+
+        <!-- Chantier par semaine -->
+        <tr>
+          <td class="row-label">Chantier</td>
+          {% for bloc in blocs %}
+          <td class="cell-text" colspan="5" style="{% if bloc.is_prev %}background:#fdf6e8{% endif %}">
+            <input data-type="chantier"
+                   data-equipier="{{ equipier.pk }}"
+                   data-annee="{{ annee }}"
+                   data-mois="{{ mois }}"
+                   data-semaine="{{ bloc.num_semaine }}"
+                   {% if not peut_modifier %}readonly{% endif %}>
+          </td>
+          {% endfor %}
+        </tr>
+
+        <!-- Observation par semaine -->
+        <tr>
+          <td class="row-label">Observation</td>
+          {% for bloc in blocs %}
+          <td class="cell-text" colspan="5" style="{% if bloc.is_prev %}background:#fdf6e8{% endif %}">
+            <input data-type="observation"
+                   data-equipier="{{ equipier.pk }}"
+                   data-annee="{{ annee }}"
+                   data-mois="{{ mois }}"
+                   data-semaine="{{ bloc.num_semaine }}"
+                   {% if not peut_modifier %}readonly{% endif %}>
+          </td>
+          {% endfor %}
+        </tr>
+
+        <!-- Émargement ETI -->
+        <tr class="row-sig">
+          <td class="row-label" style="font-size:9px">Émarg.<br>ETI</td>
+          {% for bloc in blocs %}{% for jour in bloc.jours %}
+          <td class="{% if not jour.in_range %}cell-off{% elif jour.is_prev %}cell-prev{% endif %}"></td>
+          {% endfor %}{% endfor %}
+        </tr>
+
+      </tbody>
+    </table>
+
+    <!-- Pied de page -->
+    <div class="fiche-footer">
+      <div class="legende">
+        <strong>Légende :</strong>
+        C = Congé | R = Récupération | M = Maladie | AT = Accident du travail |
+        A = Absence | AJ = Absence justifiée non rémunérée | S = Suspension |
+        PMSMP = Période de Mise en Situation en Milieu Professionnel |
+        DE = Démarches externes | DI = Démarches internes | F = Férié
+      </div>
+      <div class="logos">
+        {% for fin in equipe.financeurs.all %}
+        <span style="font-size:9px;border:1px solid #ddd;padding:2px 6px;border-radius:3px">{{ fin.nom }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+  </div><!-- fiche -->
+</div><!-- fiche-wrap -->
+
+<div id="toast"></div>
+
+<!-- Données injectées depuis la vue (JSON) -->
+<script>
+const PRES_DATA    = {{ presence_map_json|safe }};
+const NOTE_DATA    = {{ note_map_json|safe }};
+const CHANTIER_DATA = {{ chantier_json|safe }};
+const SAVE_URL_PRES = "{% url 'core:fiche-presence-save' %}";
+const SAVE_URL_NOTE = "{% url 'core:fiche-note-save' %}";
+const CSRF_TOKEN    = "{{ csrf_token }}";
+const PEUT_MODIFIER = {{ peut_modifier|yesno:'true,false' }};
+const DEF_MATIN     = {{ def_matin }};
+const DEF_APREM     = {{ def_aprem }};
+</script>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Toast ──
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = isErr ? '#c00' : '#1a7f6f';
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function debounce(fn, delay) {
+  let timer;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+const CODES = new Set(['C','R','M','AT','A','AJ','S','PMSMP','DE','DI','F']);
+
+// ── Pré-remplissage depuis PRES_DATA ──
+document.querySelectorAll('.cell-input').forEach(input => {
+  const date   = input.dataset.date;
+  const creneau = input.dataset.creneau;
+  const key = date + ',' + creneau;
+  const p = PRES_DATA[key];
+  if (p) {
+    input.value = p.code || p.heures;
+    applyStyle(input);
+  }
+});
+
+// Chantier et observation
+document.querySelectorAll('[data-type="chantier"]').forEach(input => {
+  const sem = parseInt(input.dataset.semaine);
+  if (NOTE_DATA[sem] && NOTE_DATA[sem].chantier_texte) {
+    input.value = NOTE_DATA[sem].chantier_texte;
+  } else if (CHANTIER_DATA[sem]) {
+    input.placeholder = CHANTIER_DATA[sem];
+  }
+});
+document.querySelectorAll('[data-type="observation"]').forEach(input => {
+  const sem = parseInt(input.dataset.semaine);
+  if (NOTE_DATA[sem] && NOTE_DATA[sem].observation_texte) {
+    input.value = NOTE_DATA[sem].observation_texte;
+  }
+});
+
+function applyStyle(input) {
+  const raw   = input.value.trim();
+  const upper = raw.toUpperCase();
+  input.classList.remove('code', 'nondefaut');
+  if (!raw) return;
+  if (CODES.has(upper)) {
+    input.classList.add('code');
+  } else {
+    const n      = parseFloat(raw.replace(',', '.'));
+    const defaut = parseFloat(input.dataset.defaut);
+    if (!isNaN(n) && Math.abs(n - defaut) > 0.01) input.classList.add('nondefaut');
+  }
+}
+
+// ── Sauvegarde présence ──
+const savePresence = debounce(async function(input) {
+  const raw    = input.value.trim();
+  const upper  = raw.toUpperCase();
+  let heures = '', code = '';
+  if (CODES.has(upper)) {
+    code = upper;
+    input.value = code;
+  } else {
+    const n = parseFloat(raw.replace(',', '.'));
+    heures = (raw === '' || isNaN(n)) ? '' : String(n);
+  }
+  applyStyle(input);
+  try {
+    const resp = await fetch(SAVE_URL_PRES, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify({
+        equipier_id: input.dataset.equipier,
+        date:        input.dataset.date,
+        creneau:     input.dataset.creneau,
+        heures, code,
+      }),
+    });
+    const data = await resp.json();
+    if (data.ok) showToast('✓ Enregistré');
+    else         showToast('Erreur : ' + data.error, true);
+  } catch(e) { showToast('Erreur réseau', true); }
+}, 400);
+
+// ── Sauvegarde note ──
+const saveNote = debounce(async function(input) {
+  const type = input.dataset.type;
+  const payload = {
+    equipier_id: parseInt(input.dataset.equipier),
+    annee:       parseInt(input.dataset.annee),
+    mois:        parseInt(input.dataset.mois),
+    num_semaine: parseInt(input.dataset.semaine),
+  };
+  payload[type === 'chantier' ? 'chantier_texte' : 'observation_texte'] = input.value.trim();
+  try {
+    const resp = await fetch(SAVE_URL_NOTE, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (data.ok) showToast('✓ Enregistré');
+    else         showToast('Erreur : ' + data.error, true);
+  } catch(e) { showToast('Erreur réseau', true); }
+}, 600);
+
+// ── Écouteurs (uniquement si édition autorisée) ──
+if (PEUT_MODIFIER) {
+  document.querySelectorAll('.cell-input').forEach(inp => {
+    inp.addEventListener('blur', () => savePresence(inp));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+  });
+  document.querySelectorAll('[data-type]').forEach(inp => {
+    inp.addEventListener('blur', () => saveNote(inp));
+  });
+}
+</script>
+{% endblock %}
