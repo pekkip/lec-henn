@@ -532,8 +532,10 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
       type:      'move',
       affId:     bar.dataset.aff,
       dur:       workingDays(bar.dataset.debut, bar.dataset.fin, eid),
-      devisId:   parseInt(bar.dataset.devis),
-      equipeId:  eid,
+      devisId:      parseInt(bar.dataset.devis),
+      equipeId:     eid,
+      debutCreneau: bar.dataset.debutCreneau || 'matin',
+      finCreneau:   bar.dataset.finCreneau   || 'aprem',
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
@@ -562,7 +564,8 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
       affId:     bar.dataset.aff,
       equipeId:  bar.dataset.equipe,
       side:      side,
-      otherDate: side === 'right' ? bar.dataset.debut : bar.dataset.fin,
+      otherDate:   side === 'right' ? bar.dataset.debut : bar.dataset.fin,
+      otherCreneau: side === 'right' ? (bar.dataset.debutCreneau || 'matin') : (bar.dataset.finCreneau || 'aprem'),
     };
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
@@ -614,9 +617,12 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
     const cell = cellAtX(track, e.clientX);
     if (!cell) { dragData = null; return; }
 
-    let newDebut, newFin, newEquipe;
+    const dropCreneau = cell.classList.contains('aprem') ? 'aprem' : 'matin';
+    let newDebut, newFin, newEquipe, newDebutCreneau, newFinCreneau;
     if (dragData.type === 'move') {
-      newEquipe = eq;
+      newEquipe      = eq;
+      newDebutCreneau = dropCreneau;
+      newFinCreneau   = dragData.finCreneau;
       newDebut  = snapDebut(cell.dataset.date, newEquipe);
       if (newEquipe !== dragData.equipeId) {
         const mo   = DEVIS_MO[dragData.devisId] || 0;
@@ -630,11 +636,15 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
     } else {
       newEquipe = parseInt(dragData.equipeId);
       if (dragData.side === 'right') {
-        newDebut = dragData.otherDate;
-        newFin   = snapFin(cell.dataset.date, newEquipe);
+        newDebut        = dragData.otherDate;
+        newDebutCreneau = dragData.otherCreneau;
+        newFin          = snapFin(cell.dataset.date, newEquipe);
+        newFinCreneau   = dropCreneau;
       } else {
-        newDebut = snapDebut(cell.dataset.date, newEquipe);
-        newFin   = dragData.otherDate;
+        newDebut        = snapDebut(cell.dataset.date, newEquipe);
+        newDebutCreneau = dropCreneau;
+        newFin          = dragData.otherDate;
+        newFinCreneau   = dragData.otherCreneau;
       }
       if (newFin < newDebut) { clearDropOver(); dragData = null; return; }
     }
@@ -644,7 +654,7 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
     fetch(URL_MOVE, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({aff_id: parseInt(savedAffId), date_debut: newDebut, date_fin: newFin, equipe_id: newEquipe}),
+      body: JSON.stringify({aff_id: parseInt(savedAffId), date_debut: newDebut, date_fin: newFin, equipe_id: newEquipe, debut_creneau: newDebutCreneau, fin_creneau: newFinCreneau}),
     })
     .then(r => r.json())
     .then(d => {
