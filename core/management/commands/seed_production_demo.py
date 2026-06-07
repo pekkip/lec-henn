@@ -562,11 +562,12 @@ class Command(BaseCommand):
                     if not Facture.objects.filter(notes=MARKER, devis=devis).exists():
                         brut = devis.total_brut() or Decimal('3000')
                         montant = (brut * chantier_cfg['facture_ratio']).quantize(Decimal('0.01'))
-                        fac_date = date(fac_mois[0], fac_mois[1], 15)
+                        fac_day = R.randint(8, 22)
+                        fac_date = date(fac_mois[0], fac_mois[1], fac_day)
                         fac_dt = timezone.make_aware(
-                            __import__('datetime').datetime(fac_mois[0], fac_mois[1], 15, 10, 0)
+                            __import__('datetime').datetime(fac_mois[0], fac_mois[1], fac_day, R.randint(8, 17), 0)
                         )
-                        Facture.objects.create(
+                        fac = Facture.objects.create(
                             devis=devis,
                             type_doc='facture',
                             destinataire=str(client),
@@ -578,6 +579,11 @@ class Command(BaseCommand):
                             date_echeance=fac_date + timedelta(days=30),
                             created_by=user,
                             notes=MARKER,
+                        )
+                        # date_creation et created_at ont auto_now_add=True → update() pour forcer la date historique
+                        Facture.objects.filter(pk=fac.pk).update(
+                            date_creation=fac_date,
+                            created_at=fac_dt,
                         )
                         n_fac += 1
 
