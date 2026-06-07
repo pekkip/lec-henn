@@ -3280,6 +3280,7 @@ def planning_mois(request):
                 'lundi_em': lundi_em.isoformat(),
                 'nb_jours': nb_jours,
                 'pct_consomme': pct_consomme,
+                'has_presences': heures_conso > 0,
             })
 
         # ── Événements de cette équipe ──────────────────────────────────

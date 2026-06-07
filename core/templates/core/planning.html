@@ -101,6 +101,7 @@ body.dragging-active .tl-bar{pointer-events:none}
 body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .tl-cell.drop-over{background:rgba(43,191,164,.28)!important;outline:2px dashed var(--teal);outline-offset:-2px}
 /* Bouton suppression sur barre */
+.tl-bar .bar-lock{position:absolute;top:3px;right:22px;background:none;border:none;cursor:pointer;font-size:11px;line-height:1;padding:0;opacity:.7;z-index:2;display:none}.tl-bar:hover .bar-lock{display:block}[data-locked="1"] .bar-lock{display:block}
 .tl-bar .bar-del{display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:inherit;font-size:15px;line-height:1;padding:0 3px;opacity:.6;z-index:3}
 .tl-bar:hover .bar-del{display:block}
 .tl-bar .bar-del:hover{opacity:1}
@@ -252,6 +253,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
                data-fin-creneau="{{ barre.aff.fin_creneau }}"
                data-equipe="{{ ligne.equipe.pk }}"
                data-aff="{{ barre.aff.pk }}"
+               data-locked="{% if barre.has_presences %}1{% else %}0{% endif %}"
                {% if ligne.peut_modifier %}draggable="true"{% endif %}>
               {% if ligne.peut_modifier %}<span class="resize-l" draggable="true" data-side="left"></span>{% endif %}
               <div class="bar-top">
@@ -264,7 +266,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
                 <div class="bar-prog" title="{{ barre.pct_consomme }}% consommé"><div class="bar-prog-fill" style="width:{{ barre.pct_consomme }}%"></div></div>
                 <span class="bar-pct">{{ barre.pct_consomme }}%</span>
               </div>
-              {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button><span class="resize-r" draggable="true" data-side="right"></span>{% endif %}
+              {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button>{% if barre.has_presences %}<button type="button" class="bar-lock" title="Émargements renseignés — cliquer pour déverrouiller">🔒</button>{% endif %}<span class="resize-r" draggable="true" data-side="right"></span>{% endif %}
             </div>
             {% endfor %}
             {% if not ligne.barres %}
@@ -527,6 +529,7 @@ function applyBarUpdate(bar, newTrack, u) {
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
     if (e.target.closest('.bar-del')) { e.preventDefault(); return; }
+    if (bar.dataset.locked === '1') { e.preventDefault(); return; }
     const eid = parseInt(bar.dataset.equipe);
     dragData = {
       type:      'move',
@@ -558,6 +561,7 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
   handle.addEventListener('dragstart', e => {
     e.stopPropagation();
     const bar  = handle.closest('.tl-bar');
+    if (bar && bar.dataset.locked === '1') { e.preventDefault(); return; }
     const side = handle.dataset.side;
     dragData = {
       type:      'resize',
@@ -581,6 +585,18 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
     clearDropOver();
     dragData = null;
     cellPositionCache = null;
+  });
+});
+
+// Verrouillage des barres avec présences
+document.querySelectorAll('.bar-lock').forEach(btn => {
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const bar = btn.closest('.tl-bar');
+    const locked = bar.dataset.locked === '1';
+    bar.dataset.locked = locked ? '0' : '1';
+    btn.textContent = locked ? '🔓' : '🔒';
+    btn.title = locked ? 'Déverrouillé — cliquer pour reverrouiller' : 'Émargements renseignés — cliquer pour déverrouiller';
   });
 });
 
