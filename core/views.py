@@ -3758,15 +3758,32 @@ def pret_save(request):
         return JsonResponse({'ok': True})
 
     try:
+        equipier = Equipier.objects.select_related('equipe').get(pk=int(data['equipier_id']))
+        date_debut = data['date_debut']
+        date_fin   = data['date_fin']
+
+        deja_saisi = Presence.objects.filter(
+            equipier=equipier,
+            date__range=(date_debut, date_fin),
+            affectation__equipe=equipier.equipe,
+        ).exists()
+        if deja_saisi:
+            return JsonResponse({
+                'ok': False,
+                'error': f"{equipier.prenom} {equipier.nom} a déjà des émargements saisis dans {equipier.equipe.nom} sur cette période."
+            })
+
         pret, _ = Pret.objects.update_or_create(
-            equipier_id=int(data['equipier_id']),
+            equipier=equipier,
             equipe_hote_id=int(data['equipe_hote_id']),
             defaults={
-                'date_debut': data['date_debut'],
-                'date_fin': data['date_fin'],
+                'date_debut': date_debut,
+                'date_fin': date_fin,
                 'cree_par': request.user,
             },
         )
         return JsonResponse({'ok': True, 'pret_id': pret.pk})
+    except Equipier.DoesNotExist:
+        return JsonResponse({'ok': False, 'error': 'Équipier introuvable.'}, status=400)
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=400)
