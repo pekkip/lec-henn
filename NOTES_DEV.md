@@ -10,12 +10,14 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
-**État du projet (07/06/2026 — session 31) :** en test beta. **Module Planning & Émargement**
+**État du projet (08/06/2026 — session 32) :** en test beta. **Module Planning & Émargement**
 opérationnel sur railway (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
 **Feuilles de présence mensuelles livrées (session 31)** : grille calendrier ISO corrigée (4 bugs),
 jours fériés légaux FR (code F) + ponts Pont→Récup (code R) sur fiche et émargement.
-Vue Production reste à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
+**Widgets Production livrés (session 32)** : 7 widgets (`requires_planning=True`) dans le dashboard
+existant + barre de filtres partagée (période + équipes) + commande `seed_production_demo` (6 équipes
+Insertion 35, Jan–Mai 2026). **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
 `total_brut()`/`reste_a_facturer()`/`LigneDevis.total()` parcourent l'arbre des lignes en
 frappant la base à chaque nœud. Sur les **listes** (devis) c'était aggravé par un 2ᵉ calcul
 dans le template ; sur le **dashboard**, plusieurs widgets (CA, reste à facturer, CA mensuel,
@@ -23,7 +25,7 @@ top clients, financements) sommaient ces méthodes sur **tous** les devis accept
 logique de totaux factorisée dans **`core/totaux.py`** (calcul **en mémoire** depuis des
 lignes préchargées) + `prefetch_related` partout → nombre de requêtes **constant** (ne croît
 plus avec le volume). **Pagination** (50/page, helper `paginer` + partial `_pagination.html`)
-ajoutée aux 4 listes (devis, factures, compta, avoirs). **52 tests.** **TABLEAU DE BORD PERSONNALISABLE** (session 21) : dashboard modulaire par
+ajoutée aux 4 listes (devis, factures, compta, avoirs). **72 tests.** **TABLEAU DE BORD PERSONNALISABLE** (session 21) : dashboard modulaire par
 utilisateur (widgets KPI / listes / graphiques Chart.js / activité), réordonnables en
 glisser-déposer, masquables, avec **portée par widget** (Tous / Mes données / Mon équipe) ;
 widgets compta réservés admin/comptable ; sidebar **repliable** (icônes seules). Icônes :
@@ -57,7 +59,7 @@ venv\Scripts\pip install -r requirements.txt
 # Lancer / migrer / tester / vérifier (utiliser le python du venv)
 venv\Scripts\python manage.py migrate
 venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
-venv\Scripts\python manage.py test core      # 39 tests (core/tests.py)
+venv\Scripts\python manage.py test core      # 72 tests (core/tests.py)
 venv\Scripts\python manage.py check
 ```
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
@@ -87,6 +89,7 @@ cb-bretagne/
     ├── totaux.py              — calcul des totaux de devis en mémoire (anti N+1), partagé views/dashboard
     ├── dashboard_widgets.py   — registre + fournisseurs de données des widgets du dashboard
     ├── management/commands/seed_demo.py  — jeu de démo (9 équipes, idempotent, marqué SEED_DEMO)
+    ├── management/commands/seed_production_demo.py  — démo production Insertion 35 (6 équipes, Jan–Mai 2026, marqué DEMO35)
     ├── admin.py
     ├── tests.py               — 21 tests (contrôle d'accès, clients)
     ├── migrations/
@@ -228,6 +231,73 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 32 — 08/06/2026 — Production : widgets dashboard + seed Insertion 35 + barre de filtres
+
+### Contexte
+Objectif : visualiser la production des équipes Insertion 35 directement dans le dashboard existant (pas de nouvelle page), avec des données de démo réalistes et une barre de filtres partagée (période + équipes).
+
+### Livré
+
+**7 widgets Production** (`requires_planning=True`) dans le dashboard existant :
+- `prod_kpi_montant` — Montant facturé (mois)
+- `prod_kpi_j_realises` — Jours réalisés (mois)
+- `prod_kpi_ratio` — €/j réalisé (mois)
+- `prod_kpi_taux` — Taux de réalisation (mois)
+- `prod_list_chantiers` — table Production par chantier (J.fact / J.réal / écart / montant / €/j / taux)
+- `prod_list_depassements` — Chantiers en dépassement (top 5 par écart)
+- `prod_chart_equipes` — barres Avancement par équipe
+
+**Métriques clés (définitions métier) :**
+- **Jours facturables** = jours de travail (lun–jeu) dans la plage d'affectation intersectée avec la période filtrée, par equipe/devis
+- **Jours réalisés** = `Count('date', distinct=True)` sur les `Presence(code='')` de la période → nombre de journées-équipe avec au moins un présent (≠ nb présences ÷ 2)
+- **Taux de réalisation** = jours_réalisés / jours_facturables (100 % = équipe présente tous les jours planifiés)
+- **Montant facturé** = factures validées/envoyées/payées (`validated_at` dans la période)
+
+**`_prod_data(ctx=None)`** — agrégation commune dans `dashboard_widgets.py` :
+- Sans `ctx` → mois courant, toutes équipes insertion
+- Avec `ctx = {debut, fin, equipe_ids}` → filtre appliqué
+- Architecture : Presence → `values('affectation__tranche__devis_id', 'affectation__equipe_id').annotate(n=Count('date', distinct=True))`, Affectation (jours_facturables avec `_count_working_days`), Facture (montant)
+
+**`widgets_for(user)`** étendu pour filtrer `requires_planning` (même pattern que `requires_compta`).
+
+**Barre de filtres partagée** (GET form, au-dessus de la grille, visible si `has_prod` + `prod_equipes`) :
+- Présélections période : 6 derniers mois + trimestres de l'année + année entière (construits server-side dans `_build_period_presets(today)`)
+- Dates personnalisées : `<input type="date">` nommés `debut` / `fin`
+- Multi-sélection équipes : checkboxes `name="eq"` + toggle "Toutes"
+- État en URL uniquement (GET params `debut`, `fin`, `eq[]`) — pas de stockage serveur
+- JS inline : `prodApplyPreset()` (auto-submit au choix preset), `prodToggleAll()`, `prodEqChange()`
+- Réinitialisation : lien `?` (efface tous les GET params)
+
+**Commande `seed_production_demo`** (`core/management/commands/seed_production_demo.py`) :
+- 6 équipes : `55-AQRM A`, `55-AQRM B`, `58-AQSM`, `61-GOSM`, `65-GORM`, `65-SORM`
+- 12 devis DEMO35 (2 par équipe), 12 affectations, ~8 000 présences, 11 factures
+- Période : Jan–Mai 2026 ; `taux_ho = 47 €/h` (~330 €/j équipe 4 personnes)
+- Avancement varié : 40 % à 130 % (dépassements + finitions rapides)
+- Devis structurés : TITRE / C (composite) / S (sous-ouvrage) / MO / MAT / FMO / FMAT / F (forfaits)
+- Montants : second œuvre 800–12 000 € MO (30–50 % du devis), maçonnerie 15 000–20 000 € MO (~60 %)
+- **Marqueurs DEMO35** : `reference startswith 'DEMO35-'`, `notes = 'SEED_DEMO35'`, `chantier startswith '[Démo]'`
+- **`--clear` ciblé** : supprime uniquement les données DEMO35 (Presence → Affectation → Facture → Devis via les marqueurs) — ne touche pas les données des collègues sur Railway
+
+```powershell
+# Sur Railway
+railway run python manage.py seed_production_demo
+railway run python manage.py seed_production_demo --clear
+# En local
+venv\Scripts\python manage.py seed_production_demo [--clear]
+```
+
+### Corrections importantes
+- **Jours réalisés** : première implémentation utilisait `Count('pk') / 2` → corrigé en `Count('date', distinct=True)` (une journée-équipe = 1, peu importe le nombre d'équipiers présents)
+- **`--clear` trop large** : première version supprimait toutes les présences des 6 équipes → corrigé pour cibler uniquement les données DEMO35
+
+### Fichiers modifiés
+- `core/dashboard_widgets.py` — 7 nouveaux widgets + `_prod_data(ctx)` + providers + `widgets_for` étendu + `widget_data(prod_context)` + `resolve_dashboard(prod_context)`
+- `core/views.py` — `_build_period_presets(today)` ; `dashboard()` : parsing GET params, `prod_context`, `prod_equipes`, `has_prod`, `prod_presets`
+- `core/templates/core/dashboard.html` — barre de filtres GET form + blocs de rendu `prod_chantiers` / `prod_depassements` / `prod_equipes`
+- `core/management/commands/seed_production_demo.py` — nouveau fichier
 
 ---
 

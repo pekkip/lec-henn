@@ -18,8 +18,10 @@ from decimal import Decimal
 from django.db.models import Sum, Count
 from django.utils import timezone
 
-from .models import Devis, Facture, AuditLog, LigneDevis
-from .permissions import get_collegues_ids, peut_acceder_compta
+import calendar
+
+from .models import Devis, Facture, AuditLog, LigneDevis, Presence, Affectation
+from .permissions import get_collegues_ids, peut_acceder_compta, peut_acceder_planning
 from .totaux import (
     total_brut_devis, total_facture_devis,
     attacher_totaux_devis, totaux_lignes,
@@ -88,6 +90,29 @@ WIDGETS = OrderedDict([
     ('activity_recent', {
         'title': 'Activité récente', 'type': 'activity', 'icon': 'ti-history',
         'supports_scope': True, 'requires_compta': False}),
+
+    # — Production Insertion (requires_planning) ————————————
+    ('prod_kpi_montant', {
+        'title': 'Montant facturé (mois)', 'type': 'kpi', 'icon': 'ti-file-invoice',
+        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
+    ('prod_kpi_j_realises', {
+        'title': 'Jours réalisés (mois)', 'type': 'kpi', 'icon': 'ti-clock-check',
+        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
+    ('prod_kpi_ratio', {
+        'title': '€/j réalisé (mois)', 'type': 'kpi', 'icon': 'ti-cash',
+        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
+    ('prod_kpi_taux', {
+        'title': 'Taux de réalisation (mois)', 'type': 'kpi', 'icon': 'ti-progress-check',
+        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
+    ('prod_list_chantiers', {
+        'title': 'Production par chantier', 'type': 'prod_chantiers', 'icon': 'ti-building',
+        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
+    ('prod_list_depassements', {
+        'title': 'Chantiers en dépassement', 'type': 'prod_depassements', 'icon': 'ti-alert-triangle',
+        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
+    ('prod_chart_equipes', {
+        'title': 'Avancement par équipe', 'type': 'prod_equipes', 'icon': 'ti-chart-bar',
+        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
 ])
 
 
@@ -143,11 +168,13 @@ def scoped_audit(user, scope):
 # ══════════════════════════════════════════
 
 def widgets_for(user):
-    """IDs des widgets autorisés pour cet utilisateur (filtre compta)."""
+    """IDs des widgets autorisés pour cet utilisateur."""
     compta = peut_acceder_compta(user)
+    planning = peut_acceder_planning(user)
     return {
         wid for wid, meta in WIDGETS.items()
-        if compta or not meta['requires_compta']
+        if (compta or not meta.get('requires_compta'))
+        and (planning or not meta.get('requires_planning'))
     }
 
 
@@ -332,6 +359,208 @@ def _activity_recent(user, scope):
     return {'events': events}
 
 
+# ══════════════════════════════════════════
+#  PRODUCTION (planning/insertion)
+# ══════════════════════════════════════════
+
+def _mois_courant():
+    today = date.today()
+    return (date(today.year, today.month, 1),
+            date(today.year, today.month, calendar.monthrange(today.year, today.month)[1]))
+
+
+def _prod_eur_color(eur_j, taux_j):
+    if eur_j is None:
+        return _C_GRAY
+    if eur_j >= taux_j:
+        return _C_TEAL
+    if eur_j >= taux_j * Decimal('0.8'):
+        return _C_AMBER
+    return 'var(--red)'
+
+
+def _prod_taux_color(taux):
+    if taux is None:
+        return _C_GRAY
+    if taux >= 100:
+        return _C_TEAL
+    if taux >= 80:
+        return _C_AMBER
+    return 'var(--red)'
+
+
+def _prod_data(ctx=None):
+    """Agrège les données de production pour la période et équipes du contexte."""
+    from django.db.models import Count, Sum as DSum
+    from .views import _count_working_days
+    from .models import ParametresAssociation
+
+    if ctx:
+        debut = ctx.get('debut')
+        fin   = ctx.get('fin')
+        if not debut or not fin:
+            debut, fin = _mois_courant()
+        equipe_ids = ctx.get('equipe_ids') or set()
+    else:
+        debut, fin = _mois_courant()
+        equipe_ids = set()
+
+    # Jours réalisés = jours distincts où l'équipe a travaillé (≥1 présence code='')
+    pres_qs = Presence.objects.filter(
+        affectation__isnull=False, code='', date__gte=debut, date__lte=fin)
+    if equipe_ids:
+        pres_qs = pres_qs.filter(affectation__equipe_id__in=equipe_ids)
+    pres_rows = (pres_qs
+                 .values('affectation__tranche__devis_id', 'affectation__equipe_id')
+                 .annotate(n=Count('date', distinct=True)))
+    jr_d, jr_e = {}, {}
+    for r in pres_rows:
+        d_id = r['affectation__tranche__devis_id']
+        e_id = r['affectation__equipe_id']
+        j = Decimal(r['n'])   # 1 par jour d'équipe, pas ÷2
+        if d_id:
+            jr_d[d_id] = jr_d.get(d_id, Decimal('0')) + j
+        if e_id:
+            jr_e[e_id] = jr_e.get(e_id, Decimal('0')) + j
+
+    # Jours facturables par (devis, équipe) — affectations intersectant la période
+    aff_qs = Affectation.objects.filter(
+        date_debut__isnull=False, date_fin__isnull=False,
+        date_debut__lte=fin, date_fin__gte=debut)
+    if equipe_ids:
+        aff_qs = aff_qs.filter(equipe_id__in=equipe_ids)
+    aff_qs = aff_qs.select_related('tranche__devis', 'equipe')
+    jf_d, jf_e, eq_noms = {}, {}, {}
+    for aff in aff_qs:
+        d_s = max(aff.date_debut, debut)
+        d_e = min(aff.date_fin, fin)
+        if d_s > d_e:
+            continue
+        n = Decimal(_count_working_days(d_s, d_e))
+        d_id = aff.tranche.devis_id
+        e_id = aff.equipe_id
+        jf_d[d_id] = jf_d.get(d_id, Decimal('0')) + n
+        jf_e[e_id] = jf_e.get(e_id, Decimal('0')) + n
+        eq_noms[e_id] = aff.equipe.nom
+
+    # Montant facturé par devis (validé dans la période)
+    fac_qs = Facture.objects.filter(
+        devis__isnull=False, type_doc__in=('facture', 'acompte'),
+        status__in=('validated', 'sent', 'paid'),
+        validated_at__isnull=False,
+        validated_at__date__gte=debut, validated_at__date__lte=fin)
+    if equipe_ids:
+        fac_qs = fac_qs.filter(devis__equipe_id__in=equipe_ids)
+    mt_d = {
+        r['devis_id']: r['total'] or Decimal('0')
+        for r in fac_qs.values('devis_id').annotate(total=DSum('montant'))
+    }
+
+    params = ParametresAssociation.get()
+    taux_j = params.taux_jour_facturable
+
+    all_ids = set(jf_d) | set(jr_d) | set(mt_d)
+    devis_lk = {d.pk: d for d in
+                Devis.objects.filter(pk__in=all_ids).select_related('client', 'equipe')}
+
+    chantiers = []
+    for d_id in all_ids:
+        devis = devis_lk.get(d_id)
+        if not devis:
+            continue
+        j_f = jf_d.get(d_id, Decimal('0'))
+        j_r = jr_d.get(d_id, Decimal('0'))
+        mt  = mt_d.get(d_id, Decimal('0'))
+        eur_j = (mt / j_r).quantize(Decimal('0.01')) if j_r else None
+        taux  = (j_r / j_f * 100).quantize(Decimal('0.1')) if j_f else None
+        chantiers.append({
+            'devis': devis, 'j_fact': j_f, 'j_real': j_r, 'montant': mt,
+            'ecart': j_r - j_f, 'eur_j': eur_j, 'taux': taux,
+            'en_depassement': j_r > j_f > 0,
+            'eur_color': _prod_eur_color(eur_j, taux_j),
+            'taux_color': _prod_taux_color(taux),
+        })
+    chantiers.sort(key=lambda c: c['devis'].chantier or '')
+
+    eq_bars = []
+    for e_id in set(jf_e) | set(jr_e):
+        j_f = jf_e.get(e_id, Decimal('0'))
+        j_r = jr_e.get(e_id, Decimal('0'))
+        pct = (j_r / j_f * 100).quantize(Decimal('0.1')) if j_f else Decimal('0')
+        eq_bars.append({
+            'nom': eq_noms.get(e_id, '?'), 'j_fact': j_f, 'j_real': j_r,
+            'pct': pct, 'pct_bar': min(pct, Decimal('120')), 'over': pct > 100,
+        })
+    eq_bars.sort(key=lambda b: b['nom'])
+
+    tot_mt = sum((c['montant'] for c in chantiers), Decimal('0'))
+    tot_jr = sum((c['j_real']  for c in chantiers), Decimal('0'))
+    tot_jf = sum((c['j_fact']  for c in chantiers), Decimal('0'))
+    kpi_eur_j = (tot_mt / tot_jr).quantize(Decimal('0.01')) if tot_jr else None
+    kpi_taux  = (tot_jr / tot_jf * 100).quantize(Decimal('0.1')) if tot_jf else None
+
+    mois_fr = ['', 'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+               'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']
+    if debut.month == fin.month and debut.year == fin.year:
+        debut_lbl = f"{mois_fr[debut.month]} {debut.year}"
+    else:
+        debut_lbl = f"{debut.day} {mois_fr[debut.month]} – {fin.day} {mois_fr[fin.month]} {fin.year}"
+
+    return {
+        'chantiers': chantiers, 'eq_bars': eq_bars, 'taux_j': taux_j,
+        'tot_mt': tot_mt, 'tot_jr': tot_jr, 'tot_jf': tot_jf,
+        'kpi_eur_j': kpi_eur_j, 'kpi_taux': kpi_taux, 'debut_lbl': debut_lbl,
+    }
+
+
+def _prod_kpi_montant(user, scope, ctx=None):
+    d = _prod_data(ctx)
+    return {'value': float(d['tot_mt']), 'unit': '€', 'sub': d['debut_lbl'], 'color': _C_PRUNE}
+
+
+def _prod_kpi_j_realises(user, scope, ctx=None):
+    d = _prod_data(ctx)
+    return {
+        'value': float(d['tot_jr']), 'unit': 'j',
+        'sub': f"sur {float(d['tot_jf']):.1f} j facturables", 'color': _C_TEAL,
+    }
+
+
+def _prod_kpi_ratio(user, scope, ctx=None):
+    d = _prod_data(ctx)
+    eur_j = d['kpi_eur_j']
+    return {
+        'value': float(eur_j) if eur_j else None, 'unit': '€/j',
+        'sub': f"réf. {float(d['taux_j']):.0f} €/j",
+        'color': _prod_eur_color(eur_j, d['taux_j']),
+    }
+
+
+def _prod_kpi_taux(user, scope, ctx=None):
+    d = _prod_data(ctx)
+    return {
+        'value': float(d['kpi_taux']) if d['kpi_taux'] else None, 'unit': '%',
+        'sub': '100 % = au plan', 'color': _prod_taux_color(d['kpi_taux']),
+    }
+
+
+def _prod_list_chantiers(user, scope, ctx=None):
+    return {'chantiers': _prod_data(ctx)['chantiers']}
+
+
+def _prod_list_depassements(user, scope, ctx=None):
+    d = _prod_data(ctx)
+    dep = sorted(
+        [c for c in d['chantiers'] if c['en_depassement']],
+        key=lambda c: c['ecart'], reverse=True,
+    )[:5]
+    return {'depassements': dep}
+
+
+def _prod_chart_equipes(user, scope, ctx=None):
+    return {'eq_bars': _prod_data(ctx)['eq_bars']}
+
+
 _PROVIDERS = {
     'kpi_ca': _kpi_ca,
     'kpi_reste_a_facturer': _kpi_reste_a_facturer,
@@ -349,15 +578,26 @@ _PROVIDERS = {
     'chart_top_clients': _chart_top_clients,
     'chart_financements': _chart_financements,
     'activity_recent': _activity_recent,
+    'prod_kpi_montant': _prod_kpi_montant,
+    'prod_kpi_j_realises': _prod_kpi_j_realises,
+    'prod_kpi_ratio': _prod_kpi_ratio,
+    'prod_kpi_taux': _prod_kpi_taux,
+    'prod_list_chantiers': _prod_list_chantiers,
+    'prod_list_depassements': _prod_list_depassements,
+    'prod_chart_equipes': _prod_chart_equipes,
 }
 
 
-def widget_data(widget_id, user, scope):
+def widget_data(widget_id, user, scope, prod_context=None):
     """Calcule les données d'un widget (dispatch). Scope normalisé."""
     if scope not in SCOPES:
         scope = 'all'
     provider = _PROVIDERS.get(widget_id)
-    return provider(user, scope) if provider else {}
+    if not provider:
+        return {}
+    if widget_id.startswith('prod_') and prod_context is not None:
+        return provider(user, scope, prod_context)
+    return provider(user, scope)
 
 
 # ══════════════════════════════════════════
@@ -370,13 +610,14 @@ def _normalise_scope(meta, scope):
     return scope if scope in SCOPES else 'all'
 
 
-def resolve_dashboard(profil, user):
+def resolve_dashboard(profil, user, prod_context=None):
     """
     À partir de `profil.dashboard_config` (ou DASHBOARD_DEFAULT), renvoie :
       - `visibles` : liste ordonnée de widgets {id,type,title,icon,scope,
         supports_scope,data} (données calculées, lazy : seulement les visibles) ;
       - `disponibles` : widgets masqués ou non encore ajoutés (pour « Ajouter »).
-    Filtre les widgets non autorisés (compta) et les ids inconnus.
+    Filtre les widgets non autorisés (compta/planning) et les ids inconnus.
+    prod_context : {debut, fin, equipe_ids} — filtres partagés pour les widgets prod.
     """
     config = (profil.dashboard_config or {}).get('widgets')
     if not config:
@@ -399,7 +640,7 @@ def resolve_dashboard(profil, user):
             'id': wid, 'type': meta['type'], 'title': meta['title'],
             'icon': meta['icon'], 'scope': scope,
             'supports_scope': meta['supports_scope'],
-            'data': widget_data(wid, user, scope),
+            'data': widget_data(wid, user, scope, prod_context),
         })
 
     # Widgets autorisés jamais rencontrés → disponibles (nouveautés).

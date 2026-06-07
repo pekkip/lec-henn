@@ -342,14 +342,96 @@ def profil_view(request):
 #  DASHBOARD
 # ══════════════════════════════════════════
 
+def _build_period_presets(today):
+    """Construit les presets de période pour la barre de filtres production."""
+    import calendar as _cal
+    mois_fr = ['', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+               'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
+    presets = []
+    # 6 derniers mois (mois courant inclus)
+    y, m = today.year, today.month
+    for _ in range(6):
+        d1 = date(y, m, 1)
+        d2 = date(y, m, _cal.monthrange(y, m)[1])
+        label = f'{mois_fr[m]} {y}' if y == today.year else f'{mois_fr[m]} {y}'
+        presets.append({'label': label, 'debut': d1.isoformat(), 'fin': d2.isoformat()})
+        m -= 1
+        if m == 0:
+            m, y = 12, y - 1
+    # Trimestres de l'année courante
+    yr = today.year
+    for q, (qm1, qm2) in enumerate([(1,3),(4,6),(7,9),(10,12)], start=1):
+        d1 = date(yr, qm1, 1)
+        d2 = date(yr, qm2, _cal.monthrange(yr, qm2)[1])
+        if d1 <= today:
+            presets.append({'label': f'T{q} {yr}', 'debut': d1.isoformat(), 'fin': d2.isoformat()})
+    # Année courante
+    presets.append({'label': str(yr), 'debut': f'{yr}-01-01', 'fin': f'{yr}-12-31'})
+    return presets
+
+
 @login_required
 def dashboard(request):
+    import calendar as _cal
+    from .permissions import peut_acceder_planning as _pap
+
     profil = get_profil(request.user)
-    visibles, disponibles = resolve_dashboard(profil, request.user)
+
+    prod_context = None
+    prod_equipes = []
+    if _pap(request.user):
+        # Équipes insertion (services avec module_planning)
+        prod_equipes = list(
+            Equipe.objects.filter(actif=True, service__module_planning=True)
+            .order_by('nom').values('pk', 'nom')
+        )
+        eq_ids_selected = set()
+        if request.GET.getlist('eq'):
+            try:
+                eq_ids_selected = {int(x) for x in request.GET.getlist('eq') if x.isdigit()}
+            except (ValueError, TypeError):
+                eq_ids_selected = set()
+
+        today = date.today()
+        debut_str = request.GET.get('debut', '')
+        fin_str   = request.GET.get('fin', '')
+        try:
+            debut = date.fromisoformat(debut_str)
+        except (ValueError, TypeError):
+            debut = date(today.year, today.month, 1)
+        try:
+            fin = date.fromisoformat(fin_str)
+        except (ValueError, TypeError):
+            fin = date(today.year, today.month, _cal.monthrange(today.year, today.month)[1])
+
+        if debut > fin:
+            debut, fin = fin, debut
+
+        # Presets de période (12 mois glissants + trimestres courants)
+        presets = _build_period_presets(today)
+
+        prod_context = {
+            'debut': debut, 'fin': fin,
+            'equipe_ids': eq_ids_selected,
+            'debut_str': debut.isoformat(),
+            'fin_str': fin.isoformat(),
+        }
+        for eq in prod_equipes:
+            eq['selected'] = (not eq_ids_selected) or (eq['pk'] in eq_ids_selected)
+    else:
+        presets = []
+
+    visibles, disponibles = resolve_dashboard(profil, request.user, prod_context)
+    has_prod = any(w['id'].startswith('prod_') for w in visibles)
+
     return render(request, 'core/dashboard.html', {
         'widgets': visibles,
         'widgets_disponibles': disponibles,
         'profil': profil,
+        'has_prod': has_prod,
+        'prod_equipes': prod_equipes,
+        'prod_context': prod_context,
+        'prod_presets': presets,
     })
 
 
