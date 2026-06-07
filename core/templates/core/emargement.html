@@ -108,6 +108,24 @@
 .art[draggable]{cursor:grab}
 .art[draggable]:active{cursor:grabbing}
 .addrow.drag-over{background:var(--amber-lt);outline:2px dashed var(--amber-bd,#d97706)}
+
+/* ── mini-calendrier prêt ────────────────── */
+.pret-cal{user-select:none;margin-bottom:.5rem}
+.pret-cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem}
+.pret-cal-nav{background:none;border:none;cursor:pointer;font-size:18px;color:var(--gray);padding:1px 7px;border-radius:3px;line-height:1}
+.pret-cal-nav:hover{background:var(--gray-lt)}
+#cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-hdr{text-align:center;font-size:10px;font-weight:600;color:var(--gray-md);padding:2px 0 4px}
+.cal-day{text-align:center;font-size:12px;padding:5px 2px;border-radius:3px;line-height:1;cursor:pointer}
+.cal-day:not(.other-month):hover{background:var(--teal-lt)}
+.cal-day.other-month{color:var(--gray-bd);cursor:default;pointer-events:none}
+.cal-day.today{font-weight:700}
+.cal-day.ema-week{background:#FEF9C3}
+.cal-day.ema-week:not(.other-month):not(.in-range):not(.sel-start):not(.sel-end):hover{background:#FEF08A}
+.cal-day.in-range{background:var(--amber-lt);border-radius:0}
+.cal-day.sel-start{background:var(--amber);color:#fff;font-weight:600;border-radius:4px 0 0 4px}
+.cal-day.sel-end{background:var(--amber);color:#fff;font-weight:600;border-radius:0 4px 4px 0}
+.cal-day.sel-start.sel-end{border-radius:4px}
 </style>
 {% endblock %}
 
@@ -380,22 +398,21 @@
 {% block modals %}
 {% if peut_modifier %}
 <div id="modal-pret" class="modal-bg hidden">
-  <div class="modal" style="width:420px">
+  <div class="modal" style="width:320px">
     <div class="modal-title">Prêt d'équipier</div>
-    <p style="font-size:13px;color:var(--gray-md);margin-bottom:.75rem">
-      Ajouter <strong id="pret-eq-nom"></strong> à <strong>{{ equipe_sel.nom }}</strong> pour&nbsp;:
+    <p style="font-size:12px;color:var(--gray-md);margin:.2rem 0 .6rem">
+      Ajouter <strong id="pret-eq-nom"></strong> à <strong>{{ equipe_sel.nom }}</strong>
     </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div class="field">
-        <label>Du *</label>
-        <input class="input" type="date" id="pret-debut">
+    <div class="pret-cal">
+      <div class="pret-cal-hd">
+        <button type="button" class="pret-cal-nav" onclick="calNav(-1)">‹</button>
+        <span id="cal-month-lbl" style="font-size:13px;font-weight:600"></span>
+        <button type="button" class="pret-cal-nav" onclick="calNav(1)">›</button>
       </div>
-      <div class="field">
-        <label>Au *</label>
-        <input class="input" type="date" id="pret-fin">
-      </div>
+      <div id="cal-grid"></div>
     </div>
-    <div id="pret-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
+    <div id="pret-range-lbl" style="font-size:11px;color:var(--gray);text-align:center;min-height:16px;margin-bottom:.4rem"></div>
+    <div id="pret-err" style="color:var(--red);font-size:11px;margin-bottom:.4rem;display:none"></div>
     <div class="modal-acts">
       <button type="button" class="btn" onclick="closePretModal()">Annuler</button>
       <button type="button" class="btn btn-teal" onclick="submitPret()">Enregistrer</button>
@@ -625,14 +642,90 @@ function onPretDrop(e) {
   openPretModal(_dragEq);
 }
 
+/* ── Mini-calendrier de sélection de plage ─────────────────────────── */
+let _calYear, _calMonth, _calAnchor = null, _calHover = null, _calDragging = false;
+
+function _calStr(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function renderCal() {
+  const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  document.getElementById('cal-month-lbl').textContent = `${MOIS[_calMonth]} ${_calYear}`;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+  ['L','M','M','J','V','S','D'].forEach(h => {
+    const el = document.createElement('div'); el.className = 'cal-hdr'; el.textContent = h; grid.appendChild(el);
+  });
+  let rS = null, rE = null;
+  if (_calAnchor && _calHover) {
+    rS = _calAnchor < _calHover ? _calAnchor : _calHover;
+    rE = _calAnchor < _calHover ? _calHover : _calAnchor;
+  } else if (_calAnchor) { rS = rE = _calAnchor; }
+
+  const firstDow = new Date(_calYear, _calMonth, 1).getDay();
+  const startOff = firstDow === 0 ? 6 : firstDow - 1;
+  const daysInMonth = new Date(_calYear, _calMonth + 1, 0).getDate();
+  const prevDays = new Date(_calYear, _calMonth, 0).getDate();
+  const today = new Date().toISOString().slice(0, 10);
+
+  for (let i = startOff - 1; i >= 0; i--) {
+    const el = document.createElement('div'); el.className = 'cal-day other-month'; el.textContent = prevDays - i; grid.appendChild(el);
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const ds = _calStr(_calYear, _calMonth, day);
+    const el = document.createElement('div');
+    el.className = 'cal-day';
+    el.textContent = day;
+    if (ds === today) el.classList.add('today');
+    if (ds >= LUNDI_ISO && ds <= VENDREDI_ISO) el.classList.add('ema-week');
+    if (rS && rE) {
+      if (ds === rS) el.classList.add('sel-start');
+      else if (ds === rE) el.classList.add('sel-end');
+      else if (ds > rS && ds < rE) el.classList.add('in-range');
+    }
+    el.addEventListener('mousedown', e => { e.preventDefault(); _calDragging = true; _calAnchor = ds; _calHover = ds; renderCal(); });
+    el.addEventListener('mouseenter', () => { if (_calDragging) { _calHover = ds; renderCal(); } });
+    el.addEventListener('mouseup', () => { if (_calDragging) { _calDragging = false; _calHover = ds; renderCal(); updatePretRangeLbl(); } });
+    grid.appendChild(el);
+  }
+  const total = startOff + daysInMonth;
+  const fill = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let d = 1; d <= fill; d++) {
+    const el = document.createElement('div'); el.className = 'cal-day other-month'; el.textContent = d; grid.appendChild(el);
+  }
+}
+
+function updatePretRangeLbl() {
+  const lbl = document.getElementById('pret-range-lbl');
+  if (!_calAnchor) { lbl.textContent = 'Glisser pour sélectionner la plage'; return; }
+  const h = _calHover || _calAnchor;
+  const s = _calAnchor <= h ? _calAnchor : h;
+  const e = _calAnchor <= h ? h : _calAnchor;
+  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'});
+  lbl.textContent = s === e ? fmt(s) : `${fmt(s)} → ${fmt(e)}`;
+}
+
+function calNav(dir) {
+  _calMonth += dir;
+  if (_calMonth > 11) { _calMonth = 0; _calYear++; }
+  if (_calMonth < 0)  { _calMonth = 11; _calYear--; }
+  renderCal();
+}
+
+document.addEventListener('mouseup', () => {
+  if (_calDragging) { _calDragging = false; renderCal(); updatePretRangeLbl(); }
+});
+
 function openPretModal(eq) {
   document.getElementById('pret-eq-nom').textContent = eq.nom + ' (' + eq.equipeNom + ')';
-  document.getElementById('pret-debut').value = LUNDI_ISO;
-  document.getElementById('pret-fin').value = VENDREDI_ISO;
   document.getElementById('pret-err').style.display = 'none';
+  const lundi = new Date(LUNDI_ISO + 'T12:00:00');
+  _calYear = lundi.getFullYear(); _calMonth = lundi.getMonth();
+  _calAnchor = LUNDI_ISO; _calHover = VENDREDI_ISO;
   _pendingPretEqId = eq.id;
+  renderCal(); updatePretRangeLbl();
   document.getElementById('modal-pret').classList.remove('hidden');
-  document.getElementById('pret-debut').focus();
 }
 
 function closePretModal() {
@@ -641,16 +734,15 @@ function closePretModal() {
 }
 
 function submitPret() {
-  const debut = document.getElementById('pret-debut').value;
-  const fin   = document.getElementById('pret-fin').value;
-  const err   = document.getElementById('pret-err');
-  if (!debut || !fin) { err.textContent = 'Renseignez les deux dates.'; err.style.display = ''; return; }
-  if (fin < debut)    { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
+  const err = document.getElementById('pret-err');
+  if (!_calAnchor || !_calHover) { err.textContent = 'Sélectionnez une plage sur le calendrier.'; err.style.display = ''; return; }
+  const s = _calAnchor <= _calHover ? _calAnchor : _calHover;
+  const e = _calAnchor <= _calHover ? _calHover : _calAnchor;
   err.style.display = 'none';
   fetch(URL_PRET, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify({action:'create', equipier_id:parseInt(_pendingPretEqId), equipe_hote_id:EQUIPE_ID, date_debut:debut, date_fin:fin})
+    body: JSON.stringify({action:'create', equipier_id:parseInt(_pendingPretEqId), equipe_hote_id:EQUIPE_ID, date_debut:s, date_fin:e})
   })
   .then(r => r.json())
   .then(d => { if (d.ok) location.reload(); else { err.textContent = d.error || 'Erreur'; err.style.display = ''; } })
