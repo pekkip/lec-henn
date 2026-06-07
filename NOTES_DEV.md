@@ -10,7 +10,7 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
-**État du projet (07/06/2026 — session 28) :** en test beta. **Module Planning & Émargement**
+**État du projet (07/06/2026 — session 29) :** en test beta. **Module Planning & Émargement**
 opérationnel en prod (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
 Feuille de paie mensuelle et vue Production restent à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
@@ -216,6 +216,27 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 29 — 07/06/2026 — Planning : modal affecter un chantier (wizard 4 étapes)
+
+### Livré
+- **Wizard "Affecter un chantier"** — remplace l'ancienne modal formulaire par un tunnel en 4 étapes : Chantier → Équipe → Durée → Date
+  - Étape 1 : cartes devis filtrables (client, chantier, référence) + affichage MO total / restant + badge équipes déjà assignées
+  - Étape 2 : cartes équipe avec estimation jours restants (MO restant / TAUX_JOUR / nb_équipiers) et nb chantiers en cours ; pré-sélection automatique si ouvert depuis une ligne d'équipe
+  - Étape 3 : sélection/création de tranche + saisie durée ("Prendre tout" ou nb jours custom)
+  - Étape 4 : mini-calendrier style prêt équipier (couleurs ambre, clic simple pour date de début, aperçu des chantiers existants de l'équipe en jaune)
+- **Backend** : route `POST /planning/tranche/creer/` + vue `tranche_creer` ; `affectation_save` accepte `tranche_id` optionnel ; 4 nouvelles clés de contexte (`tranches_par_devis_json`, `mo_planifie_par_devis_json`, `aff_par_equipe_json`, `equipes_plan_json`)
+- **`verbose_name_plural`** corrigé sur `TrancheDevis` ("Tranches de devis" au lieu de "Tranche de deviss")
+- **Consignes de collaboration** ajoutées en tête de NOTES_DEV.md + mémoire persistante
+
+### Fichiers modifiés
+- `core/views.py` — contexte planning + `tranche_creer` + `affectation_save`
+- `core/urls.py` — route `tranche-creer`
+- `core/models.py` — `verbose_name_plural` TrancheDevis
+- `core/templates/core/planning.html` — CSS + HTML modal + JS wizard (~600 lignes nettes)
+- `NOTES_DEV.md` — consignes de collaboration + cette entrée
 
 ---
 
