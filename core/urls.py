@@ -105,6 +105,7 @@ urlpatterns = [
     path('planning/presence/sauvegarder/',       views.presence_save,         name='presence-save'),
     path('planning/pret/sauvegarder/',           views.pret_save,             name='pret-save'),
     path('planning/tranche/creer/',           views.tranche_creer,         name='tranche-creer'),
+    path('insertion/aide/',                   views.aide_insertion_view,   name='aide-insertion'),
 
     # Gestion utilisateurs
     path('utilisateurs/', views.utilisateurs_list, name='utilisateurs-list'),

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fonctions insertion — Planning &amp; Émargement CB Bretagne</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --prune: #67123A;
+      --prune-lt: #f5e8ee;
+      --teal: #00AA8D;
+      --teal-lt: #e0f5f2;
+      --amber: #f59e0b;
+      --amber-lt: #fef3c7;
+      --gray-dk: #1a1a2e;
+      --gray-md: #6b7280;
+      --gray-lt: #f3f4f6;
+      --gray-bd: #e5e7eb;
+      --white: #fff;
+      --r: 8px;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 14px;
+      color: var(--gray-dk);
+      background: var(--gray-lt);
+      line-height: 1.6;
+    }
+
+    .layout { display: flex; min-height: 100vh; }
+
+    /* TOC */
+    .toc {
+      width: 260px;
+      flex-shrink: 0;
+      background: var(--white);
+      border-right: 1px solid var(--gray-bd);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 1.5rem 0;
+    }
+    .toc-header {
+      padding: 0 1.25rem 1rem;
+      border-bottom: 1px solid var(--gray-bd);
+      margin-bottom: 0.75rem;
+    }
+    .toc-logo { font-size: 13px; font-weight: 700; color: var(--prune); text-transform: uppercase; letter-spacing: 0.05em; }
+    .toc-subtitle { font-size: 11px; color: var(--gray-md); margin-top: 2px; }
+    .toc nav { padding: 0 0.75rem; }
+    .toc a {
+      display: block;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: var(--gray-md);
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .toc a:hover { background: var(--gray-lt); color: var(--gray-dk); }
+    .toc a.active { background: var(--prune-lt); color: var(--prune); font-weight: 600; }
+    .toc-section { margin-top: 0.5rem; }
+    .toc-section > a { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-dk); }
+    .toc-sub a { padding-left: 24px; font-size: 12px; }
+
+    /* CONTENT */
+    .content { flex: 1; padding: 2.5rem 3rem 4rem; max-width: 860px; }
+
+    .page-title { font-size: 26px; font-weight: 700; color: var(--prune); margin-bottom: 0.25rem; }
+    .page-subtitle { font-size: 13px; color: var(--gray-md); margin-bottom: 2.5rem; }
+
+    .section { margin-bottom: 3rem; scroll-margin-top: 1.5rem; }
+    h2 { font-size: 18px; font-weight: 700; color: var(--prune); padding-bottom: 8px; border-bottom: 2px solid var(--prune-lt); margin-bottom: 1.25rem; }
+    h3 { font-size: 14px; font-weight: 600; color: var(--gray-dk); margin: 1.25rem 0 0.6rem; }
+    p { margin-bottom: 0.75rem; color: #374151; }
+    ul, ol { padding-left: 1.4rem; margin-bottom: 0.75rem; }
+    li { margin-bottom: 0.3rem; color: #374151; }
+
+    .tip {
+      background: var(--teal-lt);
+      border-left: 3px solid var(--teal);
+      border-radius: 0 var(--r) var(--r) 0;
+      padding: 10px 14px;
+      margin: 0.75rem 0;
+      font-size: 13px;
+    }
+    .warn {
+      background: var(--amber-lt);
+      border-left: 3px solid var(--amber);
+      border-radius: 0 var(--r) var(--r) 0;
+      padding: 10px 14px;
+      margin: 0.75rem 0;
+      font-size: 13px;
+    }
+    .tip strong, .warn strong { display: block; margin-bottom: 2px; }
+
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0 1rem; font-size: 13px; }
+    th { background: var(--gray-lt); padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-md); border-bottom: 1px solid var(--gray-bd); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--gray-bd); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+
+    code { background: var(--gray-lt); border: 1px solid var(--gray-bd); border-radius: 4px; padding: 1px 6px; font-size: 12px; font-family: monospace; }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: var(--prune);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+    .step-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+    .step-row p { margin: 0; }
+
+    @media (max-width: 768px) {
+      .toc { display: none; }
+      .content { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- TABLE DES MATIÈRES -->
+  <aside class="toc">
+    <div class="toc-header">
+      <div class="toc-logo">CB Bretagne</div>
+      <div class="toc-subtitle">Fonctions insertion</div>
+      <a href="/login/" style="display:inline-block;margin-top:10px;font-size:14.5px;font-weight:600;color:var(--teal);text-decoration:none;border:2px solid var(--teal);border-radius:6px;padding:6px 12px;width:100%;">
+        ← Retour à l'application
+      </a>
+    </div>
+    <nav>
+      <div class="toc-section"><a href="#acces">1. Accès et rôles</a></div>
+
+      <div class="toc-section"><a href="#planning">2. Planning</a></div>
+      <div class="toc-sub">
+        <a href="#planning-vue">Vue d'ensemble</a>
+        <a href="#planning-affecter">Affecter un chantier</a>
+        <a href="#planning-deplacer">Déplacer / modifier</a>
+        <a href="#planning-supprimer">Supprimer une affectation</a>
+        <a href="#planning-evenements">Événements d'équipe</a>
+        <a href="#planning-pret">Prêt d'équipier</a>
+      </div>
+
+      <div class="toc-section"><a href="#emargement">3. Émargement</a></div>
+      <div class="toc-sub">
+        <a href="#emargement-vue">Vue d'ensemble</a>
+        <a href="#emargement-saisie">Pointer une présence</a>
+        <a href="#emargement-pret">Équipiers en prêt</a>
+      </div>
+
+      <div class="toc-section"><a href="#equipiers">4. Équipiers</a></div>
+    </nav>
+  </aside>
+
+  <!-- CONTENU -->
+  <main class="content">
+    <h1 class="page-title">Fonctions insertion</h1>
+    <p class="page-subtitle">Planning, Émargement &amp; Équipiers — Compagnons Bâtisseurs Bretagne</p>
+
+    <!-- 1. ACCÈS -->
+    <div class="section" id="acces">
+      <h2>1. Accès et rôles</h2>
+      <p>Le module Insertion est réservé aux utilisateurs ayant l'un des rôles suivants :</p>
+      <table>
+        <thead><tr><th>Rôle</th><th>Accès</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Admin</strong></td><td>Accès complet — toutes les équipes</td></tr>
+          <tr><td><strong>Responsable</strong></td><td>Accès complet — toutes les équipes</td></tr>
+          <tr><td><strong>RH</strong></td><td>Accès complet — toutes les équipes</td></tr>
+          <tr><td><strong>Encadrant</strong></td><td>Accès à son équipe uniquement</td></tr>
+        </tbody>
+      </table>
+      <p>La section <strong>Insertion</strong> apparaît dans le menu latéral uniquement pour ces rôles. Elle contient trois rubriques : <strong>Planning</strong>, <strong>Émargement</strong> et <strong>Équipiers</strong>.</p>
+    </div>
+
+    <!-- 2. PLANNING -->
+    <div class="section" id="planning">
+      <h2>2. Planning</h2>
+
+      <h3 id="planning-vue">Vue d'ensemble</h3>
+      <p>Le planning affiche un <strong>calendrier mensuel</strong> avec une ligne par équipe. Chaque <strong>barre colorée</strong> représente une affectation (un chantier planifié sur une période donnée).</p>
+      <ul>
+        <li>Naviguez entre les mois avec les flèches <strong>‹</strong> et <strong>›</strong></li>
+        <li>Chaque barre indique le <strong>nom du chantier</strong>, le <strong>nombre de jours</strong> et le <strong>créneau de début</strong> (M = matin, A = après-midi)</li>
+        <li>Une <strong>icône de verrou</strong> sur une barre indique qu'au moins une présence a déjà été enregistrée en émargement — cette affectation ne peut plus être supprimée</li>
+      </ul>
+      <div class="tip"><strong>Jours fériés et événements</strong> — les colonnes des jours non ouvrés (fériés, fermetures) apparaissent en gris clair et ne comptent pas dans le calcul des durées.</div>
+
+      <h3 id="planning-affecter">Affecter un chantier</h3>
+      <p>Cliquez sur le bouton <strong>Affecter un chantier</strong> (ou directement sur le bouton <strong>+</strong> à droite d'une ligne d'équipe). Une fenêtre s'ouvre en 4 étapes :</p>
+
+      <h3 style="margin-top:.75rem">Étape 1 — Choisir le chantier</h3>
+      <p>Les cartes affichent les devis acceptés disponibles. Chaque carte indique :</p>
+      <ul>
+        <li>La <strong>référence</strong> et le <strong>nom du client</strong></li>
+        <li>Le <strong>chantier</strong> (intitulé du chantier)</li>
+        <li>Le <strong>montant MO total</strong> du devis et le <strong>MO restant</strong> à planifier</li>
+        <li>Un <strong>badge</strong> indiquant les équipes déjà assignées à ce devis</li>
+      </ul>
+      <p>Filtrez les cartes en tapant dans le champ de recherche (client, chantier, référence). Cliquez sur l'icône <strong>↗</strong> pour ouvrir le devis dans un nouvel onglet.</p>
+
+      <h3>Étape 2 — Choisir l'équipe</h3>
+      <p>Chaque carte équipe affiche une estimation du <strong>nombre de jours</strong> nécessaires pour couvrir le MO restant, ainsi que le nombre de chantiers déjà en cours. Cliquez sur une équipe pour la sélectionner — vous passez automatiquement à l'étape suivante.</p>
+
+      <h3>Étape 3 — Durée et tranche</h3>
+      <p><strong>Tranche :</strong> si le devis est divisé en phases (tranches), sélectionnez la tranche concernée, ou créez-en une nouvelle via <strong>+ Nouvelle tranche</strong>. Si une seule tranche existe, elle est sélectionnée automatiquement.</p>
+      <p><strong>Durée :</strong> cliquez sur <strong>Prendre tout</strong> pour utiliser le nombre de jours estimé (MO restant / taux jour / nb équipiers), ou saisissez un nombre de jours personnalisé.</p>
+
+      <h3>Étape 4 — Date de démarrage</h3>
+      <p>Le mini-calendrier affiche le mois en cours. Les cases <strong>colorées en jaune</strong> correspondent aux chantiers déjà planifiés pour cette équipe (survolez pour voir le libellé).</p>
+      <ul>
+        <li>Cliquez sur un jour pour choisir la <strong>date de début</strong></li>
+        <li>La <strong>date de fin</strong> est calculée automatiquement en jours ouvrés (hors fériés et événements)</li>
+        <li>Choisissez le <strong>créneau de démarrage</strong> (Matin ou Après-midi) — la fin est toujours en après-midi</li>
+      </ul>
+      <p>Cliquez sur <strong>Enregistrer</strong> — la barre apparaît immédiatement sur le planning.</p>
+
+      <h3 id="planning-deplacer">Déplacer / modifier une affectation</h3>
+      <p>Glissez-déposez une barre pour la <strong>déplacer</strong> sur le planning :</p>
+      <ul>
+        <li><strong>Horizontalement</strong> — change la date de début (la durée est conservée)</li>
+        <li><strong>Verticalement</strong> — change l'équipe assignée</li>
+      </ul>
+      <p>En début de barre, un <strong>sélecteur de créneau</strong> (M / A) permet de modifier le créneau de démarrage.</p>
+      <div class="warn"><strong>Affectation verrouillée</strong> — une barre avec une icône de verrou ne peut pas être déplacée car des présences ont déjà été saisies en émargement.</div>
+
+      <h3 id="planning-supprimer">Supprimer une affectation</h3>
+      <p>Cliquez sur une barre pour ouvrir sa fiche, puis cliquez sur <strong>Supprimer</strong>. La suppression est impossible si des présences ont été enregistrées (barre verrouillée).</p>
+
+      <h3 id="planning-evenements">Événements d'équipe</h3>
+      <p>Un <strong>événement</strong> représente une indisponibilité d'équipe (formation, fermeture, etc.). Cliquez sur le bouton <strong>+ Événement</strong> (ou sur une cellule vide du calendrier) pour en créer un.</p>
+      <ul>
+        <li>Les jours couverts par un événement sont grisés et ne comptent pas dans les durées des affectations</li>
+        <li>Sélectionnez une plage de jours par <strong>cliquer-glisser</strong> sur le calendrier pour pré-remplir les dates</li>
+      </ul>
+
+      <h3 id="planning-pret">Prêt d'équipier</h3>
+      <p>Un <strong>prêt</strong> permet d'enregistrer qu'un équipier de votre équipe intervient temporairement dans une autre équipe (ou inversement).</p>
+      <ol>
+        <li>Cliquez sur le bouton <strong>Prêt équipier</strong> (ou glissez un équipier vers une autre ligne du planning)</li>
+        <li>Sélectionnez l'<strong>équipier</strong>, l'<strong>équipe d'accueil</strong> et la <strong>période</strong> (cliquer-glisser sur le calendrier)</li>
+        <li>Cliquez sur <strong>Enregistrer</strong></li>
+      </ol>
+      <p>L'équipier apparaît sur les deux lignes : dans son équipe d'origine (avec mention "en prêt") et dans l'équipe d'accueil.</p>
+      <div class="tip">Les jours de prêt sont pris en compte dans le calcul de la charge de l'équipe d'accueil et dans l'émargement des deux équipes concernées.</div>
+    </div>
+
+    <!-- 3. ÉMARGEMENT -->
+    <div class="section" id="emargement">
+      <h2>3. Émargement</h2>
+
+      <h3 id="emargement-vue">Vue d'ensemble</h3>
+      <p>L'émargement affiche une <strong>grille hebdomadaire</strong> par équipe. Chaque colonne correspond à une demi-journée (Matin / Après-midi). Les lignes sont les équipiers de l'équipe.</p>
+      <ul>
+        <li>Naviguez entre les semaines avec les flèches <strong>‹</strong> et <strong>›</strong></li>
+        <li>Les cellules colorées en <strong>vert</strong> indiquent une présence enregistrée</li>
+        <li>Les cellules en <strong>gris clair</strong> correspondent aux demi-journées hors affectation planifiée</li>
+        <li>Le <strong>chantier afférent</strong> est affiché dans l'en-tête de colonne</li>
+      </ul>
+
+      <h3 id="emargement-saisie">Pointer une présence</h3>
+      <p>Cliquez sur une cellule pour basculer la présence (présent / absent). Une cellule verte = présent, vide = absent.</p>
+      <p>Pour pointer plusieurs demi-journées d'un coup, maintenez le clic et <strong>glissez</strong> sur les cellules adjacentes.</p>
+      <div class="tip"><strong>Validation groupée</strong> — en bas de chaque colonne, un bouton permet de pointer / dépointer toute la colonne (toute l'équipe sur une demi-journée) en un clic.</div>
+
+      <h3 id="emargement-pret">Équipiers en prêt</h3>
+      <p>Les équipiers en prêt depuis une autre équipe apparaissent dans la grille de l'équipe d'accueil avec un indicateur visuel. Leur présence se pointe de la même façon que les équipiers réguliers.</p>
+      <p>Dans l'équipe d'origine, les jours de prêt sont affichés mais grisés — la présence est gérée côté équipe d'accueil.</p>
+    </div>
+
+    <!-- 4. ÉQUIPIERS -->
+    <div class="section" id="equipiers">
+      <h2>4. Équipiers</h2>
+      <p>La page <strong>Équipiers</strong> liste les personnes en insertion rattachées à chaque équipe.</p>
+
+      <h3>Ajouter un équipier</h3>
+      <ol>
+        <li>Cliquez sur <strong>Nouvel équipier</strong></li>
+        <li>Renseignez le prénom, nom et l'équipe de rattachement</li>
+        <li>Cliquez sur <strong>Enregistrer</strong></li>
+      </ol>
+
+      <h3>Désactiver un équipier</h3>
+      <p>Cliquez sur le bouton <strong>Actif / Inactif</strong> à droite de l'équipier. Un équipier inactif n'apparaît plus dans les grilles d'émargement ni dans les prêts, mais son historique de présences est conservé.</p>
+
+      <div class="tip"><strong>Nombre d'équipiers par équipe</strong> — le nombre affiché dans le planning (pour le calcul de la charge) correspond au champ <em>nb_équipiers</em> de l'équipe, défini dans l'administration. Il ne compte pas automatiquement les équipiers actifs de la liste.</div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const sections = document.querySelectorAll('.section');
+const tocLinks = document.querySelectorAll('.toc a');
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      tocLinks.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector('.toc a[href="#' + entry.target.id + '"]');
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

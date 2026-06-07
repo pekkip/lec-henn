@@ -260,6 +260,9 @@ def logout_view(request):
 def aide_view(request):
     return render(request, 'core/aide.html')
 
+def aide_insertion_view(request):
+    return render(request, 'core/aide_insertion.html')
+
 
 DOMAINE_AUTORISE = 'compagnonsbatisseurs.eu'
 
