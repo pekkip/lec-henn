@@ -28,7 +28,7 @@ réparti sur ~6 mois et sur les équipes d'Ille-et-Vilaine :
 Équipiers démo créés pour les 6 équipes d'insertion (préfixe ``(D)``).
 """
 import random
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -364,20 +364,32 @@ class Command(BaseCommand):
 
     def _seed_equipiers(self):
         """Crée les équipiers démo (idempotent via matricule). Ne recrée pas si déjà présents."""
+        today = date.today()
+        types_contrat = ['CDDI - 26 heures', 'CDDI - 20 heures', 'CDDI - 30 heures']
+
         for code, personnes in EQUIP_DEMO.items():
             equipe = Equipe.objects.filter(nom__icontains=code).first()
             if equipe is None:
                 continue
             for i, (prenom, nom) in enumerate(personnes, start=1):
                 matricule = f'(D){code}-{i:02d}'
+                # Début de contrat : il y a 3 à 18 mois ; durée 6 à 24 mois
+                debut = today - timedelta(days=R.randint(90, 540))
+                fin   = debut + timedelta(days=R.randint(180, 730))
                 Equipier.objects.get_or_create(
                     matricule=matricule,
                     defaults=dict(
                         prenom=prenom,
                         nom=f'(D){nom}',
                         equipe=equipe,
-                        type_contrat='CDDI - 26 heures',
+                        type_contrat=R.choice(types_contrat),
                         actif=True,
+                        date_debut_contrat=debut,
+                        date_fin_contrat=fin,
+                        date_visite_medicale=debut + timedelta(days=R.randint(0, 21)),
+                        recup_base_heures=Decimal(str(R.randint(0, 20))),
+                        recup_base_date=debut,
+                        droit_conges_jours=Decimal(str(R.choice([25, 26, 27, 28, 30]))),
                     ),
                 )
 
