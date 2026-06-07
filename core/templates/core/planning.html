@@ -116,6 +116,55 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 /* Flash après recalcul multi-équipes */
 @keyframes bar-flash{0%,100%{filter:brightness(1)}40%{filter:brightness(1.35) saturate(1.4)}}
 .tl-bar.just-updated{animation:bar-flash .7s ease-in-out}
+
+/* —— Modal Affecter un chantier — 4 étapes —— */
+.aff-steps{display:flex;align-items:center;gap:4px;font-size:11px;margin-bottom:.75rem;color:var(--gray-md)}
+.aff-step{padding:2px 6px;border-radius:10px;cursor:default}
+.aff-step.active{background:var(--teal-light,#e0f7f5);color:var(--teal);font-weight:600}
+.aff-step.done{color:var(--teal);cursor:pointer;text-decoration:underline}
+.aff-step-sep{opacity:.4}
+.aff-back{background:none;border:none;color:var(--teal);cursor:pointer;font-size:12px;padding:0;margin-bottom:.5rem;display:block}
+.aff-recap{font-size:11px;color:#333;background:#f0f0f0;border-radius:6px;padding:6px 10px;margin-bottom:.6rem;line-height:1.6}
+.aff-recap strong{color:#111;font-weight:700}
+.devis-cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:200px;overflow-y:auto;margin:.4rem 0}
+.devis-card{text-align:left;padding:7px 9px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer;font-size:11px;display:flex;flex-direction:column;gap:2px;transition:border-color .15s;width:100%}
+.devis-card:hover,.devis-card.selected{border-color:var(--teal);background:var(--teal-light,#e0f7f5)}
+.devis-card .dc-ref{font-weight:700;color:var(--teal)}
+.devis-card .dc-client{font-weight:600;color:#222}
+.devis-card .dc-chantier{font-size:10px;color:#555}
+.devis-card .dc-mo{font-size:10px;color:#444;margin-top:2px}
+.devis-card .dc-mo-restant{color:var(--teal);font-weight:600}
+.devis-card .dc-badge{display:inline-block;margin-top:3px;padding:1px 6px;border-radius:8px;font-size:9px;background:var(--teal-light,#e0f7f5);color:var(--teal);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.dc-header{display:flex;justify-content:space-between;align-items:flex-start;gap:4px}
+.dc-link{font-size:11px;opacity:.5;text-decoration:none;color:inherit;flex-shrink:0}
+.dc-link:hover{opacity:1}
+.equipe-cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;max-height:200px;overflow-y:auto}
+.equipe-card{text-align:left;padding:7px 9px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer;font-size:11px;transition:border-color .15s;width:100%}
+.equipe-card:hover,.equipe-card.selected{border-color:var(--teal);background:var(--teal-light,#e0f7f5)}
+.equipe-card .eq-nom{font-weight:600;color:#111}
+.equipe-card .eq-jours{font-size:14px;font-weight:700;color:var(--teal);margin:.2rem 0}
+.equipe-card .eq-charge{font-size:10px;color:#555}
+.equipe-card .eq-na{font-size:10px;color:var(--red,#e53e3e);margin-top:2px}
+.tranche-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:12px;border:1.5px solid var(--border);cursor:pointer;font-size:11px;margin:2px 2px 2px 0;background:var(--bg)}
+.tranche-chip.selected{border-color:var(--teal);background:var(--teal-light,#e0f7f5);font-weight:600}
+.tranche-chip.new-btn{border-style:dashed;color:var(--teal)}
+/* ── calendrier affectation ── */
+.pret-cal{user-select:none;margin-bottom:.5rem}
+.pret-cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem}
+.pret-cal-nav{background:none;border:none;cursor:pointer;font-size:18px;color:var(--gray);padding:1px 7px;border-radius:3px;line-height:1}
+.pret-cal-nav:hover{background:var(--gray-lt)}
+#aff-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-hdr{text-align:center;font-size:10px;font-weight:600;color:var(--gray-md);padding:2px 0 4px}
+.cal-day{text-align:center;font-size:12px;padding:5px 2px;border-radius:3px;line-height:1;cursor:pointer}
+.cal-day:not(.other-month):hover{background:var(--amber-lt,#fef3c7)}
+.cal-day.other-month{color:#bbb;cursor:default;pointer-events:none}
+.cal-day.today{font-weight:700}
+.cal-day.sel-start{background:var(--amber,#f59e0b);color:#fff;font-weight:600;border-radius:4px 0 0 4px}
+.cal-day.sel-end{background:var(--amber,#f59e0b);color:#fff;font-weight:600;border-radius:0 4px 4px 0}
+.cal-day.sel-start.sel-end{border-radius:4px}
+.cal-day.in-range{background:var(--amber-lt,#fef3c7);border-radius:0}
+.cal-busy{background:#fde68a}
+.cal-busy:not(.other-month):not(.sel-start):not(.sel-end):not(.in-range):hover{background:var(--amber,#f59e0b);color:#fff}
 </style>
 {% endblock %}
 
@@ -285,59 +334,99 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 {% endblock %}
 
 {% block modals %}
-<!-- Modal affectation -->
+<!-- Modal affectation — 4 étapes -->
 <div id="modal-aff" class="modal-bg hidden">
-  <div class="modal" style="width:480px">
+  <div class="modal" style="width:540px;max-height:90vh;overflow-y:auto">
     <div class="modal-title">Affecter un chantier</div>
-    <div class="field">
-      <label>Équipe *</label>
-      <select class="input" id="aff-equipe" onchange="calcDateFin()">
-        {% for e in equipes %}
-        <option value="{{ e.pk }}"
-          {% if not peut_modifier_global and e.pk not in equipes_modifiables_ids %}disabled{% endif %}>
-          {{ e.nom }}
-        </option>
-        {% endfor %}
-      </select>
+    <div id="aff-steps" class="aff-steps">
+      <span class="aff-step active" data-step="1">Chantier</span>
+      <span class="aff-step-sep">›</span>
+      <span class="aff-step" data-step="2">Équipe</span>
+      <span class="aff-step-sep">›</span>
+      <span class="aff-step" data-step="3">Durée</span>
+      <span class="aff-step-sep">›</span>
+      <span class="aff-step" data-step="4">Date</span>
     </div>
-    <div class="field">
-      <label>Chantier (devis accepté) *</label>
-      <input class="input" id="aff-search" placeholder="Chercher par client ou chantier…" oninput="filterDevis(this.value)" autocomplete="off">
-      <select class="input" id="aff-devis" size="5" style="margin-top:4px;height:110px" onchange="calcDateFin()" onclick="calcDateFin()">
+    <!-- Étape 1 : Chantier -->
+    <div id="aff-s1">
+      <input class="input" id="aff-search" placeholder="Filtrer par client ou chantier…"
+             oninput="filterDevisCards(this.value)" autocomplete="off" style="margin-bottom:6px">
+      <div id="aff-cards" class="devis-cards-grid">
         {% for d in devis_dispo %}
-        <option value="{{ d.pk }}">{{ d.client.nom }} — {{ d.chantier|default:"(sans titre)" }}</option>
+        <button class="devis-card" type="button"
+                data-pk="{{ d.pk }}"
+                data-ref="{{ d.reference|lower }} {{ d.client.nom|lower }} {{ d.chantier|lower }}">
+          <div class="dc-header">
+            <span class="dc-ref">{{ d.reference }}</span>
+            <a href="{% url 'core:devis-detail' d.pk %}" target="_blank" class="dc-link"
+               onclick="event.stopPropagation()" title="Ouvrir le devis">↗</a>
+          </div>
+          <span class="dc-client">{{ d.client.nom }}</span>
+          <span class="dc-chantier">{{ d.chantier|default:"—" }}</span>
+        </button>
         {% endfor %}
-      </select>
+      </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
-      <div class="field" style="grid-column:1/3">
-        <label>Du *</label>
-        <input class="input" type="date" id="aff-debut" value="{{ debut_grille|date:'Y-m-d' }}" onchange="calcDateFin()">
+    <!-- Étape 2 : Équipe -->
+    <div id="aff-s2" class="hidden">
+      <button type="button" class="aff-back" onclick="affGoStep(1)">‹ Retour</button>
+      <div id="aff-devis-recap" class="aff-recap"></div>
+      <div id="aff-equipe-cards" class="equipe-cards-grid"></div>
+    </div>
+    <!-- Étape 3 : Durée + Tranche -->
+    <div id="aff-s3" class="hidden">
+      <button type="button" class="aff-back" onclick="affGoStep(2)">‹ Retour</button>
+      <div id="aff-duree-recap" class="aff-recap"></div>
+      <div class="field" style="margin-bottom:.5rem">
+        <label style="font-size:11px;color:var(--gray-md)">Tranche</label>
+        <div id="aff-tranche-chips"></div>
+        <div id="aff-tranche-new-wrap" style="display:none;margin-top:4px;gap:6px" class="">
+          <input class="input" id="aff-tranche-nom" placeholder="Nom de la tranche…" style="width:100%;margin-bottom:4px">
+          <button type="button" class="btn btn-sm" onclick="creerTranche()">Créer</button>
+        </div>
       </div>
       <div class="field">
-        <label>Début</label>
-        <select class="input" id="aff-debut-creneau">
-          <option value="matin">Matin</option>
-          <option value="aprem">Après-midi</option>
-        </select>
+        <label>Durée</label>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn btn-teal btn-sm" onclick="prendreRestant()">
+            Prendre tout (<span id="aff-jours-restants">—</span> j)
+          </button>
+          <span style="font-size:11px;color:var(--gray-md)">ou</span>
+          <input class="input" type="number" id="aff-jours-custom" min="1" placeholder="Nb de jours"
+                 style="width:100px" oninput="onJoursCustomChange()">
+        </div>
       </div>
-      <div class="field">
-        <label>Fin</label>
-        <select class="input" id="aff-fin-creneau">
-          <option value="matin">Matin</option>
-          <option value="aprem" selected>Après-midi</option>
-        </select>
+      <div id="aff-s3-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
+      <div class="modal-acts" style="margin-top:.5rem">
+        <button type="button" class="btn" onclick="closeAffModal()">Annuler</button>
+        <button type="button" class="btn btn-teal" onclick="affGoStep(4)">Choisir la date →</button>
       </div>
     </div>
-    <div class="field">
-      <label>Au (calculé) *</label>
-      <input class="input" type="date" id="aff-fin">
-      <small id="aff-fin-hint" style="color:var(--amber);font-size:10px;margin-top:3px;display:none"></small>
-    </div>
-    <div id="aff-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
-    <div class="modal-acts">
-      <button type="button" class="btn" onclick="closeAffModal()">Annuler</button>
-      <button type="button" class="btn btn-teal" onclick="submitAff()">Enregistrer</button>
+    <!-- Étape 4 : Calendrier + créneaux -->
+    <div id="aff-s4" class="hidden">
+      <button type="button" class="aff-back" onclick="affGoStep(3)">‹ Retour</button>
+      <div id="aff-cal-recap" class="aff-recap"></div>
+      <div class="pret-cal">
+        <div class="pret-cal-hd">
+          <button type="button" class="pret-cal-nav" onclick="affCalNav(-1)">‹</button>
+          <span id="aff-cal-month-lbl" style="font-size:13px;font-weight:600"></span>
+          <button type="button" class="pret-cal-nav" onclick="affCalNav(1)">›</button>
+        </div>
+        <div id="aff-cal-grid"></div>
+      </div>
+      <div id="aff-cal-sel-lbl" style="font-size:11px;color:var(--gray);text-align:center;min-height:16px;margin:.3rem 0"></div>
+      <div style="display:flex;align-items:center;gap:12px;margin:.5rem 0">
+        <div style="font-size:10px;color:var(--gray-md)">Démarrage :</div>
+        <div class="cren-grp" id="aff-cren-debut-grp">
+          <button type="button" onclick="setAffCreneauDebut('matin')" class="active">Matin</button>
+          <button type="button" onclick="setAffCreneauDebut('aprem')">Après-midi</button>
+        </div>
+      </div>
+      <div id="aff-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
+      <div class="modal-acts">
+        <button type="button" class="btn" onclick="closeAffModal()">Annuler</button>
+        <button type="button" class="btn btn-teal" onclick="submitAff()">Enregistrer</button>
+      </div>
     </div>
   </div>
 </div>
@@ -426,7 +515,12 @@ const PEUT_GLOBAL   = {{ peut_modifier_global|lower }};
 const DEVIS_MO      = {{ devis_mo_json|safe }};
 const EQ_EFF        = {{ equipe_effectifs_json|safe }};
 const TAUX_JOUR     = 82.5;
-const DEVIS_EQUIPES = {{ devis_equipes_json|safe }};
+const DEVIS_EQUIPES      = {{ devis_equipes_json|safe }};
+const TRANCHES_PAR_DEVIS = {{ tranches_par_devis_json|safe }};
+const MO_PLANIFIE        = {{ mo_planifie_par_devis_json|safe }};
+const AFF_PAR_EQUIPE     = {{ aff_par_equipe_json|safe }};
+const EQUIPES_PLAN       = {{ equipes_plan_json|safe }};
+const URL_TRANCHE_CREER  = '{% url "core:tranche-creer" %}';
 const EV_POSITIFS   = {{ ev_positifs_json|safe }};
 const EV_NEGATIFS   = {{ ev_negatifs_json|safe }};
 const EVENEMENTS_DATA = {{ evenements_data_json|safe }};
@@ -749,108 +843,377 @@ function addWorkingDays(startStr, n, equipeId) {
   return ds;
 }
 
-function calcDateFin() {
-  const hint  = document.getElementById('aff-fin-hint');
-  const eqId  = parseInt(document.getElementById('aff-equipe').value);
-  const devId = parseInt(document.getElementById('aff-devis').value);
-  const debut = document.getElementById('aff-debut').value;
-  if (!eqId || !devId || !debut) return;
-  const mo   = DEVIS_MO[devId] || 0;
-  const nbEq = EQ_EFF[eqId]    || 0;
-  if (nbEq <= 0) {
-    if (hint) { hint.textContent = 'Aucun équipier actif dans cette équipe — saisir la date manuellement.'; hint.style.display = ''; }
-    return;
-  }
-  if (mo <= 0) {
-    if (hint) { hint.textContent = 'Aucune ligne MO/FMO dans ce devis — saisir la date manuellement.'; hint.style.display = ''; }
-    return;
-  }
-  if (hint) hint.style.display = 'none';
-  // Effectif cumulé : cette équipe + équipes déjà affectées au même devis
-  const existingEqs = DEVIS_EQUIPES[devId] || [];
-  const otherNbEq   = existingEqs
-    .filter(eid => eid !== eqId)
-    .reduce((s, eid) => s + (EQ_EFF[eid] || 0), 0);
-  const totalNbEq = nbEq + otherNbEq;
-  const nbJ = Math.ceil(mo / (TAUX_JOUR * totalNbEq));
-  document.getElementById('aff-fin').value = addWorkingDays(debut, nbJ, eqId);
-}
+// ── Modal Affecter un chantier ── wizard 4 étapes ────────────────────
+let _aff = {
+  step: 1,
+  preEq: null,
+  devisId: null, devisRef: '', devisClient: '', devisMoTotal: 0, devisMoRestant: 0,
+  equipeId: null, equipeNom: '', equipeNbEq: 0,
+  trancheId: null, trancheNom: '',
+  nbJours: 0,
+  dateDebut: null, dateFin: null,
+  debutCreneau: 'matin',
+};
+let _affCalYear, _affCalMonth;
+
+// addWorkingDays(startStr, n, equipeId) est défini plus haut (drag & drop)
 
 function openAffModal(equipeId) {
-  const sel = document.getElementById('aff-equipe');
-  if (equipeId) {
-    sel.value = String(equipeId);
-  } else {
-    for (const opt of sel.options) {
-      if (!opt.disabled) { sel.value = opt.value; break; }
-    }
-  }
-  document.getElementById('aff-err').style.display = 'none';
+  Object.assign(_aff, {
+    step: 1, preEq: equipeId || null,
+    devisId: null, equipeId: null, trancheId: null, trancheNom: '',
+    nbJours: 0, dateDebut: null, dateFin: null,
+    debutCreneau: 'matin',
+  });
+  document.getElementById('aff-search').value = '';
+  filterDevisCards('');
   document.getElementById('modal-aff').classList.remove('hidden');
-  document.getElementById('aff-search').focus();
-  calcDateFin();
+  affGoStep(1);
 }
-function closeAffModal() { document.getElementById('modal-aff').classList.add('hidden'); }
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeAffModal(); closeModalEv(); }
-});
 
-function filterDevis(q) {
-  q = q.toLowerCase();
-  [...document.getElementById('aff-devis').options].forEach(opt => {
-    opt.style.display = !q || opt.text.toLowerCase().includes(q) ? '' : 'none';
+function closeAffModal() {
+  document.getElementById('modal-aff').classList.add('hidden');
+}
+
+function affGoStep(n) {
+  if (n === 4) {
+    if (!_aff.nbJours || _aff.nbJours < 1) {
+      const e = document.getElementById('aff-s3-err');
+      e.textContent = 'Veuillez indiquer une durée.';
+      e.style.display = '';
+      return;
+    }
+    document.getElementById('aff-s3-err').style.display = 'none';
+  }
+  _aff.step = n;
+  [1, 2, 3, 4].forEach(function(i) {
+    document.getElementById('aff-s' + i).classList.toggle('hidden', i !== n);
+    const el = document.querySelector('.aff-step[data-step="' + i + '"]');
+    if (el) {
+      el.classList.toggle('active', i === n);
+      el.classList.toggle('done', i < n);
+    }
+  });
+  if (n === 2) renderEquipeCards();
+  if (n === 3) renderTrancheSection();
+  if (n === 4) { initAffCal(); renderAffCal(); }
+}
+
+function filterDevisCards(q) {
+  const lq = q.toLowerCase();
+  document.querySelectorAll('.devis-card').forEach(function(c) {
+    c.style.display = (!lq || c.dataset.ref.includes(lq)) ? '' : 'none';
   });
 }
 
-function submitAff() {
-  const equipeId = document.getElementById('aff-equipe').value;
-  const devisId  = document.getElementById('aff-devis').value;
-  const debut    = document.getElementById('aff-debut').value;
-  const err      = document.getElementById('aff-err');
+document.getElementById('aff-cards').addEventListener('click', function(e) {
+  const card = e.target.closest('.devis-card');
+  if (!card || e.target.closest('.dc-link')) return;
+  const pk = parseInt(card.dataset.pk);
+  const moTotal    = DEVIS_MO[pk] || 0;
+  const moPlanifie = MO_PLANIFIE[pk] || 0;
+  _aff.devisId     = pk;
+  _aff.devisRef    = card.querySelector('.dc-ref').textContent;
+  _aff.devisClient = card.querySelector('.dc-client').textContent;
+  _aff.devisMoTotal   = moTotal;
+  _aff.devisMoRestant = Math.max(0, moTotal - moPlanifie);
+  affGoStep(2);
+});
 
-  if (!equipeId) { err.textContent = 'Sélectionnez une équipe.'; err.style.display = ''; return; }
-  if (!devisId)  { err.textContent = 'Sélectionnez un chantier.'; err.style.display = ''; return; }
-  if (!debut)    { err.textContent = 'Renseignez la date de début.'; err.style.display = ''; return; }
-  if (!document.getElementById('aff-fin').value) calcDateFin();
-  const fin = document.getElementById('aff-fin').value;
-  if (!fin) {
-    const mo2   = DEVIS_MO[parseInt(devisId)]  || 0;
-    const nbEq2 = EQ_EFF[parseInt(equipeId)]   || 0;
-    if (nbEq2 <= 0) err.textContent = 'Équipe sans équipier actif — saisir la date de fin manuellement.';
-    else if (mo2 <= 0) err.textContent = 'Aucune ligne MO/FMO dans ce devis — saisir la date de fin manuellement.';
-    else err.textContent = 'Renseignez la date de fin.';
+// Peupler les cartes devis avec MO + indicateur de planification
+(function() {
+  document.querySelectorAll('.devis-card[data-pk]').forEach(function(card) {
+    const pk    = parseInt(card.dataset.pk);
+    const mo    = DEVIS_MO[pk] || 0;
+    const moP   = MO_PLANIFIE[pk] || 0;
+    const rest  = Math.max(0, mo - moP);
+    const tranches = TRANCHES_PAR_DEVIS[pk] || [];
+    const eqAssignees = tranches.filter(function(t) { return t.equipes.length > 0; });
+
+    if (mo > 0) {
+      const moEl = document.createElement('span');
+      moEl.className = 'dc-mo';
+      const fmt = function(v) { return Math.round(v).toLocaleString('fr') + ' €'; };
+      if (moP > 0) {
+        moEl.innerHTML = 'MO : ' + fmt(mo)
+          + ' &mdash; <span class="dc-mo-restant">Restant : ' + fmt(rest) + '</span>';
+      } else {
+        moEl.textContent = 'MO : ' + fmt(mo);
+      }
+      card.appendChild(moEl);
+    }
+
+    if (eqAssignees.length > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'dc-badge';
+      const noms = eqAssignees.flatMap(function(t) {
+        return t.equipes.map(function(e) { return e.nom; });
+      });
+      const unique = [...new Set(noms)];
+      badge.textContent = unique.join(', ');
+      card.appendChild(badge);
+    }
+  });
+})();
+
+function renderEquipeCards() {
+  const grid  = document.getElementById('aff-equipe-cards');
+  const recap = document.getElementById('aff-devis-recap');
+  grid.innerHTML = '';
+  recap.innerHTML = '<strong>' + _aff.devisRef + ' — ' + _aff.devisClient + '</strong><br>'
+    + 'MO total : ' + Math.round(_aff.devisMoTotal).toLocaleString('fr') + ' €'
+    + ' — Restant : <strong>' + Math.round(_aff.devisMoRestant).toLocaleString('fr') + ' €</strong>';
+
+  EQUIPES_PLAN.forEach(function(eq) {
+    if (!eq.modifiable) return;
+    const jours   = eq.nb_eq > 0 ? Math.ceil(_aff.devisMoRestant / (TAUX_JOUR * eq.nb_eq)) : 0;
+    const enCours = (AFF_PAR_EQUIPE[String(eq.id)] || []).length;
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'equipe-card';
+    card.innerHTML = '<div class="eq-nom">' + eq.nom + '</div>'
+      + '<div class="eq-jours">' + jours + ' j</div>'
+      + '<div class="eq-charge">' + eq.nb_eq + ' équipier' + (eq.nb_eq > 1 ? 's' : '')
+      + ' · ' + enCours + ' chantier' + (enCours !== 1 ? 's' : '') + ' en cours</div>';
+    card.addEventListener('click', function() {
+      document.querySelectorAll('.equipe-card').forEach(function(c) { c.classList.remove('selected'); });
+      card.classList.add('selected');
+      _aff.equipeId   = eq.id;
+      _aff.equipeNom  = eq.nom;
+      _aff.equipeNbEq = eq.nb_eq;
+      affGoStep(3);
+    });
+    grid.appendChild(card);
+  });
+
+  // Auto-avancer si équipe pré-sélectionnée depuis la ligne de planning
+  if (_aff.preEq) {
+    const found = EQUIPES_PLAN.find(function(e) { return e.id === _aff.preEq && e.modifiable; });
+    if (found) {
+      _aff.equipeId = found.id; _aff.equipeNom = found.nom; _aff.equipeNbEq = found.nb_eq;
+      affGoStep(3);
+    }
+  }
+}
+
+function renderTrancheSection() {
+  const jRestant = _aff.equipeNbEq > 0
+    ? Math.ceil(_aff.devisMoRestant / (TAUX_JOUR * _aff.equipeNbEq)) : 0;
+  _aff.nbJours = jRestant;
+  document.getElementById('aff-jours-restants').textContent = jRestant;
+  document.getElementById('aff-jours-custom').value = '';
+  document.getElementById('aff-s3-err').style.display = 'none';
+  document.getElementById('aff-duree-recap').innerHTML =
+    '<strong>' + _aff.equipeNom + '</strong> · ' + _aff.equipeNbEq
+    + ' équipier' + (_aff.equipeNbEq > 1 ? 's' : '') + '<br>'
+    + 'MO restant : ' + Math.round(_aff.devisMoRestant).toLocaleString('fr') + ' €'
+    + ' → <strong>' + jRestant + ' j</strong>';
+
+  const chips = document.getElementById('aff-tranche-chips');
+  chips.innerHTML = '';
+  document.getElementById('aff-tranche-new-wrap').style.display = 'none';
+  document.getElementById('aff-tranche-nom').value = '';
+  const tranches = TRANCHES_PAR_DEVIS[_aff.devisId] || [];
+
+  tranches.forEach(function(t) {
+    const chip = document.createElement('span');
+    chip.className = 'tranche-chip';
+    chip.dataset.tid = t.id;
+    const eqs = t.equipes.length ? t.equipes.map(function(e) { return e.nom; }).join(', ') : 'non affecté';
+    chip.textContent = t.nom + ' (' + eqs + ')';
+    chip.addEventListener('click', function() {
+      document.querySelectorAll('.tranche-chip:not(.new-btn)').forEach(function(c) { c.classList.remove('selected'); });
+      chip.classList.add('selected');
+      _aff.trancheId = t.id; _aff.trancheNom = t.nom;
+      document.getElementById('aff-tranche-new-wrap').style.display = 'none';
+    });
+    chips.appendChild(chip);
+  });
+
+  const btnNew = document.createElement('span');
+  btnNew.className = 'tranche-chip new-btn';
+  btnNew.textContent = '＋ Nouvelle tranche';
+  btnNew.addEventListener('click', function() {
+    _aff.trancheId = null; _aff.trancheNom = '';
+    document.querySelectorAll('.tranche-chip:not(.new-btn)').forEach(function(c) { c.classList.remove('selected'); });
+    document.getElementById('aff-tranche-new-wrap').style.display = 'flex';
+    document.getElementById('aff-tranche-nom').focus();
+  });
+  chips.appendChild(btnNew);
+
+  if (tranches.length === 0) {
+    _aff.trancheId = null; _aff.trancheNom = 'Chantier complet';
+  } else if (tranches.length === 1) {
+    chips.children[0].click();
+  }
+}
+
+function prendreRestant() {
+  const jRestant = _aff.equipeNbEq > 0
+    ? Math.ceil(_aff.devisMoRestant / (TAUX_JOUR * _aff.equipeNbEq)) : 0;
+  _aff.nbJours = jRestant;
+  document.getElementById('aff-jours-custom').value = '';
+}
+
+function onJoursCustomChange() {
+  const v = parseInt(document.getElementById('aff-jours-custom').value);
+  if (!isNaN(v) && v > 0) _aff.nbJours = v;
+}
+
+async function creerTranche() {
+  const nomEl = document.getElementById('aff-tranche-nom');
+  const nom = nomEl.value.trim() || 'Nouvelle tranche';
+  let d;
+  try {
+    const resp = await fetch(URL_TRANCHE_CREER, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+      body: JSON.stringify({devis_id: _aff.devisId, nom: nom}),
+    });
+    d = await resp.json();
+  } catch(_e) { return; }
+  if (d.ok) {
+    if (!TRANCHES_PAR_DEVIS[_aff.devisId]) TRANCHES_PAR_DEVIS[_aff.devisId] = [];
+    TRANCHES_PAR_DEVIS[_aff.devisId].push({id: d.id, nom: d.nom, equipes: []});
+    _aff.trancheId = d.id; _aff.trancheNom = d.nom;
+    renderTrancheSection();
+    const chips = document.querySelectorAll('.tranche-chip:not(.new-btn)');
+    if (chips.length) chips[chips.length - 1].click();
+  }
+}
+
+// ── Calendrier étape 4 ─────────────────────────────────────────────
+function initAffCal() {
+  const today = new Date();
+  _affCalYear  = today.getFullYear();
+  _affCalMonth = today.getMonth();
+  _aff.dateDebut = null; _aff.dateFin = null;
+  document.getElementById('aff-cal-sel-lbl').textContent = 'Cliquer sur un jour pour choisir la date de début';
+  document.getElementById('aff-err').style.display = 'none';
+  setAffCreneauDebut('matin');
+}
+
+function affCalNav(dir) {
+  _affCalMonth += dir;
+  if (_affCalMonth > 11) { _affCalMonth = 0; _affCalYear++; }
+  if (_affCalMonth < 0)  { _affCalMonth = 11; _affCalYear--; }
+  renderAffCal();
+}
+
+function setAffCreneauDebut(c) {
+  _aff.debutCreneau = c;
+  document.querySelectorAll('#aff-cren-debut-grp button').forEach(function(b, i) {
+    b.classList.toggle('active', i === (c === 'matin' ? 0 : 1));
+  });
+}
+
+
+function renderAffCal() {
+  const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  document.getElementById('aff-cal-month-lbl').textContent = MOIS[_affCalMonth] + ' ' + _affCalYear;
+  const grid = document.getElementById('aff-cal-grid');
+  grid.innerHTML = '';
+  ['L','M','M','J','V','S','D'].forEach(function(h) {
+    const el = document.createElement('div');
+    el.className = 'cal-hdr'; el.textContent = h; grid.appendChild(el);
+  });
+
+  const affEq    = AFF_PAR_EQUIPE[String(_aff.equipeId)] || [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const firstDow = new Date(_affCalYear, _affCalMonth, 1).getDay();
+  const off      = firstDow === 0 ? 6 : firstDow - 1;
+  const dim      = new Date(_affCalYear, _affCalMonth + 1, 0).getDate();
+  const prevDim  = new Date(_affCalYear, _affCalMonth, 0).getDate();
+
+  function mkDs(y, m, d) {
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+
+  for (let i = off - 1; i >= 0; i--) {
+    const el = document.createElement('div');
+    el.className = 'cal-day other-month'; el.textContent = prevDim - i; grid.appendChild(el);
+  }
+
+  for (let day = 1; day <= dim; day++) {
+    const ds  = mkDs(_affCalYear, _affCalMonth, day);
+    const el  = document.createElement('div');
+    el.className = 'cal-day';
+    el.textContent = day;
+    if (ds === todayStr) el.classList.add('today');
+    if (_aff.dateDebut) {
+      if (ds === _aff.dateDebut && ds === _aff.dateFin) el.classList.add('sel-start', 'sel-end');
+      else if (ds === _aff.dateDebut) el.classList.add('sel-start');
+      else if (ds === _aff.dateFin)   el.classList.add('sel-end');
+      else if (_aff.dateFin && ds > _aff.dateDebut && ds < _aff.dateFin) el.classList.add('in-range');
+    }
+    const busy = affEq.filter(function(a) { return ds >= a.debut && ds <= a.fin; });
+    if (busy.length) {
+      el.classList.add('cal-busy');
+      el.title = busy.map(function(a) { return a.label; }).join(', ');
+    }
+    (function(capturedDs) {
+      el.addEventListener('click', function() {
+        _aff.dateDebut = capturedDs;
+        _aff.dateFin   = _aff.nbJours > 1 ? addWorkingDays(capturedDs, _aff.nbJours - 1, _aff.equipeId) : capturedDs;
+        renderAffCal();
+        const fmt = function(s) {
+          return new Date(s + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'});
+        };
+        document.getElementById('aff-cal-sel-lbl').textContent =
+          'Du ' + fmt(_aff.dateDebut) + ' au ' + fmt(_aff.dateFin) + ' (' + _aff.nbJours + ' j)';
+      });
+    })(ds);
+    grid.appendChild(el);
+  }
+
+  const total = off + dim;
+  const fill  = total % 7 === 0 ? 0 : 7 - total % 7;
+  for (let i = 1; i <= fill; i++) {
+    const el = document.createElement('div');
+    el.className = 'cal-day other-month'; el.textContent = i; grid.appendChild(el);
+  }
+
+  document.getElementById('aff-cal-recap').innerHTML =
+    '<strong>' + _aff.devisRef + ' — ' + _aff.devisClient + '</strong>'
+    + ' · ' + _aff.equipeNom + ' · ' + _aff.nbJours + ' j';
+}
+
+function submitAff() {
+  const err = document.getElementById('aff-err');
+  if (!_aff.dateDebut) {
+    err.textContent = 'Choisissez une date de début sur le calendrier.';
     err.style.display = ''; return;
   }
-  if (fin < debut) { err.textContent = 'La date de fin est avant le début.'; err.style.display = ''; return; }
+  if (!_aff.nbJours || _aff.nbJours < 1) {
+    err.textContent = 'Durée invalide.';
+    err.style.display = ''; return;
+  }
   err.style.display = 'none';
-
-  const debutCreneau = document.getElementById('aff-debut-creneau').value;
-  const finCreneau   = document.getElementById('aff-fin-creneau').value;
   fetch(URL_AFF, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
     body: JSON.stringify({
-      devis_id: parseInt(devisId),
-      equipe_id: parseInt(equipeId),
-      date_debut: debut,
-      date_fin: fin,
-      debut_creneau: debutCreneau,
-      fin_creneau: finCreneau,
-    })
+      devis_id:      _aff.devisId,
+      equipe_id:     _aff.equipeId,
+      tranche_id:    _aff.trancheId || null,
+      date_debut:    _aff.dateDebut,
+      date_fin:      _aff.dateFin,
+      debut_creneau: _aff.debutCreneau,
+      fin_creneau:   'aprem',
+    }),
   })
-  .then(r => r.json())
-  .then(d => {
-    if (d.ok) {
-      if (d.recalculated && d.recalculated.length > 0) {
-        sessionStorage.setItem('flashAff', JSON.stringify(d.recalculated));
-      }
-      location.reload();
-    } else {
-      err.textContent = d.error || 'Erreur'; err.style.display = '';
-    }
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) { location.reload(); }
+    else { err.textContent = d.error || 'Erreur'; err.style.display = ''; }
   })
-  .catch(() => { err.textContent = 'Erreur réseau'; err.style.display = ''; });
+  .catch(function() { err.textContent = 'Erreur réseau'; err.style.display = ''; });
 }
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { closeAffModal(); closeModalEv(); }
+});
 
 // ── Modale événement ──────────────────────────────────
 function openModalEv(pk) {

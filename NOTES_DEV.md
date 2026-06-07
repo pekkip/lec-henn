@@ -4,9 +4,10 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
-**État du projet (06/06/2026 — session 24) :** en test beta, en attente de retours
-des collègues. **Module Planning & Émargement** en cours de conception (maquettes HTML
-validées, code pas encore écrit — voir session 24). **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
+**État du projet (07/06/2026 — session 28) :** en test beta. **Module Planning & Émargement**
+opérationnel en prod (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
+bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
+Feuille de paie mensuelle et vue Production restent à implémenter. **PERF LISTES & DASHBOARD** (session 23) : même cause racine (N+1) —
 `total_brut()`/`reste_a_facturer()`/`LigneDevis.total()` parcourent l'arbre des lignes en
 frappant la base à chaque nœud. Sur les **listes** (devis) c'était aggravé par un 2ᵉ calcul
 dans le template ; sur le **dashboard**, plusieurs widgets (CA, reste à facturer, CA mensuel,
@@ -209,6 +210,177 @@ peut_gerer_utilisateurs() / peut_gerer_cet_utilisateur()
 - Police : Montserrat (Google Fonts)
 - Logo : embarqué en base64 dans devis_pdf.html et facture_apercu.html
 - Logo horizontal pour en-tête documents, vertical pour usage courant
+
+---
+
+## Session 28 — 07/06/2026 — Planning : corrections drag & drop & performance
+
+### Contexte
+Deux problèmes signalés en prod (Railway) sur le drag & drop du planning :
+navigation parasite vers `https://0.0.0.4/` lors du drop, et fluidité moindre qu'en local.
+
+### Problèmes diagnostiqués
+
+**1. Navigation parasite** — `dragstart` sur `.tl-bar` retournait tôt si `e.target !== bar`
+(drag initié depuis un enfant : texte, barre de progression). `dragData` restait `null`
+→ `dragover` n'appelait pas `e.preventDefault()` → le navigateur interprétait le
+texte enfant comme URL. Un ID court comme `4` donne `0.0.0.4` en notation IP.
+
+**2. Fluidité** — `cellAtX` appelait `getBoundingClientRect()` sur chaque cellule à
+chaque `dragover` (~60×/s), forçant un recalcul de layout DOM. Sur Railway la grille
+est plus grande (plus d'équipes + de données).
+
+**3. Rechargement complet** — `location.reload()` après chaque déplacement chargeait la
+page entière (requête HTTP + rendu serveur complet + init JS).
+
+### Fichiers modifiés
+
+- `core/templates/core/planning.html` :
+  - Guard `dragstart` : remplace `if (e.target !== bar) return` par
+    `if (e.target.closest('.bar-del')) { e.preventDefault(); return; }`
+  - `buildCellPositionCache()` : snapshot des positions (left/right) de toutes les cellules
+    par équipe au début du drag
+  - `cellAtX` utilise le cache au lieu de `getBoundingClientRect` en boucle
+  - Throttle `dragover` via `requestAnimationFrame` (highlight 1×/frame ;
+    `e.preventDefault()` reste synchrone)
+  - `applyBarUpdate(bar, newTrack, u)` : repositionne une barre depuis les données
+    serveur (lit `grid-column` des cellules existantes via `data-date` + classe `.aprem`)
+  - Handler `drop` : lit `d.updated[]` et appelle `applyBarUpdate` — plus de
+    `location.reload()` pour le cas commun ; reload conservé si barre hors fenêtre ou erreur
+
+- `core/views.py` :
+  - `_aff_update_dict(aff)` : sérialise une affectation avec `nb_jours` calculé
+    côté serveur (event-aware via `_build_evenement_sets` + `_count_working_days`)
+  - `affectation_move` : retourne `{ok, updated: [...]}` au lieu de `{ok, recalculated: [pks]}`
+
+### Décisions actées
+
+- **Pas de mise à jour optimiste** — `applyBarUpdate` appelé uniquement après `200 OK`
+  avec les données autorisataires du serveur.
+- Reload de secours si la date cible est hors fenêtre visible (cellule introuvable dans le DOM).
+- `pct_consomme` non mis à jour (nécessite comptage présences) — stale jusqu'au prochain rechargement.
+
+---
+
+## Session 27 — 07/06/2026 — Planning : prêt équipier, émargement polish
+
+### Fichiers modifiés
+
+- `core/models.py` — `Pret` : ajout `creneau_debut` / `creneau_fin` (choix matin/aprem)
+- `core/migrations/0023_…` — migration des nouveaux champs Pret
+- `core/views.py` :
+  - `_in_loan(jour, creneau, pret)` : fonction module-level (sortie de la closure) pour
+    calcul précis demi-journée
+  - `CRENEAU_ORDER` : constante module-level (ordre matin < aprem)
+  - `pret_away_map` : clé `(equipier_id, date_iso, creneau)` pour granularité demi-journée
+  - `_build_cren_rows` : utilise `is_jour_off()` (event-aware) au lieu de
+    `jour.weekday()==4` pour les vendredis
+  - `pret_save` : enregistre `creneau_debut` / `creneau_fin`
+  - `jours_info` : liste de dicts `{jour, label, events, is_off}` consommée par le template
+  - Jours fériés (`type='journee_ferie'`) : exclus de `jours_off_force` (décalage chantier)
+    mais affichés avec rayures vertes dans l'émargement
+  - Fix suppression prêt : nettoie les présences de l'équipe hôte → supprime les rayures
+    grises côté équipe maison
+- `core/templates/core/emargement.html` :
+  - Modal prêt : boutons Matin/Après-midi pour début et fin
+  - En-têtes de colonnes : tags d'événements colorés par type (toutes les équipes)
+  - Cellules jour férié : rayures vertes 135° + libellé, non marquées `is_off`
+  - Drag-select pour la plage de prêt (calendrier hebdomadaire)
+  - Préfill grisée sur cellule déjà pointée + validation prêt si déjà émargé
+  - Affichage équipe hôte dans les journées de prêt côté équipe prêteuse
+
+### Décisions actées
+
+- Demi-journée précise sur le prêt : `creneau_debut`/`creneau_fin` sur le modèle `Pret`,
+  clé composée `(equipier_id, date, creneau)` dans `pret_away_map`
+- Jours fériés affichés mais non bloquants (`is_off=False`) — équipe peut pointer ce jour-là
+- **Renommage équipes Railway (prod)** : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM,
+  AQSM→58-AQSM, AQRM→AQRM A + AQRM B (puis 55-AQRM A/B)
+
+---
+
+## Session 26 — 06–07/06/2026 — Planning : multi-équipes, événements, émargement
+
+### Fichiers modifiés
+
+- `core/views.py` :
+  - `_recalcul_durees_tranche` : recalcule `date_fin` de toutes les affectations d'une
+    tranche en cas de changement d'équipe ou de suppression (équipes multiples sur un même chantier)
+  - `affectation_move` + `affectation_delete` : gate check doublon + appel `_recalcul_durees_tranche`
+  - `_build_evenement_sets`, `_is_working_day`, `_count_working_days`, `_add_working_days` :
+    helpers calcul jours ouvrés event-aware
+  - `evenement_save`, `evenement_delete` : CRUD événements (formation/visite/réunion/férié/jour_sup/autre),
+    recalcul des tranches affectées si `decale_chantier=True`
+  - `emargement_view` : réécrit (tab colonne-majeur M-A par jour par équipier),
+    valeurs par défaut grisées, total live, validation codes absence
+    (C/R/M/AT/A/AJ/S/PMSMP/DE/DI/F)
+- `core/templates/core/planning.html` :
+  - Grille demi-journées (12 colonnes/semaine : 5j×2 demi-j + Sam + Dim)
+  - Système événements : barres `ev-bar` (négatifs) + icônes `ven-ind` (positifs/vendredi)
+  - Indicateur vendredi actif par équipe/affectation
+  - Barres plus hautes (78px) avec référence devis, lieu du chantier, jours/% consommé
+  - Indicateur divergence durée (`divergent` outline amber si écart > 1j)
+  - Poignées resize gauche/droite
+  - Multi-équipes : check doublon + flash des barres recalculées
+  - Colonne aujourd'hui (teal pointillé)
+  - Tri équipes par ordre puis nom
+- `core/templates/core/emargement.html` :
+  - Tab M-A-M-A-… par jour par équipier
+  - Valeurs par défaut grisées (prefill depuis `presence_save`)
+  - Total live et validation des codes absence
+
+### Décisions actées
+
+- **Multi-équipes sur une tranche** : une tranche peut avoir N affectations (N équipes). La
+  durée est répartie proportionnellement à l'effectif cumulé.
+- **Grille demi-journées** : 12 colonnes/semaine (Lun-Ven ×2 + Sa + Di), colonnes 13px/8px.
+  `_half_col_creneau` calcule les positions côté serveur.
+- **Événements** : `decale_chantier=True` déclenche un recalcul des durées affectées ;
+  `travaille=True` active un jour normalement chômé (vendredi ou autre).
+
+---
+
+## Session 25 — 06/06/2026 — Planning & Émargement : implémentation initiale
+
+### Contexte
+Session 24 : maquettes validées, aucun code Django écrit. Session 25 : implémentation
+complète du socle (modèles, migrations, vues CRUD de base, templates fonctionnels).
+
+### Fichiers créés / modifiés (3 commits socle + nombreux correctifs DnD)
+
+- `core/models.py` — nouveaux modèles :
+  `Financeur`, `Equipier` (nom/prénom/équipe/matricule/contrat/dates/récup/congés),
+  `TrancheDevis` (statut en_cours/termine/facture), `Affectation` (équipe/dates/créneau/épinglé),
+  `Evenement` (type/libellé/creneau/travaille/decale_chantier),
+  `Presence` (pointage équipier × demi-journée, codes absence),
+  `ClotureMois` (verrou mensuel par équipe)
+  `Equipe` : ajout `encadrant`, `nb_equipiers`, `module_planning`, `activite`
+  `Service`/`ParametresAssociation` : ajout `module_planning`, `taux_jour_facturable`
+- `core/migrations/0018–0022` — schémas + données planning
+- `core/views.py` — bloc Planning :
+  - `equipiers_list`, `equipier_save`, `equipier_toggle_actif`
+  - `planning_mois` : timeline multi-semaines CSS Grid (12 colonnes/sem)
+  - `emargement_view` : grille hebdomadaire (version initiale)
+  - `affectation_save`, `affectation_move`, `affectation_delete`
+  - `vendredi_toggle`, `presence_save`, `pret_save`
+  - `_half_col_creneau` : calcul positions colonnes serveur
+  - `peut_acceder_planning` / `est_encadrant` dans `permissions.py`
+  - Calcul `date_fin` auto depuis lignes MO/FMO du devis + `nb_equipiers`
+  - **Fix `LigneDevis.total_mo()`** : condition étendue à `type_ligne in ('MO', 'FMO')` ;
+    `total_mo_devis()` ajouté dans `core/totaux.py` (même pattern sans N+1)
+- `core/urls.py` — bloc `/planning/` (14 routes)
+- `core/templates/core/base.html` — section sidebar Insertion
+- `core/templates/core/planning.html` (ébauche) — grille timeline + DnD déplacer/supprimer
+- `core/templates/core/emargement.html` (ébauche) — grille hebdo + modal prêt initial
+- `core/templates/core/equipiers.html` — liste + gestion équipiers
+
+### Décisions actées
+
+- Semaine Lun-Jeu par défaut ; vendredi activable par affectation via bouton `+`
+- `TAUX_JOUR = 82.5 h/j` (heures MO par jour-équipier, calcul durée affectation)
+- Planning visible uniquement admin + encadrants (`peut_acceder_planning`)
+- Modèle `Pret` créé dès cette session (sans créneaux — ajoutés session 27)
+- `seed_demo` mis à jour pour créer des équipiers de démo
 
 ---
 

@@ -900,6 +900,7 @@ class TrancheDevis(models.Model):
     class Meta:
         ordering = ['devis', 'ordre']
         verbose_name = 'Tranche de devis'
+        verbose_name_plural = 'Tranches de devis'
 
     def __str__(self):
         return f"{self.devis.reference} — {self.nom}"

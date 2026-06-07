@@ -3335,6 +3335,28 @@ def planning_mois(request):
     # 12 cols/semaine : 10 demi-j (10×13px) + 1 Sam (8px) + 1 Dim (8px)
     tl_min_width = 180 + nb_semaines * (10 * 13 + 2 * 8)
 
+    # —— Nouvelles données pour la modal d'affectation ——
+    tranches_par_devis = {}
+    for t in TrancheDevis.objects.filter(devis__in=devis_dispo).prefetch_related('affectations__equipe').order_by('ordre', 'nom'):
+        tranches_par_devis.setdefault(t.devis_id, []).append({
+            'id': t.pk,
+            'nom': t.nom,
+            'equipes': [{'nom': a.equipe.nom} for a in t.affectations.all()],
+        })
+    mo_planifie_par_devis = {}
+    for _a in Affectation.objects.filter(tranche__devis__in=devis_dispo).select_related('equipe', 'tranche__devis'):
+        _pos, _neg = _build_evenement_sets(_a.equipe_id, _a.date_debut, _a.date_fin)
+        _nbj = _count_working_days(_a.date_debut, _a.date_fin, _pos, _neg)
+        _mo = float(_nbj * _a.equipe.nb_equipiers * _TAUX_JOUR_PLANNING)
+        mo_planifie_par_devis[_a.tranche.devis_id] = mo_planifie_par_devis.get(_a.tranche.devis_id, 0) + _mo
+    aff_par_equipe = {}
+    for _a in affectations:
+        aff_par_equipe.setdefault(str(_a.equipe_id), []).append({
+            'debut': _a.date_debut.isoformat(),
+            'fin':   _a.date_fin.isoformat(),
+            'label': str(_a.tranche.devis.chantier or _a.tranche.devis.client.nom),
+        })
+
     return render(request, 'core/planning.html', {
         'equipes': equipes,
         'jours': jours,
@@ -3355,6 +3377,10 @@ def planning_mois(request):
         'devis_mo_json': devis_mo_json,
         'equipe_effectifs_json': equipe_effectifs_json,
         'devis_equipes_json': json.dumps(devis_equipes),
+        'tranches_par_devis_json': json.dumps(tranches_par_devis),
+        'mo_planifie_par_devis_json': json.dumps(mo_planifie_par_devis),
+        'aff_par_equipe_json': json.dumps(aff_par_equipe),
+        'equipes_plan_json': json.dumps([{'id': e.pk, 'nom': e.nom, 'nb_eq': e.nb_equipiers, 'modifiable': e.pk in equipes_modifiables_ids} for e in equipes]),
         'ev_positifs_json': json.dumps(ev_positifs_json_data),
         'ev_negatifs_json': json.dumps(ev_negatifs_json_data),
         'today': date.today(),
@@ -3373,6 +3399,22 @@ def planning_mois(request):
             for ev in evenements
         }),
     })
+
+
+@login_required
+@require_POST
+def tranche_creer(request):
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+    devis = get_object_or_404(Devis, pk=data.get('devis_id'), status='accepted')
+    nom = (data.get('nom') or '').strip() or 'Nouvelle tranche'
+    ordre = TrancheDevis.objects.filter(devis=devis).count() + 1
+    t = TrancheDevis.objects.create(devis=devis, nom=nom, ordre=ordre)
+    return JsonResponse({'ok': True, 'id': t.pk, 'nom': t.nom})
 
 
 _TAUX_JOUR_PLANNING = Decimal('82.5')  # €/jour/équipier, cohérent avec TAUX_JOUR dans planning.html
@@ -3652,10 +3694,17 @@ def affectation_save(request):
     if date_fin < date_debut:
         return JsonResponse({'ok': False, 'error': 'Fin < début'}, status=400)
 
-    tranche, _ = TrancheDevis.objects.get_or_create(
-        devis=devis,
-        defaults={'nom': 'Chantier complet', 'ordre': 0},
-    )
+    tranche_id = data.get('tranche_id')
+    if tranche_id:
+        try:
+            tranche = TrancheDevis.objects.get(pk=tranche_id, devis=devis)
+        except TrancheDevis.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Tranche introuvable'}, status=404)
+    else:
+        tranche, _ = TrancheDevis.objects.get_or_create(
+            devis=devis,
+            defaults={'nom': 'Chantier complet', 'ordre': 0},
+        )
     if Affectation.objects.filter(equipe=equipe, tranche=tranche).exists():
         label = str(devis.chantier or devis.client)
         return JsonResponse({'ok': False, 'error': f'"{label}" est déjà assigné à cette équipe.'})
