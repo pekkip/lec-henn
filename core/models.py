@@ -1108,8 +1108,11 @@ class Pret(models.Model):
     equipe_hote = models.ForeignKey(
         Equipe, on_delete=models.CASCADE, related_name='prets_recus'
     )
-    date_debut = models.DateField()
-    date_fin = models.DateField()
+    CRENEAU_CHOICES = [('matin', 'Matin'), ('aprem', 'Après-midi')]
+    date_debut    = models.DateField()
+    creneau_debut = models.CharField(max_length=10, choices=CRENEAU_CHOICES, default='matin')
+    date_fin      = models.DateField()
+    creneau_fin   = models.CharField(max_length=10, choices=CRENEAU_CHOICES, default='aprem')
     cree_par = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, blank=True, related_name='prets_crees'

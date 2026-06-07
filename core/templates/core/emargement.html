@@ -101,6 +101,20 @@
 .cinp-def{color:#bbb}
 .cinp.inp-err{color:var(--red);font-weight:700}
 
+/* ── événements dans en-tête ────────────── */
+.ev-tag{display:block;font-size:7px;font-weight:600;padding:1px 3px;border-radius:2px;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:center;max-width:76px}
+.ev-formation{background:#DBEAFE;color:#1D4ED8}
+.ev-visite{background:#EDE9FE;color:#5B21B6}
+.ev-reunion{background:#FEF3C7;color:#92400E}
+.ev-journee_ferie{background:#DCFCE7;color:#166534}
+.ev-jour_sup{background:#D1FAE5;color:#065F46}
+.ev-autre,.ev-decale{background:var(--gray-lt);color:var(--gray)}
+.cell.ferie{background:repeating-linear-gradient(135deg,#DCFCE7 0 6px,#BBF7D0 6px 12px);color:#166534;font-size:9px;font-weight:600}
+.cell.ferie::before{display:none}
+/* ── créneaux modal prêt ─────────────────── */
+.cren-grp{display:flex;gap:4px}
+.cren-grp button{flex:1;padding:3px 6px;font-size:11px;border:1px solid var(--gray-bd);border-radius:3px;background:#fff;cursor:pointer;color:var(--gray)}
+.cren-grp button.active{background:var(--amber);border-color:#d97706;color:#fff;font-weight:600}
 /* ── prêt équipier ───────────────────────── */
 .cell.lent::before{background:var(--amber)}
 .pret-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:18px;height:18px;border:none;background:transparent;color:var(--gray-md);cursor:pointer;font-size:15px;line-height:1;border-radius:3px;display:flex;align-items:center;justify-content:center}
@@ -247,9 +261,10 @@
         <div class="eg">
           <!-- En-tête -->
           <div class="h name" style="grid-column:1/3">Équipier</div>
-          {% for jour, label in jours_info %}
-          <div class="h day{% if forloop.first %} mon{% endif %}{% if forloop.last %} off{% endif %}">
-            {{ label }}<b>{{ jour|date:"j" }}</b>
+          {% for ji in jours_info %}
+          <div class="h day{% if forloop.first %} mon{% endif %}{% if ji.is_off %} off{% endif %}">
+            {{ ji.label }}<b>{{ ji.jour|date:"j" }}</b>
+            {% for ev in ji.events %}<span class="ev-tag ev-{{ ev.type }}" title="{{ ev.libelle|default:ev.get_type_display }}">{{ ev.libelle|default:ev.get_type_display }}</span>{% endfor %}
           </div>
           {% endfor %}
           <div class="h">Total</div>
@@ -271,6 +286,7 @@
           {% with code=cell.pres.code heures=cell.pres.heures %}
           <div class="cell
             {% if cell.is_away %}away
+            {% elif cell.is_ferie %}ferie
             {% elif cell.is_off %}off
             {% elif code %}abs {% if code == 'C' %}conge{% elif code == 'M' or code == 'AT' %}malad{% else %}abs-oth{% endif %}
             {% elif cell.aff_id %}{{ cell.color }}
@@ -281,6 +297,7 @@
             data-date="{{ cell.date_iso }}"
             data-creneau="{{ cr.creneau }}">
             {% if cell.is_away %}<span title="{% if cell.away_team_nom %}Prêté à {{ cell.away_team_nom }}{% else %}Pointé ailleurs{% endif %}" style="font-size:9px">↩{% if cell.away_team_nom %} {{ cell.away_team_nom }}{% endif %}</span>
+            {% elif cell.is_ferie %}<span title="{{ cell.ferie_label }}">{{ cell.ferie_label|default:"Férié" }}</span>
             {% elif cell.is_off %}
             {% elif not cell.aff_id %}<span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
             {% elif code %}
@@ -320,7 +337,7 @@
               <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px">
                 {{ row.equipier.prenom }} {{ row.equipier.nom }}
               </div>
-              <small style="color:#8B5E0A">emprunté à {{ row.equipier.equipe.nom }} · {{ row.pret_debut|date:"j/m" }}–{{ row.pret_fin|date:"j/m" }}</small>
+              <small style="color:#8B5E0A">emprunté à {{ row.equipier.equipe.nom }} · {{ row.pret_debut|date:"j/m" }}{% if row.pret_debut_creneau == 'aprem' %} ap.{% endif %}–{{ row.pret_fin|date:"j/m" }}{% if row.pret_fin_creneau == 'matin' %} mat.{% endif %}</small>
             </div>
             {% if peut_modifier %}
             <button class="pret-del" onclick="deletePret({{ row.pret_id }})" title="Retirer ce prêt">×</button>
@@ -332,6 +349,7 @@
           {% with code=cell.pres.code heures=cell.pres.heures %}
           <div class="cell
             {% if cell.is_away %}away
+            {% elif cell.is_ferie %}ferie
             {% elif cell.is_off %}off
             {% elif code %}abs {% if code == 'C' %}conge{% elif code == 'M' or code == 'AT' %}malad{% else %}abs-oth{% endif %}
             {% elif cell.aff_id %}{{ cell.color }}{% if cell.is_lent %} lent{% endif %}
@@ -343,6 +361,7 @@
             data-date="{{ cell.date_iso }}"
             data-creneau="{{ cr.creneau }}">
             {% if cell.is_away %}<span title="Hors plage de prêt" style="font-size:9px">↩ {{ row.equipier.equipe.nom }}</span>
+            {% elif cell.is_ferie %}<span title="{{ cell.ferie_label }}">{{ cell.ferie_label|default:"Férié" }}</span>
             {% elif cell.is_off %}
             {% elif not cell.aff_id %}<span style="font-size:9px;color:#ccc" title="Aucun chantier ce jour">—</span>
             {% elif code %}
@@ -411,7 +430,23 @@
       </div>
       <div id="cal-grid"></div>
     </div>
-    <div id="pret-range-lbl" style="font-size:11px;color:var(--gray);text-align:center;min-height:16px;margin-bottom:.4rem"></div>
+    <div id="pret-range-lbl" style="font-size:11px;color:var(--gray);text-align:center;min-height:16px;margin-bottom:.35rem"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:.5rem">
+      <div>
+        <div style="font-size:10px;color:var(--gray-md);text-align:center;margin-bottom:2px">Début</div>
+        <div class="cren-grp" id="cren-debut-grp">
+          <button onclick="setCreneauDebut('matin')" class="active">Matin</button>
+          <button onclick="setCreneauDebut('aprem')">Après-midi</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--gray-md);text-align:center;margin-bottom:2px">Fin</div>
+        <div class="cren-grp" id="cren-fin-grp">
+          <button onclick="setCreneauFin('matin')">Matin</button>
+          <button onclick="setCreneauFin('aprem')" class="active">Après-midi</button>
+        </div>
+      </div>
+    </div>
     <div id="pret-err" style="color:var(--red);font-size:11px;margin-bottom:.4rem;display:none"></div>
     <div class="modal-acts">
       <button type="button" class="btn" onclick="closePretModal()">Annuler</button>
@@ -644,6 +679,18 @@ function onPretDrop(e) {
 
 /* ── Mini-calendrier de sélection de plage ─────────────────────────── */
 let _calYear, _calMonth, _calAnchor = null, _calHover = null, _calDragging = false;
+let _calCreneauDebut = 'matin', _calCreneauFin = 'aprem';
+
+function setCreneauDebut(c) {
+  _calCreneauDebut = c;
+  document.querySelectorAll('#cren-debut-grp button').forEach((b, i) => b.classList.toggle('active', i === (c === 'matin' ? 0 : 1)));
+  updatePretRangeLbl();
+}
+function setCreneauFin(c) {
+  _calCreneauFin = c;
+  document.querySelectorAll('#cren-fin-grp button').forEach((b, i) => b.classList.toggle('active', i === (c === 'matin' ? 0 : 1)));
+  updatePretRangeLbl();
+}
 
 function _calStr(y, m, d) {
   return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -703,7 +750,9 @@ function updatePretRangeLbl() {
   const s = _calAnchor <= h ? _calAnchor : h;
   const e = _calAnchor <= h ? h : _calAnchor;
   const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'});
-  lbl.textContent = s === e ? fmt(s) : `${fmt(s)} → ${fmt(e)}`;
+  const crD = _calCreneauDebut === 'matin' ? 'mat.' : 'ap.';
+  const crF = _calCreneauFin   === 'matin' ? 'mat.' : 'ap.';
+  lbl.textContent = s === e ? `${fmt(s)} ${crD}→${crF}` : `${fmt(s)} ${crD} → ${fmt(e)} ${crF}`;
 }
 
 function calNav(dir) {
@@ -723,6 +772,8 @@ function openPretModal(eq) {
   const lundi = new Date(LUNDI_ISO + 'T12:00:00');
   _calYear = lundi.getFullYear(); _calMonth = lundi.getMonth();
   _calAnchor = LUNDI_ISO; _calHover = VENDREDI_ISO;
+  _calCreneauDebut = 'matin'; _calCreneauFin = 'aprem';
+  setCreneauDebut('matin'); setCreneauFin('aprem');
   _pendingPretEqId = eq.id;
   renderCal(); updatePretRangeLbl();
   document.getElementById('modal-pret').classList.remove('hidden');
@@ -742,7 +793,7 @@ function submitPret() {
   fetch(URL_PRET, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-    body: JSON.stringify({action:'create', equipier_id:parseInt(_pendingPretEqId), equipe_hote_id:EQUIPE_ID, date_debut:s, date_fin:e})
+    body: JSON.stringify({action:'create', equipier_id:parseInt(_pendingPretEqId), equipe_hote_id:EQUIPE_ID, date_debut:s, creneau_debut:_calCreneauDebut, date_fin:e, creneau_fin:_calCreneauFin})
   })
   .then(r => r.json())
   .then(d => { if (d.ok) location.reload(); else { err.textContent = d.error || 'Erreur'; err.style.display = ''; } })

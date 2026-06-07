@@ -2859,10 +2859,25 @@ def equipier_toggle_actif(request, pk):
 #  PLANNING — Grille d'émargement & présences
 # ══════════════════════════════════════════
 
-COLORS_AFF = ['cha', 'chb', 'chc', 'cha', 'chb']
-JOURS_FR   = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven']
-CRENEAUX   = [('matin', 'M'), ('aprem', 'A')]
-DEF_H      = {'matin': '4', 'aprem': '3'}
+COLORS_AFF    = ['cha', 'chb', 'chc', 'cha', 'chb']
+JOURS_FR      = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven']
+CRENEAUX      = [('matin', 'M'), ('aprem', 'A')]
+DEF_H         = {'matin': '4', 'aprem': '3'}
+CRENEAU_ORDER = {'matin': 0, 'aprem': 1}
+
+
+def _in_loan(jour, creneau, pret):
+    """Retourne True si le couple (jour, creneau) est dans la plage de prêt."""
+    if not (pret.date_debut <= jour <= pret.date_fin):
+        return False
+    if pret.date_debut < jour < pret.date_fin:
+        return True
+    co = CRENEAU_ORDER[creneau]
+    if jour == pret.date_debut == pret.date_fin:
+        return CRENEAU_ORDER[pret.creneau_debut] <= co <= CRENEAU_ORDER[pret.creneau_fin]
+    if jour == pret.date_debut:
+        return co >= CRENEAU_ORDER[pret.creneau_debut]
+    return co <= CRENEAU_ORDER[pret.creneau_fin]  # jour == pret.date_fin
 
 
 @login_required
@@ -2902,6 +2917,41 @@ def emargement_view(request):
         })
 
     jours = [lundi + timedelta(days=i) for i in range(5)]
+
+    # Événements qui modifient les journées (travaille / décale chantier)
+    evs_semaine = list(
+        Evenement.objects.filter(date_debut__lte=vendredi)
+        .filter(
+            Q(date_fin__isnull=True, date_debut__gte=lundi) | Q(date_fin__gte=lundi)
+        )
+        .filter(Q(equipes=equipe_sel) | Q(equipes__isnull=True))
+        .distinct()
+    )
+    jours_travailles = set()   # jours off devenus on
+    jours_off_force  = set()   # jours on devenus off (formation, décalé, etc.)
+    events_by_jour  = {j: [] for j in jours}
+    jours_feries_ev = {}  # jour -> Evenement de type journee_ferie
+    for ev in evs_semaine:
+        cur = max(ev.date_debut, lundi)
+        end = min(ev.date_fin or ev.date_debut, vendredi)
+        while cur <= end:
+            events_by_jour[cur].append(ev)
+            if ev.type == 'journee_ferie' and cur not in jours_feries_ev:
+                jours_feries_ev[cur] = ev
+            if ev.travaille:
+                jours_travailles.add(cur)
+            elif ev.decale_chantier and ev.type != 'journee_ferie':
+                jours_off_force.add(cur)
+            cur += timedelta(days=1)
+
+    def is_jour_off(jour):
+        if jour in jours_travailles:
+            return False
+        if jour in jours_off_force:
+            return True
+        return jour.weekday() == 4
+
+    jours_off = {j for j in jours if is_jour_off(j)}
 
     affectations = list(
         Affectation.objects.filter(
@@ -2954,8 +3004,8 @@ def emargement_view(request):
         ).exclude(affectation__equipe=equipe_sel):
             away_set.add((p.equipier_id, p.date.isoformat(), p.creneau))
 
-    # Jours où un équipier maison est prêté à une autre équipe cette semaine
-    pret_away_map = {}  # (equipier_id, date_iso) -> nom équipe hôte
+    # Jours+créneaux où un équipier maison est prêté à une autre équipe
+    pret_away_map = {}  # (equipier_id, date_iso, creneau) -> nom équipe hôte
     if equipiers_maison:
         for p in Pret.objects.filter(
             equipier__in=equipiers_maison,
@@ -2963,8 +3013,9 @@ def emargement_view(request):
             date_debut__lte=vendredi,
         ).exclude(equipe_hote=equipe_sel).select_related('equipe_hote'):
             for jour in jours:
-                if p.date_debut <= jour <= p.date_fin:
-                    pret_away_map[(p.equipier_id, jour.isoformat())] = p.equipe_hote.nom
+                for creneau, _ in CRENEAUX:
+                    if _in_loan(jour, creneau, p):
+                        pret_away_map[(p.equipier_id, jour.isoformat(), creneau)] = p.equipe_hote.nom
 
     def _build_cren_rows(eq, is_borrowed, pret=None):
         total_h = Decimal('0')
@@ -2977,15 +3028,17 @@ def emargement_view(request):
                 pres = pres_map.get(key)
                 if pres and pres.heures:
                     total_h += pres.heures
-                is_off = (jour.weekday() == 4)
+                is_off = is_jour_off(jour)
+                is_ferie = jour in jours_feries_ev
+                ferie_label = jours_feries_ev[jour].libelle if is_ferie else ''
                 if is_borrowed:
-                    in_loan = pret.date_debut <= jour <= pret.date_fin
-                    is_lent = in_loan and not is_off
-                    is_away = not in_loan and not is_off
+                    loan = _in_loan(jour, creneau, pret) and not is_off
+                    is_lent = loan
+                    is_away = not loan and not is_off
                     away_team_nom = None
-                    aff_c = pres.affectation if pres else (day_aff.get(jour, aff_default) if in_loan else None)
+                    aff_c = pres.affectation if pres else (day_aff.get(jour, aff_default) if loan else None)
                 else:
-                    pret_away_team = pret_away_map.get((eq.pk, date_iso))
+                    pret_away_team = pret_away_map.get((eq.pk, date_iso, creneau))
                     is_lent = False
                     is_away = (key in away_set) or bool(pret_away_team)
                     away_team_nom = pret_away_team
@@ -2995,6 +3048,8 @@ def emargement_view(request):
                     'date_iso': date_iso,
                     'pres': pres,
                     'is_off': is_off,
+                    'is_ferie': is_ferie,
+                    'ferie_label': ferie_label,
                     'is_away': is_away,
                     'is_lent': is_lent,
                     'away_team_nom': away_team_nom,
@@ -3018,6 +3073,7 @@ def emargement_view(request):
         grid_rows_empruntes.append({
             'equipier': eq, 'is_borrowed': True, 'pret_id': pret.pk,
             'pret_debut': pret.date_debut, 'pret_fin': pret.date_fin,
+            'pret_debut_creneau': pret.creneau_debut, 'pret_fin_creneau': pret.creneau_fin,
             'cren_rows': cren_rows, 'total_h': total_h,
         })
 
@@ -3044,7 +3100,10 @@ def emargement_view(request):
         ).order_by('nom')
     )
     equipe_effectifs_json = {e.pk: e.nb_equipiers for e in panel_equipes_all}
-    jours_info = [(j, JOURS_FR[i]) for i, j in enumerate(jours)]
+    jours_info = [
+        {'jour': j, 'label': JOURS_FR[i], 'events': events_by_jour[j], 'is_off': is_jour_off(j)}
+        for i, j in enumerate(jours)
+    ]
 
     return render(request, 'core/emargement.html', {
         'equipes': equipes,
@@ -3770,7 +3829,16 @@ def pret_save(request):
 
     action = data.get('action', 'create')
     if action == 'delete':
-        Pret.objects.filter(pk=data.get('pret_id')).delete()
+        try:
+            pret = Pret.objects.select_related('equipe_hote', 'equipier').get(pk=data.get('pret_id'))
+            Presence.objects.filter(
+                equipier=pret.equipier,
+                date__range=(pret.date_debut, pret.date_fin),
+                affectation__equipe=pret.equipe_hote,
+            ).delete()
+            pret.delete()
+        except Pret.DoesNotExist:
+            pass
         return JsonResponse({'ok': True})
 
     try:
@@ -3789,13 +3857,17 @@ def pret_save(request):
                 'error': f"{equipier.prenom} {equipier.nom} a déjà des émargements saisis dans {equipier.equipe.nom} sur cette période."
             })
 
+        creneau_debut = data.get('creneau_debut', 'matin')
+        creneau_fin   = data.get('creneau_fin', 'aprem')
         pret, _ = Pret.objects.update_or_create(
             equipier=equipier,
             equipe_hote_id=int(data['equipe_hote_id']),
             defaults={
-                'date_debut': date_debut,
-                'date_fin': date_fin,
-                'cree_par': request.user,
+                'date_debut':    date_debut,
+                'creneau_debut': creneau_debut,
+                'date_fin':      date_fin,
+                'creneau_fin':   creneau_fin,
+                'cree_par':      request.user,
             },
         )
         return JsonResponse({'ok': True, 'pret_id': pret.pk})
