@@ -3677,6 +3677,21 @@ def affectation_save(request):
     })
 
 
+def _aff_update_dict(aff):
+    """Sérialise une affectation pour la mise à jour DOM côté client (sans reload)."""
+    pos, neg = _build_evenement_sets(aff.equipe_id, aff.date_debut, aff.date_fin)
+    nb_j = _count_working_days(aff.date_debut, aff.date_fin, pos, neg)
+    return {
+        'aff_id':        aff.pk,
+        'equipe_id':     aff.equipe_id,
+        'date_debut':    aff.date_debut.isoformat(),
+        'date_fin':      aff.date_fin.isoformat(),
+        'debut_creneau': aff.debut_creneau,
+        'fin_creneau':   aff.fin_creneau,
+        'nb_jours':      nb_j,
+    }
+
+
 @login_required
 @require_POST
 def affectation_move(request):
@@ -3731,8 +3746,14 @@ def affectation_move(request):
     aff.save()
 
     tranche = Affectation.objects.select_related('tranche__devis').prefetch_related('tranche__devis__lignes').get(pk=aff.pk).tranche
-    recalculated = _recalcul_durees_tranche(tranche, tranche.devis) if changing_equipe else []
-    return JsonResponse({'ok': True, 'recalculated': recalculated})
+    recalculated_pks = _recalcul_durees_tranche(tranche, tranche.devis) if changing_equipe else []
+
+    aff.refresh_from_db()
+    updated = [_aff_update_dict(aff)]
+    if recalculated_pks:
+        for ra in Affectation.objects.filter(pk__in=recalculated_pks).select_related('equipe'):
+            updated.append(_aff_update_dict(ra))
+    return JsonResponse({'ok': True, 'updated': updated})
 
 
 @login_required

@@ -493,6 +493,36 @@ function clearDropOver() {
   document.querySelectorAll('.tl-cell.drop-over').forEach(c => c.classList.remove('drop-over'));
 }
 
+// Met à jour la barre dans le DOM après confirmation serveur (évite location.reload)
+function applyBarUpdate(bar, newTrack, u) {
+  function findCell(trk, date, cren) {
+    return cren === 'aprem'
+      ? trk.querySelector(`.tl-cell[data-date="${date}"].aprem`)
+      : trk.querySelector(`.tl-cell[data-date="${date}"]:not(.aprem)`);
+  }
+  function colOf(cell) {
+    const m = (cell.getAttribute('style') || '').match(/grid-column:\s*(\d+)/);
+    return m ? parseInt(m[1]) : null;
+  }
+  const dc = findCell(newTrack, u.date_debut, u.debut_creneau);
+  const fc = findCell(newTrack, u.date_fin,   u.fin_creneau);
+  if (!dc || !fc) return false;
+  const c1 = colOf(dc), c2 = colOf(fc);
+  if (!c1 || !c2 || c2 < c1) return false;
+  if (bar.parentElement !== newTrack) newTrack.appendChild(bar);
+  bar.style.gridColumn     = `${c1}/${c2 + 1}`;
+  // Mettre à jour les data-attrs pour les interactions suivantes
+  bar.dataset.debut        = u.date_debut;
+  bar.dataset.fin          = u.date_fin;
+  bar.dataset.equipe       = String(u.equipe_id);
+  bar.dataset.debutCreneau = u.debut_creneau;
+  bar.dataset.finCreneau   = u.fin_creneau;
+  // Mettre à jour nb_jours affiché
+  const daysEl = bar.querySelector('.bar-days');
+  if (daysEl) daysEl.textContent = workingDays(newDebut, newFin, newEquipe) + ' j';
+  return true;
+}
+
 // Déplacement de barre (move)
 document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
   bar.addEventListener('dragstart', e => {
@@ -609,21 +639,26 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
       if (newFin < newDebut) { clearDropOver(); dragData = null; return; }
     }
 
+    const savedAffId = dragData.affId;
     clearDropOver();
     fetch(URL_MOVE, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({aff_id: parseInt(dragData.affId), date_debut: newDebut, date_fin: newFin, equipe_id: newEquipe}),
+      body: JSON.stringify({aff_id: parseInt(savedAffId), date_debut: newDebut, date_fin: newFin, equipe_id: newEquipe}),
     })
     .then(r => r.json())
     .then(d => {
       if (d.ok) {
-        if (d.recalculated && d.recalculated.length > 0)
-          sessionStorage.setItem('flashAff', JSON.stringify(d.recalculated));
-        location.reload();
+        let needReload = false;
+        (d.updated || []).forEach(u => {
+          const bar = document.querySelector(`.tl-bar[data-aff="${u.aff_id}"]`);
+          const newTrk = document.querySelector(`.tl-track[data-equipe="${u.equipe_id}"]`);
+          if (!bar || !newTrk || !applyBarUpdate(bar, newTrk, u)) needReload = true;
+        });
+        if (needReload) location.reload();
       } else { alert(d.error || 'Erreur'); }
     })
-    .catch(() => alert('Erreur réseau'));
+    .catch(() => { location.reload(); alert('Erreur réseau'); });
     dragData = null;
   });
 });
