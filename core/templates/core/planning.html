@@ -519,7 +519,7 @@ function applyBarUpdate(bar, newTrack, u) {
   bar.dataset.finCreneau   = u.fin_creneau;
   // Mettre à jour nb_jours affiché
   const daysEl = bar.querySelector('.bar-days');
-  if (daysEl) daysEl.textContent = workingDays(newDebut, newFin, newEquipe) + ' j';
+  if (daysEl) daysEl.textContent = u.nb_jours + ' j';
   return true;
 }
 
@@ -658,7 +658,7 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
         if (needReload) location.reload();
       } else { alert(d.error || 'Erreur'); }
     })
-    .catch(() => { location.reload(); alert('Erreur réseau'); });
+    .catch(() => { alert('Erreur réseau, rechargement...'); location.reload(); });
     dragData = null;
   });
 });
