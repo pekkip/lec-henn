@@ -33,11 +33,11 @@
       <tr>
         <td>{{ f.created_by.get_full_name|default:f.created_by.username|default:"—" }}</td>
         <td>
-          <span class="mono">{{ f.get_reference }}</span>
+          <a href="{% url 'core:compta-facture-detail' f.pk %}" class="mono" style="color:inherit;text-decoration:none" title="Ouvrir">{{ f.get_reference }}</a>
           {% if f.type_doc == 'avoir' %}<span class="badge b-refused" style="margin-left:4px">Avoir</span>{% endif %}
         </td>
         <td>{{ f.get_client|default:f.destinataire }}</td>
-        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.notes|striptags|truncatechars:60 }}</td>
+        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="{% url 'core:compta-facture-detail' f.pk %}" style="color:inherit;text-decoration:none" title="Ouvrir">{{ f.notes|striptags|truncatechars:60 }}</a></td>
         <td>{{ f.date_creation|date:"d/m/Y" }}</td>
         <td class="num">{{ f.montant|floatformat:2 }} €</td>
         <td>

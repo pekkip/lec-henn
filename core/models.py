@@ -219,7 +219,8 @@ class BibliothèqueAides(models.Model):
     TYPE_CHOICES = [
         ('FMO',  "Forfait main d'œuvre"),
         ('FMAT', 'Forfait matériaux'),
-        ('FIN',  'Financement'),
+        ('FIN',  'Aide travaux CBB'),
+        ('FINX', 'Financement organisme'),
     ]
     description = models.CharField(max_length=300)
     type_ligne = models.CharField(max_length=5, choices=TYPE_CHOICES, default='FIN')
@@ -468,6 +469,7 @@ class Devis(models.Model):
         help_text="Titre du groupe de financements"
     )
     zone_financement = models.BooleanField(default=False)
+    zone_financement_ext = models.BooleanField(default=False)
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, related_name='devis_crees'
@@ -486,12 +488,12 @@ class Devis(models.Model):
     def total_brut(self):
         return sum(
             l.total() for l in self.lignes.filter(parent=None)
-            if l.type_ligne != 'FIN'
+            if l.type_ligne not in ('FIN', 'FINX')
         )
 
     def total_financement(self):
         return sum(
-            l.total() for l in self.lignes.filter(parent=None, type_ligne='FIN')
+            l.total() for l in self.lignes.filter(parent=None, type_ligne__in=['FIN', 'FINX'])
         )
 
     def net_client(self):
@@ -523,7 +525,8 @@ class LigneDevis(models.Model):
         ('MO',    'Main d\'œuvre'),
         ('MAT',   'Matériau'),
         ('OUV',   'Sous-ouvrage'),
-        ('FIN',   'Financement'),
+        ('FIN',   'Aide travaux CBB'),
+        ('FINX',  'Financement organisme'),
         ('TITRE', 'Titre'),
     ]
     devis = models.ForeignKey(

@@ -162,12 +162,14 @@
 .add-kid-btn:hover{background:#fff;color:var(--teal-dk);border-color:var(--teal-bd)}
 .dz{height:28px;border:1.5px dashed var(--teal-bd);border-radius:var(--r);background:var(--teal-lt);display:none;align-items:center;justify-content:center;font-size:11px;color:var(--teal-dk);margin-bottom:4px}
 .dz.on{display:flex}
-/* ZONE FINANCEMENT */
+/* ZONES FINANCEMENT */
 .fin-zone-hd{display:flex;align-items:center;gap:4px;background:var(--red-lt);border:1px solid #F5C6C2;border-radius:var(--r);padding:5px 8px;min-height:34px;margin-bottom:3px}
 .fin-zone-body{margin-left:22px;border-left:2px solid #F5C6C2;padding-left:4px;margin-top:3px;display:flex;flex-direction:column;gap:3px}
 .fin-zone-dz{height:32px;border:1.5px dashed #F5C6C2;border-radius:var(--r);display:none;align-items:center;justify-content:center;font-size:11px;color:var(--red);margin-bottom:4px;transition:all .15s}
 .fin-zone-dz.on{display:flex}
 .fin-zone-dz.active{border-color:var(--red);background:var(--red-lt)}
+.nb-FINX{background:#EDE9F8;color:#5B3EA5}
+.aides-cat-hd{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:5px 10px 3px;color:var(--gray-md);border-bottom:1px solid var(--gray-bd)}
 .aide-tag{font-size:10px;color:var(--red);opacity:.6;margin-left:3px;flex-shrink:0}
 /* SECTION AIDES (biblio partagée) */
 .aides-section{border-top:2px solid var(--red-lt)}
@@ -539,7 +541,8 @@
           <div id="add-aide-form" class="aide-form" style="display:none">
             <input id="new-aide-desc" placeholder="Description…">
             <select id="new-aide-type">
-              <option value="FIN">Financement</option>
+              <option value="FIN">Aide travaux CBB</option>
+              <option value="FINX">Financement organisme</option>
               <option value="FMO">Forfait MO</option>
               <option value="FMAT">Forfait matériaux</option>
             </select>
@@ -652,7 +655,10 @@
           <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
           <div style="flex:1"></div>
           <button class="btn btn-sm" id="btn-zone-fin" onclick="activerZoneFinancement()" style="border-color:var(--red);color:var(--red);background:var(--red-lt)">
-            <i class="ti ti-building-bank"></i> Zone financement
+            <i class="ti ti-gift"></i> Aide travaux CBB
+          </button>
+          <button class="btn btn-sm" id="btn-zone-fin-ext" onclick="activerZoneFinancementExt()" style="border-color:#5B3EA5;color:#5B3EA5;background:#EDE9F8">
+            <i class="ti ti-building-bank"></i> Financements organismes
           </button>
         </div>
         {% endif %}
@@ -1131,6 +1137,7 @@ async function ehSubmitQuick(){
 
 let tree = [];
 let zoneFinancement = false;
+let zoneFinancementExt = false;
 let aides = [];
 let draggingLib = null;
 let draggingAide = null;
@@ -1608,18 +1615,23 @@ function assignNids(nodes) {
 }
 
 function renderTree() {
-  const posLines = tree.filter(n => n.type_ligne !== 'FIN');
+  const posLines = tree.filter(n => n.type_ligne !== 'FIN' && n.type_ligne !== 'FINX');
   const finLines = tree.filter(n => n.type_ligne === 'FIN');
+  const finxLines = tree.filter(n => n.type_ligne === 'FINX');
   assignNumbers(posLines, '', null);
   const t = document.getElementById('tree');
   t.innerHTML = posLines.map(n => renderNode(n, 0)).join('');
   if (zoneFinancement || finLines.length) {
     t.innerHTML += `<div style="margin-top:10px">${renderFinZone(finLines)}</div>`;
   }
+  if (zoneFinancementExt || finxLines.length) {
+    t.innerHTML += `<div style="margin-top:6px">${renderFinZoneExt(finxLines)}</div>`;
+  }
   refreshFooter();
-  // Mise à jour bouton barre d'outils
   const btnZone = document.getElementById('btn-zone-fin');
   if (btnZone) btnZone.style.display = (zoneFinancement || finLines.length) ? 'none' : '';
+  const btnZoneExt = document.getElementById('btn-zone-fin-ext');
+  if (btnZoneExt) btnZoneExt.style.display = (zoneFinancementExt || finxLines.length) ? 'none' : '';
 }
 
 function renderFinZone(finLines) {
@@ -1689,8 +1701,8 @@ function renderFinLine(n, i) {
 }
 
 function refreshFooter() {
-  const posLines = tree.filter(n => n.type_ligne !== 'FIN');
-  const finLines = tree.filter(n => n.type_ligne === 'FIN');
+  const posLines = tree.filter(n => n.type_ligne !== 'FIN' && n.type_ligne !== 'FINX');
+  const finLines = tree.filter(n => n.type_ligne === 'FIN' || n.type_ligne === 'FINX');
   const grand    = posLines.reduce((s, n) => s + calcTotal(n), 0);
   const totalMO  = posLines.reduce((s, n) => s + calcMO(n), 0);
   const totalMat = posLines.reduce((s, n) => s + calcMat(n), 0);
@@ -1713,15 +1725,15 @@ function updateTotalsDisplay() {
     const totalEl = el.querySelector(':scope > .node-row .nd-total');
     if (totalEl) {
       const total  = calcTotal(n);
-      const isNeg  = n.type_ligne === 'FIN';
+      const isNeg  = n.type_ligne === 'FIN' || n.type_ligne === 'FINX';
       totalEl.textContent = isNeg ? '−' + fmtV(Math.abs(total)) : fmtV(total);
     }
     const moEl = el.querySelector(':scope > .node-row .nd-mo');
-    if (moEl && n.type_ligne !== 'F' && n.type_ligne !== 'FIN' && n.type_ligne !== 'TITRE') {
+    if (moEl && n.type_ligne !== 'F' && n.type_ligne !== 'FIN' && n.type_ligne !== 'FINX' && n.type_ligne !== 'TITRE') {
       moEl.textContent = calcMO(n) > 0 ? fmtV(calcMO(n)) : '—';
     }
     const matEl = el.querySelector(':scope > .node-row .nd-mat');
-    if (matEl && n.type_ligne !== 'F' && n.type_ligne !== 'FIN' && n.type_ligne !== 'TITRE') {
+    if (matEl && n.type_ligne !== 'F' && n.type_ligne !== 'FIN' && n.type_ligne !== 'FINX' && n.type_ligne !== 'TITRE') {
       matEl.textContent = calcMat(n) > 0 ? fmtV(calcMat(n)) : '—';
     }
     if (n.enfants) n.enfants.forEach(updateNode);
@@ -1827,16 +1839,18 @@ function activerZoneFinancement() {
   zoneFinancement = true;
   renderTree();
   updateAidesSectionVisibility();
+  renderAidesPanel();
 }
 
 function supprimerZoneFinancement() {
   if (!CAN_EDIT) return;
-  if (!confirm('Supprimer la zone financement et toutes ses lignes ?')) return;
+  if (!confirm('Supprimer la zone "Aide travaux CBB" et toutes ses lignes ?')) return;
   historySnapshot();
   zoneFinancement = false;
   tree = tree.filter(n => n.type_ligne !== 'FIN');
   renderTree();
   updateAidesSectionVisibility();
+  renderAidesPanel();
 }
 
 function addFinancementLibre() {
@@ -1851,8 +1865,9 @@ function addFinancementLibre() {
 function addFinancementFromAide(aide) {
   if (!CAN_EDIT) return;
   historySnapshot();
+  const type = aide.type_ligne === 'FINX' ? 'FINX' : 'FIN';
   const n = {
-    type_ligne: 'FIN',
+    type_ligne: type,
     aide_id: aide.id,
     description: aide.description,
     quantite: 1,
@@ -1869,15 +1884,113 @@ function addFinancementFromAide(aide) {
 function delFinLine(nid) {
   historySnapshot();
   tree = tree.filter(n => n._nid !== nid);
-  if (!tree.some(n => n.type_ligne === 'FIN')) {
-    // Plus de lignes FIN, mais on garde la zone active
-  }
+  renderTree();
+}
+
+// ── ZONE FINANCEMENTS ORGANISMES (FINX) ──
+
+function renderFinZoneExt(finxLines) {
+  const total = finxLines.reduce((s, n) => s + calcTotal(n), 0);
+  return `<div id="fin-zone-ext">
+    <div class="fin-zone-hd" style="background:#EDE9F8;border-color:#C9BEF0">
+      <span class="nbadge nb-FINX">Financements organismes</span>
+      <div style="flex:1;padding:0 6px;font-size:12px;font-weight:500;color:#5B3EA5">Financements organismes</div>
+      <div style="width:68px;text-align:right;font-size:12px;font-weight:500;color:#5B3EA5;font-variant-numeric:tabular-nums">
+        ${total > 0 ? '−' + fmtV(total) : '—'}
+      </div>
+      ${CAN_EDIT ? `<div class="nd-acts">
+        <button class="ico-btn danger" onclick="supprimerZoneFinancementExt()" title="Supprimer la zone"><i class="ti ti-trash"></i></button>
+      </div>` : '<div style="width:44px"></div>'}
+    </div>
+    <div class="fin-zone-body" style="border-color:#C9BEF0">
+      ${finxLines.map((n, i) => renderFinLineExt(n, i)).join('')}
+      <div id="fin-zone-ext-dz" class="fin-zone-dz" style="border-color:#C9BEF0;color:#5B3EA5"
+           ondragover="onFinZoneExtDzOver(event)"
+           ondragleave="onFinZoneExtDzLeave(event)"
+           ondrop="onFinZoneExtDrop(event)">
+        ↓ Déposer un financement ici
+      </div>
+      ${CAN_EDIT ? `<div style="padding:3px 0 0">
+        <button class="add-kid-btn" onclick="addFinancementExtLibre()"><i class="ti ti-plus"></i> Ajouter une ligne</button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderFinLineExt(n, i) {
+  const t = calcTotal(n);
+  const isFromAide = !!n.aide_id;
+  return `<div class="tree-node" data-nid="${n._nid}">
+    <div class="node-row is-neg"
+         draggable="${CAN_EDIT ? 'true' : 'false'}"
+         ondragstart="onNodeRowDragStart(event,'${n._nid}')"
+         ondragend="onNodeRowDragEnd(event)"
+         ondragover="onNodeRowDragOver2(event,'${n._nid}')"
+         ondrop="onNodeRowDrop2(event,'${n._nid}')"
+         ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
+      <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
+      <div class="toggler leaf"></div>
+      <span class="nbadge nb-FINX">X.${i+1}</span>
+      <div class="nd-desc" style="display:flex;align-items:center;gap:3px">
+        <input type="text"
+               value="${(n.description||'').replace(/"/g,'&quot;')}"
+               placeholder="Financement organisme…"
+               class="neg-inp"
+               style="flex:1;min-width:0;width:auto"
+               ${CAN_EDIT ? '' : 'disabled'}
+               oninput="updNode('${n._nid}','description',this.value)"
+        />
+        ${isFromAide ? `<span class="aide-tag" title="Item bibliothèque Aides"><i class="ti ti-link"></i></span>` : ''}
+      </div>
+      <div class="nd-qty"><input type="number" value="${n.quantite||1}" min="0" step="any" style="text-align:right" ${CAN_EDIT ? '' : 'disabled'} oninput="updNode('${n._nid}','quantite',parseFloat(this.value)||0)"/></div>
+      <div class="nd-unit"><input value="${n.unite||'forfait'}" ${CAN_EDIT ? '' : 'disabled'} oninput="updNode('${n._nid}','unite',this.value)"/></div>
+      <div class="nd-pu"><input type="number" value="${n.cout_unitaire??0}" step="any" style="text-align:right" class="neg-inp" ${CAN_EDIT ? '' : 'disabled'} oninput="updNode('${n._nid}','cout_unitaire',parseFloat(this.value)||0)"/></div>
+      <div class="nd-total" style="color:#5B3EA5;font-weight:600;font-size:12px;font-variant-numeric:tabular-nums;text-align:right;width:68px;flex-shrink:0">
+        ${t > 0 ? '−' + fmtV(t) : '—'}
+      </div>
+      ${CAN_EDIT ? `<div class="nd-acts"><button class="ico-btn danger" onclick="delFinLineExt('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button></div>` : '<div style="width:44px"></div>'}
+    </div>
+  </div>`;
+}
+
+function activerZoneFinancementExt() {
+  if (!CAN_EDIT) return;
+  historySnapshot();
+  zoneFinancementExt = true;
+  renderTree();
+  updateAidesSectionVisibility();
+  renderAidesPanel();
+}
+
+function supprimerZoneFinancementExt() {
+  if (!CAN_EDIT) return;
+  if (!confirm('Supprimer la zone "Financements organismes" et toutes ses lignes ?')) return;
+  historySnapshot();
+  zoneFinancementExt = false;
+  tree = tree.filter(n => n.type_ligne !== 'FINX');
+  renderTree();
+  updateAidesSectionVisibility();
+  renderAidesPanel();
+}
+
+function addFinancementExtLibre() {
+  if (!CAN_EDIT) return;
+  historySnapshot();
+  const n = {type_ligne:'FINX', description:'Financement organisme', quantite:1, unite:'forfait', cout_unitaire:0, enfants:[], ouvert:true};
+  n._nid = '_' + (_nidCounter++);
+  tree.push(n);
+  renderTree();
+}
+
+function delFinLineExt(nid) {
+  historySnapshot();
+  tree = tree.filter(n => n._nid !== nid);
   renderTree();
 }
 
 function updateAidesSectionVisibility() {
   const sec = document.getElementById('aides-section');
-  if (sec) sec.style.display = zoneFinancement ? '' : 'none';
+  if (sec) sec.style.display = (zoneFinancement || zoneFinancementExt) ? '' : 'none';
 }
 
 // ── AIDES (bibliothèque partagée) ──
@@ -1892,9 +2005,15 @@ function renderAidesPanel() {
   const badges = {
     FMO:  '<span class="lib-tag" style="background:var(--amber-lt);color:#8B5E0A">forfait MO</span>',
     FMAT: '<span class="lib-tag" style="background:#EAF3DE;color:#27500A">forfait mat.</span>',
-    FIN:  '<span class="lib-tag" style="background:var(--red-lt);color:var(--red)">financement</span>',
+    FIN:  '<span class="lib-tag" style="background:var(--red-lt);color:var(--red)">CBB</span>',
+    FINX: '<span class="lib-tag" style="background:#EDE9F8;color:#5B3EA5">organisme</span>',
   };
-  list.innerHTML = aides.map(a => {
+
+  const finAides  = aides.filter(a => a.type_ligne === 'FIN');
+  const finxAides = aides.filter(a => a.type_ligne === 'FINX');
+  const otherAides= aides.filter(a => a.type_ligne !== 'FIN' && a.type_ligne !== 'FINX');
+
+  const renderAideItem = a => {
     const badge = badges[a.type_ligne] || '';
     const desc = (a.description||'').substring(0, 38);
     const det = [a.organisme, a.montant_defaut != null ? a.montant_defaut + ' €' : ''].filter(Boolean).join(' · ');
@@ -1913,7 +2032,25 @@ function renderAidesPanel() {
         onclick="event.stopPropagation();deleteAide(${a.id})"
         title="Supprimer"><i class="ti ti-trash"></i></button>` : ''}
     </div>`;
-  }).join('');
+  };
+
+  let html = '';
+  if (zoneFinancement && finAides.length) {
+    html += `<div class="aides-cat-hd"><i class="ti ti-gift" style="font-size:10px"></i> Aide travaux CBB</div>`;
+    html += finAides.map(renderAideItem).join('');
+  } else if (zoneFinancement) {
+    html += `<div class="aides-cat-hd"><i class="ti ti-gift" style="font-size:10px"></i> Aide travaux CBB</div>`;
+    html += `<div style="padding:6px 10px;font-size:11px;color:var(--gray-md)">Aucune aide CBB</div>`;
+  }
+  if (zoneFinancementExt && finxAides.length) {
+    html += `<div class="aides-cat-hd"><i class="ti ti-building-bank" style="font-size:10px"></i> Financements organismes</div>`;
+    html += finxAides.map(renderAideItem).join('');
+  } else if (zoneFinancementExt) {
+    html += `<div class="aides-cat-hd"><i class="ti ti-building-bank" style="font-size:10px"></i> Financements organismes</div>`;
+    html += `<div style="padding:6px 10px;font-size:11px;color:var(--gray-md)">Aucun financement organisme</div>`;
+  }
+  if (otherAides.length) html += otherAides.map(renderAideItem).join('');
+  list.innerHTML = html || `<div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center">Aucune aide</div>`;
 }
 
 function toggleAidesCollapse() {
@@ -1969,17 +2106,28 @@ async function deleteAide(id) {
 // ── DRAG AIDES → ZONE FINANCEMENT ──
 
 function onAideItemDragStart(e, el) {
-  if (!CAN_EDIT || !zoneFinancement) { e.preventDefault(); return; }
+  if (!CAN_EDIT || (!zoneFinancement && !zoneFinancementExt)) { e.preventDefault(); return; }
   draggingAide = el;
   e.dataTransfer.effectAllowed = 'copy';
-  const dz = document.getElementById('fin-zone-dz');
-  if (dz) dz.classList.add('on');
+  // Afficher la drop zone correspondante selon le type de l'aide
+  try {
+    const aide = JSON.parse(el.dataset.aide);
+    if (aide.type_ligne === 'FINX') {
+      const dz = document.getElementById('fin-zone-ext-dz'); if (dz) dz.classList.add('on');
+    } else {
+      const dz = document.getElementById('fin-zone-dz'); if (dz) dz.classList.add('on');
+    }
+  } catch(err) {
+    const dz = document.getElementById('fin-zone-dz'); if (dz) dz.classList.add('on');
+  }
 }
 
 function onAideItemDragEnd() {
   draggingAide = null;
-  const dz = document.getElementById('fin-zone-dz');
-  if (dz) { dz.classList.remove('on'); dz.classList.remove('active'); }
+  ['fin-zone-dz','fin-zone-ext-dz'].forEach(id => {
+    const dz = document.getElementById(id);
+    if (dz) { dz.classList.remove('on'); dz.classList.remove('active'); }
+  });
 }
 
 function onFinZoneDzOver(e) {
@@ -2001,7 +2149,30 @@ function onFinZoneDrop(e) {
     draggingAide = null;
     const dz = document.getElementById('fin-zone-dz');
     if (dz) { dz.classList.remove('on'); dz.classList.remove('active'); }
-    addFinancementFromAide(aide);
+    addFinancementFromAide({...aide, type_ligne:'FIN'});
+  } catch(err) { console.error(err); }
+}
+
+function onFinZoneExtDzOver(e) {
+  if (!draggingAide) return;
+  e.preventDefault();
+  e.currentTarget.classList.add('active');
+}
+
+function onFinZoneExtDzLeave(e) {
+  e.currentTarget.classList.remove('active');
+}
+
+function onFinZoneExtDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('active');
+  if (!draggingAide) return;
+  try {
+    const aide = JSON.parse(draggingAide.dataset.aide);
+    draggingAide = null;
+    const dz = document.getElementById('fin-zone-ext-dz');
+    if (dz) { dz.classList.remove('on'); dz.classList.remove('active'); }
+    addFinancementFromAide({...aide, type_ligne:'FINX'});
   } catch(err) { console.error(err); }
 }
 
@@ -2393,6 +2564,7 @@ async function saveTree() {
         lignes: stripNids(tree),
         fin_group_title: window._finGroupTitle || 'Financements',
         zone_financement: zoneFinancement,
+        zone_financement_ext: zoneFinancementExt,
       }),
     });
     const data = await resp.json();
@@ -2593,6 +2765,7 @@ fetch(`/devis/${DEVIS_ID}/lignes/`)
     window._finGroupTitle = data.fin_group_title || 'Financements';
     window._tauxMOCourant = data.taux_mo || TAUX_MO;
     zoneFinancement = data.zone_financement || false;
+    zoneFinancementExt = data.zone_financement_ext || false;
     assignNids(tree);
     renderTree();
     updateAidesSectionVisibility();

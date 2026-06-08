@@ -197,7 +197,7 @@
         <a href="#devis-creer">Créer un devis</a>
         <a href="#devis-editeur">L'éditeur de lignes</a>
         <a href="#devis-types">Types de lignes</a>
-        <a href="#devis-financement">Zone financement</a>
+        <a href="#devis-financement">Zones financement</a>
         <a href="#devis-pdf">Vue client (PDF)</a>
         <a href="#devis-statut">Statuts</a>
         <a href="#devis-dupliquer">Dupliquer</a>
@@ -217,6 +217,7 @@
         <a href="#compta-structure">Factures structure</a>
         <a href="#compta-appel">Appels de convention</a>
         <a href="#compta-editeur">L'éditeur</a>
+        <a href="#compta-outils-saisie">Coller / Calcul Tutorat</a>
         <a href="#compta-contacts">Contacts / services</a>
         <a href="#compta-avoir">Avoirs</a>
       </div>
@@ -352,18 +353,27 @@
           <tr><td><strong>MO</strong></td><td>Main-d'œuvre (calculé avec le taux horaire)</td></tr>
           <tr><td><strong>MAT</strong></td><td>Matériaux (prix HT)</td></tr>
           <tr><td><strong>FMO / FMAT</strong></td><td>Financement partiel MO ou MAT (déduction)</td></tr>
-          <tr><td><strong>FIN</strong></td><td>Ligne de financement global dans la zone financement</td></tr>
+          <tr><td><strong>FIN</strong></td><td>Financement dans la zone <em>Aide travaux CBB</em></td></tr>
+          <tr><td><strong>FINX</strong></td><td>Financement dans la zone <em>Financements organismes</em></td></tr>
         </tbody>
       </table>
 
-      <h3 id="devis-financement">Zone financement &amp; subventions</h3>
-      <p>Cliquez sur <strong>Zone financement</strong> dans la barre d'outils pour activer la section dédiée aux aides et subventions. Depuis cette zone vous pouvez :</p>
+      <h3 id="devis-financement">Zones financement &amp; subventions</h3>
+      <p>Le devis dispose de <strong>deux zones de financement</strong> distinctes, activables indépendamment depuis la barre d'outils :</p>
+      <table>
+        <thead><tr><th>Zone</th><th>Usage</th><th>Icône</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Aide travaux CBB</strong></td><td>Aides attribuées par CBB (subventions, FIN/FMO/FMAT internes)</td><td>🎁</td></tr>
+          <tr><td><strong>Financements organismes</strong></td><td>Financements versés à CBB par des organismes tiers (collectivités, bailleurs…)</td><td>🏦</td></tr>
+        </tbody>
+      </table>
+      <p>Depuis chaque zone vous pouvez :</p>
       <ul>
-        <li>Glisser une aide depuis la section <strong>Aides</strong> du panneau bibliothèque</li>
+        <li>Glisser une aide depuis la section correspondante du panneau bibliothèque (<strong>Aides CBB</strong> ou <strong>Aides organismes</strong>)</li>
         <li>Ajouter une ligne libre (<strong>Ajouter une ligne</strong>)</li>
         <li>Supprimer la zone entière (<strong>Supprimer la zone</strong>)</li>
       </ul>
-      <p>Les montants de financement sont déduits dans le récapitulatif (<strong>Net client</strong>).</p>
+      <p>Les montants des deux zones sont déduits dans le récapitulatif (<strong>Net client</strong>).</p>
 
       <h3 id="devis-pdf">Vue client (PDF)</h3>
       <p>Cliquez sur le bouton <strong>Vue client</strong> pour afficher le document imprimable à envoyer au client. Utilisez la fonction d'impression du navigateur (<kbd>Ctrl+P</kbd>) pour générer un PDF.</p>
@@ -464,6 +474,23 @@
       <p>Sur chaque ligne&nbsp;: <strong>glisser-déposer</strong> via la poignée ⠿ pour réorganiser, <strong>dupliquer</strong> (l'icône copie — un titre est dupliqué avec tous ses forfaits) et <strong>supprimer</strong>. Depuis la liste, l'icône copie duplique une facture entière en nouveau brouillon.</p>
       <div class="tip"><strong>Proforma</strong> — tant qu'une facture est en brouillon, son édition client porte un numéro provisoire <code>PF-…</code> et la mention « proforma ». Le numéro définitif est attribué à la validation.</div>
 
+      <h3 id="compta-outils-saisie">Outils de saisie rapide (Excel)</h3>
+      <p>Deux boutons dans la barre de l'éditeur permettent d'importer des données depuis Excel en une seule opération :</p>
+      <table>
+        <thead><tr><th>Bouton</th><th>Usage</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Coller depuis Excel</strong></td>
+            <td>Coller n'importe quel tableau Excel → chaque ligne devient un forfait. Les dates (jj/mm/aaaa ou aaaa-mm-jj) sont détectées et normalisées. Les colonnes sont alignées en monospace.</td>
+          </tr>
+          <tr>
+            <td><strong>Calcul Tutorat</strong></td>
+            <td>Outil dédié aux <strong>services civiques</strong>. Coller la liste des volontaires (colonnes : Secteur (optionnel), Nom, Prénom (ou Nom Prénom en 1 colonne), Date début, Date fin) puis choisir le trimestre, l'année et le taux mensuel. L'outil calcule le nombre de jours via la formule JOURS360 et génère automatiquement un titre <em>Xe trimestre YYYY — SERVICES CIVIQUES</em> avec une ligne de repère des colonnes et un forfait par personne (quantité = jours, unité J, prix unitaire = taux / 30).</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="tip"><strong>Format de la colonne Secteur (Calcul Tutorat)</strong> — si la première colonne est un nombre (code secteur), elle est détectée automatiquement. Si les secteurs sont absents, collez directement Nom, Prénom (ou Nom+Prénom), Date début, Date fin.</div>
+
       <h3 id="compta-contacts">Contacts / services d'un client</h3>
       <p>Une même structure (ex. une collectivité) peut avoir plusieurs services destinataires. Vous pouvez attacher à un client un <strong>carnet de contacts</strong> (service, interlocuteur, email, téléphone) :</p>
       <ul>
@@ -501,13 +528,21 @@
     <div class="section" id="aides">
       <h2>8. Bibliothèque Aides (partagée)</h2>
       <p>Accessible depuis <strong>🎁 Aides</strong> dans le menu latéral. Contrairement à la bibliothèque personnelle, la bibliothèque Aides est <strong>partagée entre tous les utilisateurs</strong>.</p>
-      <p>Elle regroupe les aides financières et subventions connues (organisme, montant, type : MO / MAT / global). Tout le monde peut créer ou supprimer des aides.</p>
+      <p>Elle regroupe les aides financières et subventions connues (organisme, montant, type : MO / MAT / global / organisme). Tout le monde peut créer ou supprimer des aides.</p>
+      <p>Les aides sont réparties en <strong>deux catégories</strong> dans le panneau bibliothèque :</p>
+      <table>
+        <thead><tr><th>Catégorie</th><th>Types</th><th>Zone cible dans le devis</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Aides CBB</strong> <span style="color:var(--red)">🎁</span></td><td>FIN, FMO, FMAT</td><td>Zone <em>Aide travaux CBB</em></td></tr>
+          <tr><td><strong>Aides organismes</strong> <span style="color:#5B3EA5">🏦</span></td><td>FINX</td><td>Zone <em>Financements organismes</em></td></tr>
+        </tbody>
+      </table>
 
       <h3>Utiliser une aide dans un devis</h3>
       <ol>
-        <li>Activez la <strong>Zone financement</strong> dans l'éditeur du devis</li>
-        <li>La section <strong>Aides</strong> apparaît en bas du panneau bibliothèque</li>
-        <li>Glissez une aide vers la zone financement, ou cliquez dessus pour l'insérer directement</li>
+        <li>Activez la zone de financement correspondante dans l'éditeur du devis (<strong>Aide travaux CBB</strong> ou <strong>Financements organismes</strong>)</li>
+        <li>La section <strong>Aides</strong> apparaît en bas du panneau bibliothèque avec les deux catégories</li>
+        <li>Glissez une aide vers la zone correspondante, ou cliquez dessus pour l'insérer directement</li>
       </ol>
       <p>Une ligne liée à une aide affiche un indicateur 🔗. Le montant reste modifiable sur le devis.</p>
     </div>

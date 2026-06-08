@@ -667,7 +667,7 @@ def aides_api_save(request):
     if not description:
         return JsonResponse({'error': 'Description requise'}, status=400)
     type_ligne = data.get('type_ligne', 'FIN')
-    if type_ligne not in ('FMO', 'FMAT', 'FIN'):
+    if type_ligne not in ('FMO', 'FMAT', 'FIN', 'FINX'):
         return JsonResponse({'error': 'Type invalide'}, status=400)
     montant_raw = data.get('montant_defaut')
     montant = to_decimal(montant_raw)
@@ -897,6 +897,7 @@ def devis_duplicate(request, pk):
         notes=src.notes,
         conditions_devis=src.conditions_devis,
         fin_group_title=src.fin_group_title,
+        zone_financement_ext=src.zone_financement_ext,
         created_by=request.user,
     )
 
@@ -1481,6 +1482,7 @@ def lignes_get(request, pk):
         'taux_mo': float(devis.taux_mo),
         'fin_group_title': devis.fin_group_title or 'Financements',
         'zone_financement': devis.zone_financement,
+        'zone_financement_ext': devis.zone_financement_ext,
     })
 
 
@@ -1495,6 +1497,7 @@ def lignes_save(request, pk):
         lignes = data.get('lignes', [])
         fin_group_title = data.get('fin_group_title', 'Financements')
         zone_financement = data.get('zone_financement', False)
+        zone_financement_ext = data.get('zone_financement_ext', False)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
 
@@ -1527,6 +1530,7 @@ def lignes_save(request, pk):
     create_lignes(lignes)
     devis.fin_group_title = fin_group_title
     devis.zone_financement = zone_financement
+    devis.zone_financement_ext = zone_financement_ext
     devis.updated_at = timezone.now()
     devis.save()
 

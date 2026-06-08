@@ -10,6 +10,8 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
+**État du projet (08/06/2026 — session 33) :** **Coller depuis Excel sur facture structure** : bouton "Coller depuis Excel" dans l'éditeur facture compta → chaque ligne Excel devient un forfait, dates détectées automatiquement, alignement monospace via U+00A0. **Calcul Tutorat** : outil dédié aux services civiques dans l'éditeur facture compta — coller la liste volontaires (Secteur optionnel, Nom, Prénom, Date début, Date fin), choisir trimestre/année/taux mensuel → calcul JOURS360 (méthode européenne 30j/mois), génère titre "Xe trimestre YYYY — SERVICES CIVIQUES" + ligne repère colonnes + un forfait/personne (qté=jours, unité=J, PU=taux/30). Détection auto colonne Secteur (code numérique) et Nom+Prénom séparés ou fusionnés. **Refs cliquables** : dans la liste factures compta et la liste factures travaux, la référence et l'objet sont désormais des liens directs vers la facture. Colonne "Objet" ajoutée à la liste factures travaux. **Deux zones financement dans le devis** : la zone financement unique est remplacée par deux zones indépendantes — "Aide travaux CBB" (type FIN, icône 🎁) et "Financements organismes" (type FINX, icône 🏦, violet). Chaque zone a sa propre catégorie dans la sidebar bibliothèque Aides. Migration `0025_devis_zone_financement_ext_finx` appliquée (`zone_financement_ext` BooleanField + type FINX dans LigneDevis et BibliothèqueAides).
+
 **État du projet (08/06/2026 — session 32) :** en test beta. **Module Planning & Émargement**
 opérationnel sur railway (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
@@ -292,6 +294,7 @@ venv\Scripts\python manage.py seed_production_demo [--clear]
 ### Corrections importantes
 - **Jours réalisés** : première implémentation utilisait `Count('pk') / 2` → corrigé en `Count('date', distinct=True)` (une journée-équipe = 1, peu importe le nombre d'équipiers présents)
 - **`--clear` trop large** : première version supprimait toutes les présences des 6 équipes → corrigé pour cibler uniquement les données DEMO35
+- **Dates factures** : `date_creation` et `created_at` ont `auto_now_add=True` — Django ignore la valeur passée au `create()`. Contournement : `Facture.objects.filter(pk=fac.pk).update(date_creation=..., created_at=...)` juste après la création
 
 ### Fichiers modifiés
 - `core/dashboard_widgets.py` — 7 nouveaux widgets + `_prod_data(ctx)` + providers + `widgets_for` étendu + `widget_data(prod_context)` + `resolve_dashboard(prod_context)`

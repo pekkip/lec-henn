@@ -36,6 +36,11 @@
 .status-bar{display:flex;gap:8px;align-items:center;padding:9px 1.25rem;border-bottom:1px solid var(--gray-bd);background:var(--white)}
 .toast{position:fixed;bottom:20px;right:20px;background:var(--prune);color:#fff;padding:10px 16px;border-radius:var(--r);font-size:12px;opacity:0;transition:opacity .2s;z-index:999;pointer-events:none}
 .toast.show{opacity:1}
+.paste-zone{margin:4px 10px 8px;padding:10px 12px;background:var(--teal-lt);border:1px dashed var(--teal);border-radius:var(--r)}
+.paste-zone label{display:block;font-size:11px;color:var(--gray-md);margin-bottom:4px}
+.paste-zone textarea{width:100%;padding:8px;font-size:12px;font-family:monospace;border:1px solid var(--teal);border-radius:4px;resize:vertical;outline:none;background:#fff}
+.paste-zone textarea:focus{border-color:var(--prune)}
+.ln:not(.titre) .ln-desc{font-family:'Courier New',monospace;font-size:11px;letter-spacing:0}
 </style>
 {% endblock %}
 
@@ -43,7 +48,7 @@
 <div class="tabs">
   <a href="{% url meta.list_url %}" class="tab"><i class="ti ti-arrow-left"></i> Liste</a>
   <a href="#" class="tab active"><i class="ti ti-pencil"></i> Édition</a>
-  <a href="{% url 'core:facture-apercu' facture.pk %}" class="tab" target="_blank"><i class="ti ti-eye"></i> Aperçu client</a>
+  <a href="{% url 'core:facture-apercu' facture.pk %}" class="tab" id="apercu-tab" target="_blank"><i class="ti ti-eye"></i> Aperçu client</a>
 </div>
 
 {% if facture.type_doc == 'avoir' and facture.facture_origine %}
@@ -96,17 +101,20 @@
     <textarea id="objet" rows="2" {% if not modifiable %}disabled{% endif %} placeholder="Objet de la facture…">{{ facture.notes }}</textarea>
   </div>
 
-  <div class="ed-head">
-    <div></div><div>Désignation</div><div>Qté</div><div>Unité</div><div style="text-align:right">P.U. HT</div><div style="text-align:right">Total HT</div><div></div>
-  </div>
-  <div id="lines"></div>
-
   {% if modifiable %}
   <div class="add-row">
     <button type="button" class="btn btn-sm" onclick="addTitre()"><i class="ti ti-heading"></i> Titre</button>
     <button type="button" class="btn btn-sm" onclick="addForfait(null)"><i class="ti ti-plus"></i> Forfait</button>
+    <button type="button" class="btn btn-sm" onclick="openPasteZone(null)"><i class="ti ti-file-type-xls"></i> Liste volontaires Tutorat</button>
+    <button type="button" class="btn btn-sm" onclick="openTutoratZone(null)"><i class="ti ti-file-type-xls"></i><i class="ti ti-calculator"></i> Calcul Tutorat</button>
   </div>
   {% endif %}
+  <div id="paste-container"></div>
+  <div id="tutorat-container"></div>
+  <div class="ed-head">
+    <div></div><div>Désignation</div><div>Qté</div><div>Unité</div><div style="text-align:right">P.U. HT</div><div style="text-align:right">Total HT</div><div></div>
+  </div>
+  <div id="lines"></div>
 </div>
 
 <div class="foot">
@@ -131,6 +139,16 @@ const GET_URL = `/compta/factures/${FACT_PK}/lignes/`;
 const SAVE_URL = `/compta/factures/${FACT_PK}/lignes/sauvegarder/`;
 
 let tree = [];   // [{type_ligne, description, quantite, unite, cout_unitaire, enfants?}]
+
+// Sauvegarder avant d'ouvrir l'aperçu (évite la perte de données non enregistrées)
+if (MODIFIABLE) {
+  document.getElementById('apercu-tab').addEventListener('click', async e => {
+    e.preventDefault();
+    const url = e.currentTarget.href;
+    await save();
+    window.open(url, '_blank');
+  });
+}
 
 function euros(n){ return (n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
 
@@ -182,8 +200,10 @@ function render(){
       if (MODIFIABLE){
         const ar = document.createElement('div');
         ar.className = 'add-row';
-        ar.innerHTML = `<button type="button" class="btn btn-sm"><i class="ti ti-plus"></i> Forfait dans ce titre</button>`;
-        ar.querySelector('button').addEventListener('click', () => addForfait(l));
+        ar.innerHTML = `<button type="button" class="btn btn-sm btn-forfait"><i class="ti ti-plus"></i> Forfait dans ce titre</button><button type="button" class="btn btn-sm btn-paste"><i class="ti ti-file-type-xls"></i> Liste volontaires Tutorat</button><button type="button" class="btn btn-sm btn-tutorat"><i class="ti ti-file-type-xls"></i><i class="ti ti-calculator"></i> Calcul Tutorat</button>`;
+        ar.querySelector('.btn-forfait').addEventListener('click', () => addForfait(l));
+        ar.querySelector('.btn-paste').addEventListener('click', () => openPasteZone(l));
+        ar.querySelector('.btn-tutorat').addEventListener('click', () => openTutoratZone(l));
         // Zone de dépôt : glisser un forfait ici l'ajoute en fin de ce titre
         ar.addEventListener('dragover', e => { if(draggingNid==null)return; e.preventDefault(); clearDz(); ar.classList.add('dz-active'); });
         ar.addEventListener('dragleave', () => ar.classList.remove('dz-active'));
@@ -332,6 +352,334 @@ function addForfait(titre){
   render();
 }
 
+// ── Helpers date ──
+function isDateLike(s){
+  s = (s||'').trim();
+  return /^\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}$/.test(s) ||
+         /^\d{4}[\/\-]\d{2}[\/\-]\d{2}$/.test(s);
+}
+function normalizeDate(s){
+  s = (s||'').trim();
+  let m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if(m) return m[1].padStart(2,'0')+'/'+m[2].padStart(2,'0')+'/'+(m[3].length===2?'20'+m[3]:m[3]);
+  m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if(m) return m[3]+'/'+m[2]+'/'+m[1];
+  return s;
+}
+// Construit les descriptions alignées colonne par colonne (U+00A0 pour le padding).
+// Chaque colonne texte est rembourée à la largeur max de la fournée, puis les
+// dates sont ajoutées à droite. Les U+00A0 ne créent jamais de retour à la ligne.
+function buildAlignedDescriptions(rows){
+  const NBSP = ' ';
+
+  const parsed = rows.map(cols => {
+    const textCols = []; const dates = [];
+    cols.forEach(c => isDateLike(c) ? dates.push(normalizeDate(c)) : textCols.push(c));
+    return {textCols, dates: dates.join(NBSP + '→' + NBSP)};
+  });
+
+  // Largeur max de chaque colonne texte dans la fournée
+  const maxCols = Math.max(0, ...parsed.map(p => p.textCols.length));
+  const colWidths = Array.from({length: maxCols}, (_, ci) =>
+    Math.max(0, ...parsed.map(p => (p.textCols[ci] || '').length))
+  );
+
+  return parsed.map(p => {
+    const parts = Array.from({length: maxCols}, (_, ci) => {
+      const val = p.textCols[ci] || '';
+      return val + NBSP.repeat(colWidths[ci] - val.length);
+    });
+    const text = parts.join(NBSP + '—' + NBSP);
+    if(!p.dates) return text;
+    return text + NBSP + p.dates;
+  });
+}
+
+// ── Coller depuis Excel ──
+let pasteTarget = undefined; // undefined = fermé, null = racine, node = dans un titre
+let pasteRows = [];          // lignes parsées en attente de confirmation
+
+function openPasteZone(titre){
+  closeTutoratZone();
+  const container = document.getElementById('paste-container');
+  if (pasteTarget !== undefined && pasteTarget === titre){ closePasteZone(); return; }
+  pasteTarget = titre;
+  pasteRows = [];
+  container.innerHTML = `<div class="paste-zone">
+    <label>Collez votre sélection Excel ici — chaque ligne deviendra un forfait :</label>
+    <textarea id="paste-ta" rows="3" placeholder="Ctrl+C dans Excel, puis Ctrl+V ici…"></textarea>
+    <div id="paste-preview"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="paste-confirm" type="button" class="btn btn-sm btn-teal" onclick="confirmPaste()" style="display:none"><i class="ti ti-table-import"></i> Ajouter les lignes</button>
+      <button type="button" class="btn btn-sm" onclick="closePasteZone()">Annuler</button>
+    </div>
+  </div>`;
+  const ta = document.getElementById('paste-ta');
+  ta.focus();
+  ta.addEventListener('paste', e => {
+    e.preventDefault();
+    const raw = (e.clipboardData || window.clipboardData).getData('text');
+    ta.value = raw;
+    buildPastePreview(raw);
+  });
+  // aussi sur input au cas où elle tape manuellement
+  ta.addEventListener('input', () => buildPastePreview(ta.value));
+}
+
+function buildPastePreview(raw){
+  const lines = raw.split(/\r?\n/).filter(l => l.trim());
+  pasteRows = lines.map(line => {
+    const cols = line.split('\t');
+    return cols.slice(0, 5).map(c => (c||'').trim()).filter(c => c);
+  }).filter(cols => cols.length > 0);
+
+  const preview = document.getElementById('paste-preview');
+  const btn = document.getElementById('paste-confirm');
+  if (!pasteRows.length){ preview.innerHTML = ''; btn.style.display='none'; return; }
+
+  const maxCols = Math.max(...pasteRows.map(r => r.length));
+  // Détecter les colonnes dates (si >50% des lignes ont une date dans cette colonne)
+  const isDateCol = Array.from({length: maxCols}, (_,ci) => {
+    const vals = pasteRows.map(r => r[ci]||'').filter(v => v);
+    return vals.length > 0 && vals.filter(isDateLike).length / vals.length > 0.5;
+  });
+
+  const alignedDescs = buildAlignedDescriptions(pasteRows);
+
+  let html = `<div style="margin-top:10px;overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr style="background:var(--teal);color:#fff">`;
+  for(let i=0;i<maxCols;i++){
+    const label = isDateCol[i] ? `<i class="ti ti-calendar" style="font-size:10px"></i> Date` : `Col.${i+1}`;
+    html += `<th style="padding:4px 8px;text-align:left;font-weight:500">${label}</th>`;
+  }
+  html += `<th style="padding:4px 8px;font-weight:500;white-space:nowrap">→ Description forfait</th></tr></thead><tbody>`;
+  pasteRows.forEach((cols, idx) => {
+    const bg = idx%2===0 ? '#fff' : 'var(--gray-lt)';
+    html += `<tr style="background:${bg}">`;
+    for(let i=0;i<maxCols;i++){
+      const val = esc(isDateLike(cols[i]||'') ? normalizeDate(cols[i]) : (cols[i]||''));
+      const style = isDateCol[i]
+        ? 'padding:3px 8px;color:var(--teal);font-weight:500;white-space:nowrap'
+        : 'padding:3px 8px;color:var(--gray-dk)';
+      html += `<td style="${style}">${val}</td>`;
+    }
+    html += `<td style="padding:3px 8px;font-weight:500;color:var(--prune);font-family:monospace;font-size:10px;white-space:pre">${esc(alignedDescs[idx])}</td></tr>`;
+  });
+  html += `</tbody></table></div>`;
+  preview.innerHTML = html;
+  btn.innerHTML = `<i class="ti ti-table-import"></i> Ajouter ${pasteRows.length} ligne${pasteRows.length>1?'s':''}`;
+  btn.style.display = 'inline-flex';
+}
+
+function confirmPaste(){
+  const descs = buildAlignedDescriptions(pasteRows);
+  let count = 0;
+  descs.forEach(desc => {
+    if (!desc.trim()) return;
+    const f = {type_ligne:'F', description:desc, quantite:1, unite:'', cout_unitaire:null, _pasted:true};
+    if (pasteTarget){ pasteTarget.enfants = pasteTarget.enfants||[]; pasteTarget.enfants.push(f); }
+    else { tree.push(f); }
+    count++;
+  });
+  closePasteZone();
+  render();
+  if (count > 0) showToast(count + ' ligne' + (count>1?'s':'') + ' ajoutée' + (count>1?'s':''));
+}
+
+function closePasteZone(){
+  document.getElementById('paste-container').innerHTML = '';
+  pasteTarget = undefined;
+  pasteRows = [];
+}
+
+// ── Calcul Tutorat ──
+let tutoratTarget = undefined;
+let tutoratRows = [];
+
+function days360(start, end){
+  let y1=start.getFullYear(),m1=start.getMonth()+1,d1=start.getDate();
+  let y2=end.getFullYear(),  m2=end.getMonth()+1,  d2=end.getDate();
+  if(d1===31)d1=30; if(d2===31)d2=30;
+  return (y2-y1)*360+(m2-m1)*30+(d2-d1);
+}
+
+function parseFrDate(s){
+  s=(s||'').trim();
+  let m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if(m){const y=m[3].length===2?2000+parseInt(m[3]):parseInt(m[3]);return new Date(y,parseInt(m[2])-1,parseInt(m[1]));}
+  m=s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if(m)return new Date(parseInt(m[1]),parseInt(m[2])-1,parseInt(m[3]));
+  return null;
+}
+
+function quarterBounds(q, y){
+  const mStart=[0,3,6,9][q-1];
+  const [mEnd,dEnd]=[[2,31],[5,30],[8,30],[11,31]][q-1];
+  return {start:new Date(y,mStart,1), end:new Date(y,mEnd,dEnd)};
+}
+
+function computeTutoratDays(cs,ce,ps,pe){
+  // Reproduit la formule JOURS360 de l'Excel (méthode européenne)
+  const effEnd=(ce<=pe&&ce>=ps)?ce:(ce>=pe?pe:ce);
+  const effStart=(cs>=ps&&ce>=ps)?cs:ps;
+  if(effEnd<effStart)return 0;
+  return days360(effStart,new Date(effEnd.getTime()+86400000));
+}
+
+function buildTutoratDescriptions(rows){
+  const NBSP=' ';
+  const withSecteur=rows.some(r=>r.secteur);
+  const texts=rows.map(r=>withSecteur
+    ?[String(r.secteur||'').replace(/ /g,NBSP),(r.nom||'').replace(/ /g,NBSP)]
+    :[(r.nom||'').replace(/ /g,NBSP)]);
+  const ncols=withSecteur?2:1;
+  const widths=Array.from({length:ncols},(_,ci)=>Math.max(0,...texts.map(t=>(t[ci]||'').length)));
+  return texts.map((t,i)=>{
+    const parts=Array.from({length:ncols},(_,ci)=>(t[ci]||'')+NBSP.repeat(widths[ci]-(t[ci]||'').length));
+    const dates=(rows[i].dateDebut||'')+NBSP+'→'+NBSP+(rows[i].dateFin||'');
+    return parts.join(NBSP+'—'+NBSP)+NBSP+dates;
+  });
+}
+
+function openTutoratZone(titre){
+  closePasteZone();
+  const container=document.getElementById('tutorat-container');
+  if(tutoratTarget!==undefined&&tutoratTarget===titre){closeTutoratZone();return;}
+  tutoratTarget=titre; tutoratRows=[];
+  const now=new Date(); const curY=now.getFullYear(); const curQ=Math.ceil((now.getMonth()+1)/3);
+  const qOpts=[1,2,3,4].map(q=>`<option value="${q}"${q===curQ?' selected':''}>${['T1 (Jan–Mar)','T2 (Avr–Jun)','T3 (Jul–Sep)','T4 (Oct–Déc)'][q-1]}</option>`).join('');
+  container.innerHTML=`<div class="paste-zone">
+    <label style="font-weight:600;font-size:12px"><i class="ti ti-calculator"></i> Calcul Tutorat</label>
+    <div style="display:flex;gap:16px;margin:8px 0;flex-wrap:wrap;align-items:center">
+      <label style="font-size:11px">Trimestre
+        <select id="t-q" style="margin-left:4px;font-size:11px">${qOpts}</select>
+      </label>
+      <label style="font-size:11px">Année
+        <input type="number" id="t-y" value="${curY}" min="2020" max="2050" style="width:72px;margin-left:4px;font-size:11px">
+      </label>
+      <label style="font-size:11px">Taux mensuel
+        <input type="number" id="t-rate" value="50" min="1" step="1" style="width:64px;margin-left:4px;font-size:11px"> €/mois
+      </label>
+    </div>
+    <label style="font-size:11px">Collez depuis Excel (Secteur, Nom, Date début, Date fin) :</label>
+    <textarea id="tutorat-ta" rows="3" placeholder="Ctrl+C depuis Excel (cols A–D), puis Ctrl+V ici…"></textarea>
+    <div id="tutorat-preview"></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="tutorat-confirm" type="button" class="btn btn-sm btn-teal" onclick="confirmTutorat()" style="display:none"><i class="ti ti-table-import"></i> Ajouter les lignes</button>
+      <button type="button" class="btn btn-sm" onclick="closeTutoratZone()">Annuler</button>
+    </div>
+  </div>`;
+  const ta=document.getElementById('tutorat-ta');
+  ta.focus();
+  const refresh=()=>buildTutoratPreview(ta.value);
+  ta.addEventListener('paste',e=>{e.preventDefault();ta.value=(e.clipboardData||window.clipboardData).getData('text');refresh();});
+  ta.addEventListener('input',refresh);
+  document.getElementById('t-q').addEventListener('change',refresh);
+  document.getElementById('t-y').addEventListener('change',refresh);
+  document.getElementById('t-rate').addEventListener('input',refresh);
+}
+
+function buildTutoratPreview(raw){
+  const preview=document.getElementById('tutorat-preview');
+  const btn=document.getElementById('tutorat-confirm');
+  const q=parseInt(document.getElementById('t-q').value);
+  const y=parseInt(document.getElementById('t-y').value);
+  const rate=parseFloat(document.getElementById('t-rate').value)||50;
+  const {start:ps,end:pe}=quarterBounds(q,y);
+
+  const lines=raw.split(/\r?\n/).filter(l=>l.trim());
+  const parsed=lines.map(line=>{
+    const cols=line.split('\t').map(c=>(c||'').trim());
+    // Col 0 : secteur si c'est un nombre, sinon pas de secteur
+    const hasSecteur=/^\d+$/.test(cols[0]||'');
+    const secteur=hasSecteur?cols[0]:'';
+    const o=hasSecteur?1:0; // offset : index de la première colonne nom
+    // Détecte si Nom et Prénom sont dans des colonnes séparées
+    const splitNom=cols.length>=o+3 && !isDateLike(cols[o+1]||'') && isDateLike(cols[o+2]||'');
+    const nom=splitNom?((cols[o]||'')+' '+(cols[o+1]||'')).trim():(cols[o]||'');
+    const di=o+(splitNom?2:1);
+    return {secteur,nom,dateDebutRaw:cols[di]||'',dateFinRaw:cols[di+1]||''};
+  }).filter(r=>r.nom);
+
+  tutoratRows=[];
+  if(!parsed.length){preview.innerHTML='';btn.style.display='none';return;}
+
+  const qLabel=['T1','T2','T3','T4'][q-1];
+  let html=`<div style="margin-top:10px;overflow-x:auto">
+    <div style="font-size:10px;color:var(--gray-md);margin-bottom:4px">Période : ${qLabel} ${y} — taux ${rate} €/mois (${(rate/30).toFixed(4)} €/j)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr style="background:var(--teal);color:#fff">
+      <th style="padding:4px 8px;text-align:left">Secteur</th>
+      <th style="padding:4px 8px;text-align:left">Nom</th>
+      <th style="padding:4px 8px;text-align:left">Début contrat</th>
+      <th style="padding:4px 8px;text-align:left">Fin contrat</th>
+      <th style="padding:4px 8px;text-align:right">Jours</th>
+      <th style="padding:4px 8px;text-align:right">Coût HT</th>
+    </tr></thead><tbody>`;
+
+  parsed.forEach((r,idx)=>{
+    const bg=idx%2===0?'#fff':'var(--gray-lt)';
+    const cs=parseFrDate(r.dateDebutRaw);
+    const ce=parseFrDate(r.dateFinRaw);
+    let days=0,cost=0,warn=false;
+    if(cs&&ce){
+      days=computeTutoratDays(cs,ce,ps,pe);
+      cost=Math.round(days*rate/30);
+    } else { warn=true; }
+    const dateDebut=normalizeDate(r.dateDebutRaw)||r.dateDebutRaw;
+    const dateFin=normalizeDate(r.dateFinRaw)||r.dateFinRaw;
+    html+=`<tr style="background:${bg}">
+      <td style="padding:3px 8px">${esc(r.secteur)}</td>
+      <td style="padding:3px 8px;font-weight:500">${esc(r.nom)}</td>
+      <td style="padding:3px 8px;color:var(--teal)">${esc(dateDebut)}</td>
+      <td style="padding:3px 8px;color:var(--teal)">${esc(dateFin)}</td>
+      <td style="padding:3px 8px;text-align:right;color:${warn?'var(--red)':days>0?'var(--teal-dk)':'var(--gray-md)'}">${warn?'?':days}</td>
+      <td style="padding:3px 8px;text-align:right;font-weight:600;color:${cost>0?'var(--prune)':'var(--gray-md)'}">${warn?'—':cost+' €'}</td>
+    </tr>`;
+    tutoratRows.push({secteur:r.secteur,nom:r.nom,dateDebut,dateFin,days:warn?null:days,cost:warn?null:cost});
+  });
+  html+=`</tbody></table></div>`;
+  preview.innerHTML=html;
+  const count=tutoratRows.filter(r=>r.cost!==null).length;
+  btn.innerHTML=`<i class="ti ti-table-import"></i> Ajouter ${count} ligne${count>1?'s':''}`;
+  btn.style.display='inline-flex';
+}
+
+function confirmTutorat(){
+  const rate=parseFloat(document.getElementById('t-rate').value)||50;
+  const dailyRate=Math.round(rate/30*10000)/10000;
+  const q=parseInt(document.getElementById('t-q').value);
+  const y=parseInt(document.getElementById('t-y').value);
+  const qLabel=['1er','2e','3e','4e'][q-1];
+  // Détecter si au moins une ligne a un secteur
+  const hasSecteur=tutoratRows.some(r=>r.secteur);
+  // Ligne d'en-tête injectée dans buildTutoratDescriptions pour hériter des largeurs
+  const headerRow={secteur:hasSecteur?'Sect.':'',nom:'Nom Prénom',dateDebut:'Début',dateFin:'Fin contrat'};
+  const allDescs=buildTutoratDescriptions([headerRow,...tutoratRows]);
+  const headerDesc=allDescs[0];
+  const dataDescs=allDescs.slice(1);
+  const enfants=[];
+  enfants.push({type_ligne:'F',description:headerDesc,quantite:null,unite:'',cout_unitaire:null,_pasted:true});
+  tutoratRows.forEach((r,i)=>{
+    if(!dataDescs[i].trim())return;
+    enfants.push({type_ligne:'F',description:dataDescs[i],quantite:r.days??1,unite:'J',cout_unitaire:dailyRate,_pasted:true});
+  });
+  if(enfants.length>1){
+    tree.push({type_ligne:'TITRE',description:qLabel+' trimestre '+y+' - SERVICES CIVIQUES',enfants});
+  }
+  closeTutoratZone();
+  render();
+  const n=enfants.length-1;
+  if(n>0)showToast(n+' ligne'+(n>1?'s':'')+' ajoutée'+(n>1?'s':''));
+}
+
+function closeTutoratZone(){
+  const c=document.getElementById('tutorat-container');
+  if(c)c.innerHTML='';
+  tutoratTarget=undefined;
+  tutoratRows=[];
+}
+
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
@@ -357,11 +705,21 @@ document.addEventListener('keydown', e => {
   if (MODIFIABLE && (e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); save(); }
 });
 
+// Restaure le flag _pasted sur les lignes rechargées depuis la base
+// (détecte le motif "texte  jj/mm/aaaa" produit par buildAlignedDescriptions)
+function restorePastedFlags(nodes){
+  nodes.forEach(n => {
+    if(n.type_ligne !== 'TITRE' && /[  ]{2}\d{2}\/\d{2}\/\d{4}/.test(n.description)) n._pasted = true;
+    if(n.enfants) restorePastedFlags(n.enfants);
+  });
+}
+
 async function load(){
   try {
     const resp = await fetch(GET_URL);
     const data = await resp.json();
     tree = data.lignes || [];
+    restorePastedFlags(tree);
     render();
   } catch(e){ showToast('Erreur de chargement'); }
 }
