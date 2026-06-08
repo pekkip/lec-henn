@@ -537,7 +537,7 @@ function buildTutoratDescriptions(rows){
   return texts.map((t,i)=>{
     const parts=Array.from({length:ncols},(_,ci)=>(t[ci]||'')+NBSP.repeat(widths[ci]-(t[ci]||'').length));
     const dates=(rows[i].dateDebut||'')+NBSP+'→'+NBSP+(rows[i].dateFin||'');
-    return parts.join(NBSP+'—'+NBSP)+NBSP+dates;
+    return parts.join(NBSP+NBSP+NBSP)+NBSP+dates;
   });
 }
 
