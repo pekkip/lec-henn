@@ -178,6 +178,7 @@ tbody tr:hover td{background:#FAFAF8}
 
   {% if request.user.is_authenticated %}
   <div class="topbar-actions">
+    {% block topbar_actions %}{% endblock %}
     <a href="{% url 'core:profil' %}" class="btn btn-ghost btn-sm">
       <i class="ti ti-user"></i>
       {{ request.user.get_full_name|default:request.user.username }}
