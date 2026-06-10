@@ -91,28 +91,6 @@ WIDGETS = OrderedDict([
         'title': 'Activité récente', 'type': 'activity', 'icon': 'ti-history',
         'supports_scope': True, 'requires_compta': False}),
 
-    # — Production Insertion (requires_planning) ————————————
-    ('prod_kpi_montant', {
-        'title': 'Montant facturé (mois)', 'type': 'kpi', 'icon': 'ti-file-invoice',
-        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
-    ('prod_kpi_j_realises', {
-        'title': 'Jours réalisés (mois)', 'type': 'kpi', 'icon': 'ti-clock-check',
-        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
-    ('prod_kpi_ratio', {
-        'title': '€/j réalisé (mois)', 'type': 'kpi', 'icon': 'ti-cash',
-        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
-    ('prod_kpi_taux', {
-        'title': 'Taux de réalisation (mois)', 'type': 'kpi', 'icon': 'ti-progress-check',
-        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
-    ('prod_list_chantiers', {
-        'title': 'Production par chantier', 'type': 'prod_chantiers', 'icon': 'ti-building',
-        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
-    ('prod_list_depassements', {
-        'title': 'Chantiers en dépassement', 'type': 'prod_depassements', 'icon': 'ti-alert-triangle',
-        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
-    ('prod_chart_equipes', {
-        'title': 'Avancement par équipe', 'type': 'prod_equipes', 'icon': 'ti-chart-bar',
-        'supports_scope': False, 'requires_compta': False, 'requires_planning': True}),
 ])
 
 
@@ -170,11 +148,9 @@ def scoped_audit(user, scope):
 def widgets_for(user):
     """IDs des widgets autorisés pour cet utilisateur."""
     compta = peut_acceder_compta(user)
-    planning = peut_acceder_planning(user)
     return {
         wid for wid, meta in WIDGETS.items()
         if (compta or not meta.get('requires_compta'))
-        and (planning or not meta.get('requires_planning'))
     }
 
 
@@ -489,6 +465,7 @@ def _prod_data(ctx=None):
         pct = (j_r / j_f * 100).quantize(Decimal('0.1')) if j_f else Decimal('0')
         eq_bars.append({
             'nom': eq_noms.get(e_id, '?'), 'j_fact': j_f, 'j_real': j_r,
+            'ecart': j_r - j_f,
             'pct': pct, 'pct_bar': min(pct, Decimal('120')), 'over': pct > 100,
         })
     eq_bars.sort(key=lambda b: b['nom'])
@@ -578,25 +555,16 @@ _PROVIDERS = {
     'chart_top_clients': _chart_top_clients,
     'chart_financements': _chart_financements,
     'activity_recent': _activity_recent,
-    'prod_kpi_montant': _prod_kpi_montant,
-    'prod_kpi_j_realises': _prod_kpi_j_realises,
-    'prod_kpi_ratio': _prod_kpi_ratio,
-    'prod_kpi_taux': _prod_kpi_taux,
-    'prod_list_chantiers': _prod_list_chantiers,
-    'prod_list_depassements': _prod_list_depassements,
-    'prod_chart_equipes': _prod_chart_equipes,
 }
 
 
-def widget_data(widget_id, user, scope, prod_context=None):
+def widget_data(widget_id, user, scope):
     """Calcule les données d'un widget (dispatch). Scope normalisé."""
     if scope not in SCOPES:
         scope = 'all'
     provider = _PROVIDERS.get(widget_id)
     if not provider:
         return {}
-    if widget_id.startswith('prod_') and prod_context is not None:
-        return provider(user, scope, prod_context)
     return provider(user, scope)
 
 
@@ -610,14 +578,13 @@ def _normalise_scope(meta, scope):
     return scope if scope in SCOPES else 'all'
 
 
-def resolve_dashboard(profil, user, prod_context=None):
+def resolve_dashboard(profil, user):
     """
     À partir de `profil.dashboard_config` (ou DASHBOARD_DEFAULT), renvoie :
       - `visibles` : liste ordonnée de widgets {id,type,title,icon,scope,
         supports_scope,data} (données calculées, lazy : seulement les visibles) ;
       - `disponibles` : widgets masqués ou non encore ajoutés (pour « Ajouter »).
-    Filtre les widgets non autorisés (compta/planning) et les ids inconnus.
-    prod_context : {debut, fin, equipe_ids} — filtres partagés pour les widgets prod.
+    Filtre les widgets non autorisés (compta) et les ids inconnus.
     """
     config = (profil.dashboard_config or {}).get('widgets')
     if not config:
@@ -640,7 +607,7 @@ def resolve_dashboard(profil, user, prod_context=None):
             'id': wid, 'type': meta['type'], 'title': meta['title'],
             'icon': meta['icon'], 'scope': scope,
             'supports_scope': meta['supports_scope'],
-            'data': widget_data(wid, user, scope, prod_context),
+            'data': widget_data(wid, user, scope),
         })
 
     # Widgets autorisés jamais rencontrés → disponibles (nouveautés).

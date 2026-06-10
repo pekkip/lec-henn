@@ -36,6 +36,7 @@
 .eg{display:grid;grid-template-columns:172px 24px repeat(5,84px) 70px;min-width:max-content}
 .eg>div{border-right:1px solid var(--gray-bd);border-bottom:1px solid var(--gray-bd)}
 .h{background:var(--gray-lt);font-size:11px;font-weight:600;color:var(--gray-md);display:flex;align-items:center;justify-content:center;text-align:center;padding:5px 2px;line-height:1.2}
+.h.mois{background:var(--prune-lt);color:var(--prune-dk);text-transform:capitalize}
 .h.day{flex-direction:column}
 .h.day b{color:var(--gray);font-size:12px;margin-top:1px}
 .h.day.off{background:#ECEAE7;color:#b3b1ad}
@@ -259,6 +260,12 @@
 
       <div class="egwrap">
         <div class="eg">
+          <!-- Ligne mois -->
+          <div class="h" style="grid-column:1/3"></div>
+          <div class="h mois" style="grid-column:3/8;justify-content:center">
+            {% if lundi|date:"m" == vendredi|date:"m" %}{{ lundi|date:"F Y" }}{% else %}{{ lundi|date:"F" }} – {{ vendredi|date:"F Y" }}{% endif %}
+          </div>
+          <div class="h" style="grid-column:8/9"></div>
           <!-- En-tête -->
           <div class="h name" style="grid-column:1/3">Équipier</div>
           {% for ji in jours_info %}

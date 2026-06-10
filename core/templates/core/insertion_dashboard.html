@@ -1,0 +1,236 @@
+{% extends "core/base.html" %}
+{% block nav_insertion_dashboard %}active{% endblock %}
+{% block topbar_title %}Tableau de bord Insertion{% endblock %}
+
+{% block extra_css %}
+<style>
+.ins-page{display:flex;flex-direction:column;gap:16px}
+.ins-filter{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 20px;padding:10px 14px}
+.flt-lbl{font-size:10.5px;color:var(--gray-md);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.ins-kpi-row{display:flex;gap:12px;flex-wrap:wrap}
+.ins-kpi{flex:1;min-width:140px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:14px 18px}
+.ins-kpi-val{font-size:26px;font-weight:700;color:var(--prune);font-variant-numeric:tabular-nums;line-height:1}
+.ins-kpi-lbl{font-size:11px;color:var(--gray-md);margin-top:4px}
+table.ins-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+table.ins-tbl th{background:var(--gray-lt);color:var(--gray-md);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px;border-bottom:2px solid var(--gray-bd);white-space:nowrap}
+table.ins-tbl td{padding:7px 10px;border-bottom:1px solid var(--gray-bd);color:var(--gray)}
+table.ins-tbl tr:last-child td{border-bottom:none}
+table.ins-tbl tr:hover td{background:var(--gray-lt)}
+table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
+.taux-ok{color:var(--teal-dk);font-weight:600}
+.taux-over{color:var(--red);font-weight:600}
+.taux-bar-wrap{display:flex;align-items:center;gap:8px}
+.taux-bar-bg{flex:1;height:8px;background:var(--gray-lt);border-radius:4px;overflow:hidden;min-width:60px}
+.taux-bar-fill{height:100%;border-radius:4px}
+.taux-val{min-width:42px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;font-size:12px}
+.card-hd2{padding:10px 14px 0;font-size:11px;font-weight:700;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ins-page">
+
+  {# ── Barre de filtres ── #}
+  <form method="get" id="prod-filter-form" class="card ins-filter">
+    <div>
+      <div class="flt-lbl">Période</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="prod-preset" onchange="prodApplyPreset(this)" style="font-size:12px;padding:3px 7px;border:1px solid var(--gray-bd);border-radius:var(--r);background:var(--white);color:var(--gray);max-width:160px">
+          <option value="">— choisir —</option>
+          {% for p in prod_presets %}
+          <option value="{{ p.debut }}|{{ p.fin }}" {% if prod_context.debut_str == p.debut and prod_context.fin_str == p.fin %}selected{% endif %}>{{ p.label }}</option>
+          {% endfor %}
+        </select>
+        <span style="display:flex;gap:5px;align-items:center">
+          <input type="date" name="debut" id="prod-debut" value="{{ prod_context.debut_str }}" style="font-size:12px;padding:3px 6px;border:1px solid var(--gray-bd);border-radius:var(--r)">
+          <span style="font-size:11px;color:var(--gray-md)">→</span>
+          <input type="date" name="fin" id="prod-fin" value="{{ prod_context.fin_str }}" style="font-size:12px;padding:3px 6px;border:1px solid var(--gray-bd);border-radius:var(--r)">
+        </span>
+      </div>
+    </div>
+    <div>
+      <div class="flt-lbl">Équipes</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="prod-eq-all" onchange="prodToggleAll(this)" {% if not prod_context.equipe_ids %}checked{% endif %}> Toutes
+        </label>
+        <span style="color:var(--gray-bd)">|</span>
+        {% for eq in prod_equipes %}
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" name="eq" value="{{ eq.pk }}" class="prod-eq-cb" onchange="prodEqChange()" {% if eq.selected %}checked{% endif %}> {{ eq.nom }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <button type="submit" class="btn btn-sm btn-teal" style="white-space:nowrap"><i class="ti ti-filter"></i> Appliquer</button>
+    {% if request.GET %}<a href="?" class="btn btn-sm" style="white-space:nowrap">Réinitialiser</a>{% endif %}
+  </form>
+
+  {# ── KPIs globaux ── #}
+  <div class="ins-kpi-row">
+    <div class="ins-kpi">
+      <div class="ins-kpi-val">{{ tot_jf|floatformat:1 }}<span style="font-size:14px;font-weight:400;color:var(--gray-md)"> j</span></div>
+      <div class="ins-kpi-lbl">Jours facturables — {{ debut_lbl }}</div>
+    </div>
+    <div class="ins-kpi">
+      <div class="ins-kpi-val">{{ tot_jr|floatformat:1 }}<span style="font-size:14px;font-weight:400;color:var(--gray-md)"> j</span></div>
+      <div class="ins-kpi-lbl">Jours réalisés — {{ debut_lbl }}</div>
+    </div>
+    {% if tot_jf %}
+    <div class="ins-kpi">
+      {% with taux=tot_jr|default:0 %}
+      <div class="ins-kpi-val {% if tot_jr > tot_jf %}taux-over{% else %}taux-ok{% endif %}">
+        {% widthratio tot_jr tot_jf 100 %}<span style="font-size:14px;font-weight:400;color:var(--gray-md)"> %</span>
+      </div>
+      {% endwith %}
+      <div class="ins-kpi-lbl">Taux de réalisation global</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Tableau par équipe ── #}
+  <div class="card">
+    <div class="card-hd"><span class="card-title"><i class="ti ti-users" style="color:var(--teal)"></i>Par équipe</span></div>
+    <div class="card-body" style="padding:0;overflow-x:auto">
+      <table class="ins-tbl">
+        <thead><tr>
+          <th>Équipe</th>
+          <th class="num">J. facturables</th>
+          <th class="num">J. réalisés</th>
+          <th class="num">Écart</th>
+          <th style="min-width:180px">Taux de réalisation</th>
+        </tr></thead>
+        <tbody>
+        {% for b in eq_bars %}
+        <tr>
+          <td>{{ b.nom }}</td>
+          <td class="num">{{ b.j_fact|floatformat:1 }}</td>
+          <td class="num">{{ b.j_real|floatformat:1 }}</td>
+          <td class="num {% if b.over %}taux-over{% else %}taux-ok{% endif %}">
+            {% if b.over %}+{% endif %}{{ b.ecart|floatformat:1 }}
+          </td>
+          <td>
+            <div class="taux-bar-wrap">
+              <div class="taux-bar-bg">
+                <div class="taux-bar-fill" style="width:{{ b.pct_bar }}%;background:{% if b.over %}var(--red){% else %}var(--teal){% endif %}"></div>
+              </div>
+              <span class="taux-val {% if b.over %}taux-over{% else %}taux-ok{% endif %}">{{ b.pct|floatformat:0 }} %</span>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;color:var(--gray-md);padding:1.5rem">Aucune donnée pour cette période</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── Tableau par chantier ── #}
+  <div class="card">
+    <div class="card-hd"><span class="card-title"><i class="ti ti-building" style="color:var(--teal)"></i>Par chantier</span></div>
+    <div class="card-body" style="padding:0;overflow-x:auto">
+      <table class="ins-tbl">
+        <thead><tr>
+          <th>Équipe</th>
+          <th>Chantier</th>
+          <th class="num">J. facturables</th>
+          <th class="num">J. réalisés</th>
+          <th class="num">Écart</th>
+          <th class="num">Taux</th>
+        </tr></thead>
+        <tbody>
+        {% for c in chantiers %}
+        <tr>
+          <td style="white-space:nowrap">{{ c.devis.equipe.nom|default:'—' }}</td>
+          <td><a href="{% url 'core:devis-detail' c.devis.pk %}">{{ c.devis.chantier|default:c.devis.reference|truncatechars:50 }}</a></td>
+          <td class="num">{{ c.j_fact|floatformat:1 }}</td>
+          <td class="num">{{ c.j_real|floatformat:1 }}</td>
+          <td class="num {% if c.ecart >= 0 %}taux-over{% else %}taux-ok{% endif %}">
+            {% if c.ecart >= 0 %}+{% endif %}{{ c.ecart|floatformat:1 }}
+          </td>
+          <td class="num {% if c.taux and c.taux > 100 %}taux-over{% elif c.taux %}taux-ok{% endif %}">
+            {{ c.taux|floatformat:0|default:'—' }}{% if c.taux %} %{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" style="text-align:center;color:var(--gray-md);padding:1.5rem">Aucune donnée pour cette période</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  {# ── Liste des factures ── #}
+  <div class="card">
+    <div class="card-hd"><span class="card-title"><i class="ti ti-receipt" style="color:var(--teal)"></i>Factures — {{ debut_lbl }}</span></div>
+    <div class="card-body" style="padding:0;overflow-x:auto">
+      <table class="ins-tbl">
+        <thead><tr>
+          <th>Référence</th>
+          <th>Équipe</th>
+          <th>Client / Chantier</th>
+          <th class="num">Montant HT</th>
+          <th>Statut</th>
+        </tr></thead>
+        <tbody>
+        {% for f in factures %}
+        <tr>
+          <td style="white-space:nowrap"><a href="{% url 'core:facture-detail' f.pk %}">{{ f.get_reference }}</a></td>
+          <td style="white-space:nowrap">{{ f.devis.equipe.nom|default:'—' }}</td>
+          <td>
+            <span style="color:var(--gray-md);font-size:11px">{{ f.devis.client.nom|default:'—' }}</span>
+            {% if f.devis.chantier %}<br><span>{{ f.devis.chantier|truncatechars:55 }}</span>{% endif %}
+          </td>
+          <td class="num" style="font-variant-numeric:tabular-nums">{{ f.montant|floatformat:2 }} €</td>
+          <td>
+            {% if f.status == 'draft' %}
+              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">Brouillon</span>
+            {% elif f.status == 'validated' %}
+              <span class="badge" style="background:#e6f4f1;color:var(--teal-dk)">Validée</span>
+            {% elif f.status == 'sent' %}
+              <span class="badge" style="background:#fef3cd;color:#856404">Envoyée</span>
+            {% elif f.status == 'paid' %}
+              <span class="badge" style="background:#d1f5e0;color:#166534">Payée</span>
+            {% else %}
+              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">{{ f.get_status_display }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" style="text-align:center;color:var(--gray-md);padding:1.5rem">Aucune facture sur cette période</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function prodApplyPreset(sel) {
+  const val = sel.value;
+  if (!val) return;
+  const [d, f] = val.split('|');
+  document.getElementById('prod-debut').value = d;
+  document.getElementById('prod-fin').value   = f;
+  document.getElementById('prod-filter-form').submit();
+}
+function prodToggleAll(cb) {
+  document.querySelectorAll('.prod-eq-cb').forEach(c => c.checked = false);
+  cb.checked = true;
+}
+function prodEqChange() {
+  const any = [...document.querySelectorAll('.prod-eq-cb')].some(c => c.checked);
+  document.getElementById('prod-eq-all').checked = !any;
+}
+document.getElementById('prod-filter-form').addEventListener('submit', function() {
+  if (document.getElementById('prod-eq-all').checked)
+    document.querySelectorAll('.prod-eq-cb').forEach(c => c.disabled = true);
+});
+</script>
+{% endblock %}

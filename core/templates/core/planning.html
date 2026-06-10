@@ -28,6 +28,11 @@
 /* ── Sticky header ───────────────────────────────────── */
 .tl-hdr{position:sticky;top:0;z-index:8;background:#fff}
 
+/* ── Month header track ──────────────────────────────── */
+.tl-mois-track{display:grid;height:20px;background:var(--prune-lt)}
+.tl-mois{display:flex;align-items:center;padding-left:6px;font-size:10px;font-weight:700;color:var(--prune-dk);text-transform:capitalize;letter-spacing:.04em;border-left:2px solid var(--prune-bd);border-right:1px solid var(--prune-bd)}
+.tl-mois:first-child{border-left:none}
+
 /* ── Week header track ───────────────────────────────── */
 .tl-wk-track{display:grid;height:24px;background:var(--gray-lt)}
 .tl-wk{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--gray-md);text-transform:uppercase;letter-spacing:.04em;border-left:2px solid var(--prune-bd);border-right:1px solid var(--gray-bd)}
@@ -182,13 +187,13 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
       </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <!-- Navigation ±4 semaines -->
+      <!-- Navigation ±1 semaine -->
       <div style="display:flex;align-items:center;gap:3px">
-        <a href="?debut={{ prec_debut }}&semaines={{ nb_semaines }}" class="btn btn-sm" title="−4 semaines">
+        <a href="?debut={{ prec_debut }}&semaines={{ nb_semaines }}" class="btn btn-sm" title="−1 semaine">
           <i class="ti ti-chevron-left"></i>
         </a>
         <a href="?semaines={{ nb_semaines }}" class="btn btn-sm">Aujourd'hui</a>
-        <a href="?debut={{ suiv_debut }}&semaines={{ nb_semaines }}" class="btn btn-sm" title="+4 semaines">
+        <a href="?debut={{ suiv_debut }}&semaines={{ nb_semaines }}" class="btn btn-sm" title="+1 semaine">
           <i class="ti ti-chevron-right"></i>
         </a>
       </div>
@@ -226,6 +231,15 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 
         <!-- En-têtes collants -->
         <div class="tl-hdr">
+          <!-- Ligne mois -->
+          <div class="tl-row tl-hdr-row">
+            <div class="tl-lbl">&nbsp;</div>
+            <div class="tl-mois-track" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
+              {% for m in mois_hdr %}
+              <div class="tl-mois" style="grid-column:span {{ m.span }}">{{ m.date|date:"F Y" }}</div>
+              {% endfor %}
+            </div>
+          </div>
           <!-- Ligne semaines -->
           <div class="tl-row tl-hdr-row">
             <div class="tl-lbl">Équipe</div>

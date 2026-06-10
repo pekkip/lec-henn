@@ -106,6 +106,7 @@ urlpatterns = [
     path('planning/pret/sauvegarder/',           views.pret_save,             name='pret-save'),
     path('planning/tranche/creer/',           views.tranche_creer,         name='tranche-creer'),
     path('insertion/aide/',                   views.aide_insertion_view,   name='aide-insertion'),
+    path('insertion/tableau-de-bord/',        views.insertion_dashboard,   name='insertion-dashboard'),
     path('planning/feuilles/',                                    views.feuilles_liste,       name='feuilles-liste'),
     path('planning/feuilles/note/',                               views.fiche_note_save,      name='fiche-note-save'),
     path('planning/feuilles/presence/',                           views.fiche_presence_save,  name='fiche-presence-save'),

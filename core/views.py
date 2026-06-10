@@ -265,6 +265,81 @@ def aide_insertion_view(request):
     return render(request, 'core/aide_insertion.html')
 
 
+@login_required
+def insertion_dashboard(request):
+    import calendar as _cal
+    from .permissions import peut_acceder_planning as _pap
+    from .dashboard_widgets import _prod_data
+
+    if not _pap(request.user):
+        return redirect('core:dashboard')
+
+    prod_equipes = list(
+        Equipe.objects.filter(actif=True, service__module_planning=True)
+        .order_by('nom').values('pk', 'nom')
+    )
+
+    eq_ids_selected = set()
+    if request.GET.getlist('eq'):
+        try:
+            eq_ids_selected = {int(x) for x in request.GET.getlist('eq') if x.isdigit()}
+        except (ValueError, TypeError):
+            pass
+
+    today = date.today()
+    debut_str = request.GET.get('debut', '')
+    fin_str   = request.GET.get('fin', '')
+    try:
+        debut = date.fromisoformat(debut_str)
+    except (ValueError, TypeError):
+        debut = date(today.year, today.month, 1)
+    try:
+        fin = date.fromisoformat(fin_str)
+    except (ValueError, TypeError):
+        fin = date(today.year, today.month, _cal.monthrange(today.year, today.month)[1])
+    if debut > fin:
+        debut, fin = fin, debut
+
+    for eq in prod_equipes:
+        eq['selected'] = (not eq_ids_selected) or (eq['pk'] in eq_ids_selected)
+
+    ctx = {
+        'debut': debut, 'fin': fin,
+        'equipe_ids': eq_ids_selected,
+        'debut_str': debut.isoformat(),
+        'fin_str': fin.isoformat(),
+    }
+    data = _prod_data(ctx)
+
+    fac_qs = (
+        Facture.objects
+        .filter(
+            type_doc__in=('facture', 'acompte'),
+            devis__isnull=False,
+            devis__equipe__service__module_planning=True,
+            status__in=('draft', 'validated', 'sent', 'paid'),
+            date_creation__range=(debut, fin),
+        )
+        .select_related('devis__client', 'devis__equipe')
+        .order_by('-date_creation', 'devis__equipe__nom')
+    )
+    if eq_ids_selected:
+        fac_qs = fac_qs.filter(devis__equipe_id__in=eq_ids_selected)
+    factures = list(fac_qs)
+
+    return render(request, 'core/insertion_dashboard.html', {
+        'prod_equipes':  prod_equipes,
+        'prod_context':  ctx,
+        'prod_presets':  _build_period_presets(today),
+        'chantiers':     data['chantiers'],
+        'eq_bars':       data['eq_bars'],
+        'tot_jf':        data['tot_jf'],
+        'tot_jr':        data['tot_jr'],
+        'debut_lbl':     data['debut_lbl'],
+        'factures':      factures,
+    })
+
+
 DOMAINE_AUTORISE = 'compagnonsbatisseurs.eu'
 
 def mot_de_passe_oublie(request):
@@ -372,66 +447,12 @@ def _build_period_presets(today):
 
 @login_required
 def dashboard(request):
-    import calendar as _cal
-    from .permissions import peut_acceder_planning as _pap
-
     profil = get_profil(request.user)
-
-    prod_context = None
-    prod_equipes = []
-    if _pap(request.user):
-        # Équipes insertion (services avec module_planning)
-        prod_equipes = list(
-            Equipe.objects.filter(actif=True, service__module_planning=True)
-            .order_by('nom').values('pk', 'nom')
-        )
-        eq_ids_selected = set()
-        if request.GET.getlist('eq'):
-            try:
-                eq_ids_selected = {int(x) for x in request.GET.getlist('eq') if x.isdigit()}
-            except (ValueError, TypeError):
-                eq_ids_selected = set()
-
-        today = date.today()
-        debut_str = request.GET.get('debut', '')
-        fin_str   = request.GET.get('fin', '')
-        try:
-            debut = date.fromisoformat(debut_str)
-        except (ValueError, TypeError):
-            debut = date(today.year, today.month, 1)
-        try:
-            fin = date.fromisoformat(fin_str)
-        except (ValueError, TypeError):
-            fin = date(today.year, today.month, _cal.monthrange(today.year, today.month)[1])
-
-        if debut > fin:
-            debut, fin = fin, debut
-
-        # Presets de période (12 mois glissants + trimestres courants)
-        presets = _build_period_presets(today)
-
-        prod_context = {
-            'debut': debut, 'fin': fin,
-            'equipe_ids': eq_ids_selected,
-            'debut_str': debut.isoformat(),
-            'fin_str': fin.isoformat(),
-        }
-        for eq in prod_equipes:
-            eq['selected'] = (not eq_ids_selected) or (eq['pk'] in eq_ids_selected)
-    else:
-        presets = []
-
-    visibles, disponibles = resolve_dashboard(profil, request.user, prod_context)
-    has_prod = any(w['id'].startswith('prod_') for w in visibles)
-
+    visibles, disponibles = resolve_dashboard(profil, request.user)
     return render(request, 'core/dashboard.html', {
         'widgets': visibles,
         'widgets_disponibles': disponibles,
         'profil': profil,
-        'has_prod': has_prod,
-        'prod_equipes': prod_equipes,
-        'prod_context': prod_context,
-        'prod_presets': presets,
     })
 
 
@@ -3255,6 +3276,15 @@ def planning_mois(request):
         for w in range(nb_semaines)
     ]
 
+    # En-têtes mois : grouper les semaines consécutives par mois
+    mois_hdr = []
+    for w in range(nb_semaines):
+        lundi = debut_grille + timedelta(weeks=w)
+        if mois_hdr and mois_hdr[-1]['date'].month == lundi.month and mois_hdr[-1]['date'].year == lundi.year:
+            mois_hdr[-1]['span'] += 12
+        else:
+            mois_hdr.append({'date': lundi, 'span': 12})
+
     equipes = Equipe.objects.filter(actif=True, service__module_planning=True).order_by('ordre', 'nom')
     affectations = list(
         Affectation.objects
@@ -3420,8 +3450,8 @@ def planning_mois(request):
             'peut_modifier': peut_modifier_ligne,
         })
 
-    prec_debut = (debut_grille - timedelta(weeks=4)).isoformat()
-    suiv_debut = (debut_grille + timedelta(weeks=4)).isoformat()
+    prec_debut = (debut_grille - timedelta(weeks=1)).isoformat()
+    suiv_debut = (debut_grille + timedelta(weeks=1)).isoformat()
 
     # Pour chaque devis déjà affiché sur la grille : liste des équipes déjà affectées
     devis_equipes: dict[int, list[int]] = {}
@@ -3465,6 +3495,7 @@ def planning_mois(request):
         'nb_semaines': nb_semaines,
         'tl_min_width': tl_min_width,
         'semaines': semaines,
+        'mois_hdr': mois_hdr,
         'lignes': lignes,
         'debut_grille': debut_grille,
         'fin_grille': fin_grille,
@@ -3895,7 +3926,32 @@ def affectation_move(request):
     aff.save()
 
     tranche = Affectation.objects.select_related('tranche__devis').prefetch_related('tranche__devis__lignes').get(pk=aff.pk).tranche
-    recalculated_pks = _recalcul_durees_tranche(tranche, tranche.devis) if changing_equipe else []
+
+    if changing_equipe:
+        # Changement d'équipe : recalcul complet depuis le MO (comportement d'origine)
+        recalculated_pks = _recalcul_durees_tranche(tranche, tranche.devis)
+    else:
+        # Resize ou déplacement sans changement d'équipe :
+        # MO consommé par cette affectation → MO restant redistribué aux autres.
+        pos_a, neg_a = _build_evenement_sets(aff.equipe_id, aff.date_debut, aff.date_fin)
+        n_jours_a    = _count_working_days(aff.date_debut, aff.date_fin, pos_a, neg_a)
+        mo_consomme  = n_jours_a * float(_TAUX_JOUR_PLANNING) * aff.equipe.nb_equipiers
+        total_mo     = float(total_mo_devis(tranche.devis) or 0)
+        mo_restant   = max(0.0, total_mo - mo_consomme)
+        other_affs   = list(Affectation.objects.filter(tranche=tranche).exclude(pk=aff.pk).select_related('equipe'))
+        recalculated_pks = []
+        if other_affs:
+            total_nbEq_others = sum(o.equipe.nb_equipiers for o in other_affs)
+            n_jours_others = max(1, math.ceil(mo_restant / (float(_TAUX_JOUR_PLANNING) * total_nbEq_others))) if (total_nbEq_others > 0 and mo_restant > 0) else 1
+            for other in other_affs:
+                borne_max = other.date_debut + timedelta(days=n_jours_others * 2 + 30)
+                pos, neg  = _build_evenement_sets(other.equipe_id, other.date_debut, borne_max)
+                new_fin   = _add_working_days(other.date_debut, n_jours_others, pos, neg)
+                if other.date_fin != new_fin:
+                    other.date_fin    = new_fin
+                    other.fin_creneau = 'aprem'
+                    other.save(update_fields=['date_fin', 'fin_creneau'])
+                    recalculated_pks.append(other.pk)
 
     aff.refresh_from_db()
     updated = [_aff_update_dict(aff)]
