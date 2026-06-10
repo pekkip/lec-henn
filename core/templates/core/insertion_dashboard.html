@@ -172,7 +172,9 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
           <th>Référence</th>
           <th>Équipe</th>
           <th>Client / Chantier</th>
-          <th class="num">Montant HT</th>
+          <th class="num">MO HT</th>
+          <th class="num">Matériaux HT</th>
+          <th class="num">Total HT</th>
           <th>Statut</th>
         </tr></thead>
         <tbody>
@@ -184,7 +186,9 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
             <span style="color:var(--gray-md);font-size:11px">{{ f.devis.client.nom|default:'—' }}</span>
             {% if f.devis.chantier %}<br><span>{{ f.devis.chantier|truncatechars:55 }}</span>{% endif %}
           </td>
-          <td class="num" style="font-variant-numeric:tabular-nums">{{ f.montant|floatformat:2 }} €</td>
+          <td class="num">{% if f.montant_mo %}{{ f.montant_mo|floatformat:2 }} €{% else %}<span style="color:var(--gray-bd)">—</span>{% endif %}</td>
+          <td class="num">{% if f.montant_mat %}{{ f.montant_mat|floatformat:2 }} €{% else %}<span style="color:var(--gray-bd)">—</span>{% endif %}</td>
+          <td class="num" style="font-weight:600">{{ f.montant|floatformat:2 }} €</td>
           <td>
             {% if f.status == 'draft' %}
               <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">Brouillon</span>
@@ -200,9 +204,20 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
           </td>
         </tr>
         {% empty %}
-        <tr><td colspan="5" style="text-align:center;color:var(--gray-md);padding:1.5rem">Aucune facture sur cette période</td></tr>
+        <tr><td colspan="7" style="text-align:center;color:var(--gray-md);padding:1.5rem">Aucune facture sur cette période</td></tr>
         {% endfor %}
         </tbody>
+        {% if factures %}
+        <tfoot>
+          <tr style="background:var(--gray-lt);font-weight:700;border-top:2px solid var(--gray-bd)">
+            <td colspan="3" style="padding:7px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-md)">Total période</td>
+            <td class="num" style="padding:7px 10px">{{ tot_fac_mo|floatformat:2 }} €</td>
+            <td class="num" style="padding:7px 10px">{{ tot_fac_mat|floatformat:2 }} €</td>
+            <td class="num" style="padding:7px 10px">{{ tot_fac_total|floatformat:2 }} €</td>
+            <td style="padding:7px 10px"></td>
+          </tr>
+        </tfoot>
+        {% endif %}
       </table>
     </div>
   </div>

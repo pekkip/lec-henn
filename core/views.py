@@ -327,6 +327,44 @@ def insertion_dashboard(request):
         fac_qs = fac_qs.filter(devis__equipe_id__in=eq_ids_selected)
     factures = list(fac_qs)
 
+    # Calcul MO / matériaux par facture en mémoire (1 requête pour toutes les lignes)
+    from collections import defaultdict as _dd
+    _lignes = list(LigneFacture.objects.filter(facture_id__in=[f.pk for f in factures]))
+    _by_fac = _dd(list)
+    for _l in _lignes:
+        _by_fac[_l.facture_id].append(_l)
+
+    def _mo_mat(lignes_list):
+        _ch = _dd(list)
+        for _l in lignes_list:
+            _ch[_l.parent_id].append(_l)
+        def _walk(_l):
+            sous = _ch.get(_l.pk, [])
+            if _l.type_ligne == 'TITRE':
+                mo  = sum(_walk(e)[0] for e in sous)
+                mat = sum(_walk(e)[1] for e in sous)
+                return mo, mat
+            if sous:
+                mult = _l.quantite or Decimal('0')
+                return (mult * sum(_walk(e)[0] for e in sous),
+                        mult * sum(_walk(e)[1] for e in sous))
+            val = (_l.quantite or Decimal('0')) * (_l.cout_unitaire or Decimal('0'))
+            if _l.type_ligne in ('MO', 'FMO'):
+                return val, Decimal('0')
+            if _l.type_ligne in ('MAT', 'FMAT'):
+                return Decimal('0'), val
+            return Decimal('0'), Decimal('0')
+        racines = _ch.get(None, [])
+        return (sum(_walk(r)[0] for r in racines),
+                sum(_walk(r)[1] for r in racines))
+
+    for f in factures:
+        f.montant_mo, f.montant_mat = _mo_mat(_by_fac[f.pk])
+
+    tot_fac_mo    = sum(f.montant_mo  for f in factures)
+    tot_fac_mat   = sum(f.montant_mat for f in factures)
+    tot_fac_total = sum(f.montant     for f in factures)
+
     return render(request, 'core/insertion_dashboard.html', {
         'prod_equipes':  prod_equipes,
         'prod_context':  ctx,
@@ -336,7 +374,10 @@ def insertion_dashboard(request):
         'tot_jf':        data['tot_jf'],
         'tot_jr':        data['tot_jr'],
         'debut_lbl':     data['debut_lbl'],
-        'factures':      factures,
+        'factures':       factures,
+        'tot_fac_mo':     tot_fac_mo,
+        'tot_fac_mat':    tot_fac_mat,
+        'tot_fac_total':  tot_fac_total,
     })
 
 
