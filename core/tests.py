@@ -15,7 +15,7 @@ from datetime import timedelta
 from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
     Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
-    Equipier, TrancheDevis, Affectation, Presence,
+    Equipier, TrancheDevis, Affectation, Presence, Pret,
 )
 from .permissions import peut_acceder_planning, est_encadrant
 
@@ -1145,3 +1145,475 @@ class PlanningGrilleTests(TestCase):
             content_type='application/json',
         )
         self.assertEqual(resp.status_code, 403)
+
+
+class PlanningBarreTests(TestCase):
+    """
+    Batterie de tests : flux émargement → barre de progression planning.
+
+    A. Calcul heures_par_tranche (ORM direct, sans HTTP)
+       – cas nominal, multi-équipiers, code absence, plafond 100 %,
+         budget MO nul, chantier partagé entre deux équipes.
+
+    B. Prêts inter-équipes
+       – heures du prêté comptent dans la tranche hôte, pas dans la maison.
+
+    C. presence_save (HTTP)
+       – affectation hôte explicite, auto-lookup, upsert.
+
+    D. pret_save (HTTP)
+       – création, garde-fou présences existantes, suppression + nettoyage.
+    """
+
+    # Budget de référence : 20 j × 82,50 €/j-éq = 1 650 €
+    # heures_budget = 1650 / 82.5 * 7 = 140 heures
+    MO_QTE   = Decimal('20')
+    MO_PU    = Decimal('82.50')
+    H_BUDGET = float(MO_QTE * MO_PU) / 82.5 * 7  # 140.0
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='Ille-et-Vilaine-Barre')
+        service = Service.objects.create(
+            territoire=terr, nom='Insertion Barre', module_planning=True
+        )
+
+        cls.eq_a = Equipe.objects.create(service=service, nom='AQRM-A', actif=True, nb_equipiers=4)
+        cls.eq_b = Equipe.objects.create(service=service, nom='AQRM-B', actif=True, nb_equipiers=4)
+
+        cls.admin = User.objects.create_user('adm_barre', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+
+        cls.enc_a = User.objects.create_user('enc_a_barre', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_a, role='technicien')
+        cls.eq_a.encadrant = cls.enc_a
+        cls.eq_a.save()
+
+        cls.enc_b = User.objects.create_user('enc_b_barre', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_b, role='technicien')
+        cls.eq_b.encadrant = cls.enc_b
+        cls.eq_b.save()
+
+        client = Client.objects.create(nom='CBB Barre Client')
+        cls.devis = Devis.objects.create(
+            reference='DEV-BARRE-01', client=client,
+            chantier='Réhab Guillou', status='accepted',
+            created_by=cls.admin,
+        )
+        LigneDevis.objects.create(
+            devis=cls.devis, type_ligne='FMO',
+            description='MO test', quantite=cls.MO_QTE,
+            cout_unitaire=cls.MO_PU,
+        )
+
+        cls.tranche = TrancheDevis.objects.create(devis=cls.devis, nom='Complet', ordre=0)
+        # Chantier partagé : même tranche, deux affectations
+        cls.aff_a = Affectation.objects.create(
+            equipe=cls.eq_a, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 12),
+            created_by=cls.admin,
+        )
+        cls.aff_b = Affectation.objects.create(
+            equipe=cls.eq_b, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 12),
+            created_by=cls.admin,
+        )
+
+        cls.eq1_a = Equipier.objects.create(prenom='Habtom', nom='Tekie',  equipe=cls.eq_a)
+        cls.eq2_a = Equipier.objects.create(prenom='Amina',  nom='Diallo', equipe=cls.eq_a)
+        cls.eq1_b = Equipier.objects.create(prenom='Jonas',  nom='Durand', equipe=cls.eq_b)
+
+    # ── Helpers ──────────────────────────────────────────────────────────
+
+    def _heures_tranche(self, tranche):
+        """Reproduit l'agrégation `heures_par_tranche` de planning_mois."""
+        from django.db.models import Sum
+        row = Presence.objects.filter(
+            affectation__tranche=tranche
+        ).aggregate(total=Sum('heures'))
+        return float(row['total'] or 0)
+
+    def _pct(self, tranche, mo_eur=None):
+        """Reproduit le calcul `pct_consomme` de planning_mois."""
+        if mo_eur is None:
+            mo_eur = float(self.MO_QTE * self.MO_PU)
+        heures_budget = mo_eur / 82.5 * 7
+        heures_conso  = self._heures_tranche(tranche)
+        return min(100, round(heures_conso / heures_budget * 100)) if heures_budget > 0 else 0
+
+    def _presence(self, equipier, aff, date_val, creneau, heures=None, code=''):
+        """Crée une Presence directement (sans HTTP)."""
+        return Presence.objects.create(
+            equipier=equipier, affectation=aff,
+            date=date_val, creneau=creneau,
+            heures=Decimal(str(heures)) if heures is not None else Decimal('0'),
+            code=code,
+        )
+
+    def _post_presence(self, equipier, aff, date_iso, creneau, heures=None, code=''):
+        self.client.login(username='adm_barre', password='pw')
+        return self.client.post(
+            reverse('core:presence-save'),
+            data=json.dumps({'presences': [{
+                'equipier_id': equipier.pk,
+                'affectation_id': aff.pk if aff else None,
+                'date': date_iso,
+                'creneau': creneau,
+                'heures': heures,
+                'code': code,
+            }]}),
+            content_type='application/json',
+        )
+
+    # ── A. Calcul heures_par_tranche (ORM) ───────────────────────────────
+
+    def test_pct_zero_sans_presences(self):
+        """Sans présence, pct = 0."""
+        self.assertEqual(self._pct(self.tranche), 0)
+
+    def test_presence_simple_pct(self):
+        """7 h sur budget 140 h → 5 %."""
+        self._presence(self.eq1_a, self.aff_a, date(2026, 6, 1), 'matin', heures=7)
+        self.assertEqual(self._pct(self.tranche), 5)
+
+    def test_presence_deux_equipiers_meme_equipe_somme(self):
+        """Heures de deux équipiers de la même équipe s'additionnent (14 h → 10 %)."""
+        self._presence(self.eq1_a, self.aff_a, date(2026, 6, 2), 'matin', heures=7)
+        self._presence(self.eq2_a, self.aff_a, date(2026, 6, 2), 'matin', heures=7)
+        self.assertEqual(self._pct(self.tranche), 10)
+
+    def test_chantier_partage_somme_deux_equipes(self):
+        """
+        Chantier partagé (même tranche, aff_a + aff_b) :
+        les heures des deux équipes s'additionnent correctement.
+        7 h équipe A + 7 h équipe B = 14 h → 10 %.
+        """
+        self._presence(self.eq1_a, self.aff_a, date(2026, 6, 3), 'matin', heures=7)
+        self._presence(self.eq1_b, self.aff_b, date(2026, 6, 3), 'matin', heures=7)
+        self.assertEqual(self._pct(self.tranche), 10)
+
+    def test_chantier_partage_progression_independante(self):
+        """
+        Chantier partagé : la barre reflète la progression cumulée,
+        indépendamment de quelle équipe a saisi les heures.
+        4 j × 7 h = 28 h sur eq_b seule → 20 %.
+        """
+        for d_offset in range(4):
+            self._presence(
+                self.eq1_b, self.aff_b,
+                date(2026, 6, 1) + timedelta(days=d_offset), 'matin', heures=7,
+            )
+        self.assertAlmostEqual(self._heures_tranche(self.tranche), 28.0)
+        self.assertEqual(self._pct(self.tranche), 20)
+
+    def test_chantier_partage_accumulation_100_pct(self):
+        """
+        Chantier partagé : 5 j × 2 créneaux × 2 équipes × 7 h = 140 h → 100 %.
+        """
+        for eq, aff in ((self.eq1_a, self.aff_a), (self.eq1_b, self.aff_b)):
+            for d_off in range(5):
+                d = date(2026, 6, 2) + timedelta(days=d_off)
+                self._presence(eq, aff, d, 'matin', heures=7)
+                self._presence(eq, aff, d, 'aprem', heures=7)
+        self.assertAlmostEqual(self._heures_tranche(self.tranche), 140.0)
+        self.assertEqual(self._pct(self.tranche), 100)
+
+    def test_code_absence_ne_contribue_pas(self):
+        """Code absence → heures = 0 → pct reste 0."""
+        self._presence(self.eq1_a, self.aff_a, date(2026, 6, 4), 'matin', heures=0, code='M')
+        self.assertEqual(self._pct(self.tranche), 0)
+
+    def test_mix_presences_et_absences(self):
+        """
+        Matin présent (7 h) + après-midi absence (0 h) :
+        seules les heures réelles comptent → 7 h → 5 %.
+        """
+        self._presence(self.eq1_a, self.aff_a, date(2026, 6, 5), 'matin', heures=7)
+        self._presence(self.eq1_a, self.aff_a, date(2026, 6, 5), 'aprem', heures=0, code='C')
+        self.assertAlmostEqual(self._heures_tranche(self.tranche), 7.0)
+        self.assertEqual(self._pct(self.tranche), 5)
+
+    def test_pct_plafond_100(self):
+        """150 h saisies sur budget 140 h → pct = 100 (plafonné, pas 107)."""
+        client2 = Client.objects.create(nom='Client Plafond')
+        devis2  = Devis.objects.create(
+            reference='DEV-PLAF-01', client=client2, status='accepted',
+            created_by=self.admin,
+        )
+        LigneDevis.objects.create(
+            devis=devis2, type_ligne='FMO', description='MO plafond',
+            quantite=self.MO_QTE, cout_unitaire=self.MO_PU,
+        )
+        tranche2 = TrancheDevis.objects.create(devis=devis2, nom='Complet', ordre=0)
+        aff2 = Affectation.objects.create(
+            equipe=self.eq_a, tranche=tranche2,
+            date_debut=date(2026, 7, 1), date_fin=date(2026, 7, 31),
+            created_by=self.admin,
+        )
+        for i in range(21):
+            Presence.objects.create(
+                equipier=self.eq1_a, affectation=aff2,
+                date=date(2026, 7, 1) + timedelta(days=i), creneau='matin',
+                heures=Decimal('7'),
+            )
+        Presence.objects.create(
+            equipier=self.eq1_a, affectation=aff2,
+            date=date(2026, 7, 22), creneau='aprem', heures=Decimal('3'),
+        )
+        self.assertAlmostEqual(self._heures_tranche(tranche2), 150.0)
+        self.assertEqual(self._pct(tranche2), 100)
+
+    def test_pct_budget_mo_nul(self):
+        """Devis sans ligne MO (budget = 0) → pct = 0 sans division par zéro."""
+        client_nm = Client.objects.create(nom='Client sans MO')
+        devis_nm  = Devis.objects.create(
+            reference='DEV-NOMO-01', client=client_nm, status='accepted',
+            created_by=self.admin,
+        )
+        tranche_nm = TrancheDevis.objects.create(devis=devis_nm, nom='Complet', ordre=0)
+        aff_nm = Affectation.objects.create(
+            equipe=self.eq_a, tranche=tranche_nm,
+            date_debut=date(2026, 8, 1), date_fin=date(2026, 8, 5),
+            created_by=self.admin,
+        )
+        Presence.objects.create(
+            equipier=self.eq1_a, affectation=aff_nm,
+            date=date(2026, 8, 3), creneau='matin', heures=Decimal('7'),
+        )
+        self.assertEqual(self._pct(tranche_nm, mo_eur=0.0), 0)
+
+    # ── B. Prêts inter-équipes : impact sur la barre ──────────────────────
+
+    def test_pret_heures_comptent_dans_tranche_distincte(self):
+        """
+        eq1_a prêté à eq_b, présence sur tranche propre à eq_b :
+        les heures alimentent la tranche hôte, pas la tranche maison.
+        """
+        client_h = Client.objects.create(nom='Chantier Hôte')
+        devis_h  = Devis.objects.create(
+            reference='DEV-HOTE-01', client=client_h, status='accepted',
+            created_by=self.admin,
+        )
+        LigneDevis.objects.create(
+            devis=devis_h, type_ligne='FMO', description='MO hôte',
+            quantite=Decimal('10'), cout_unitaire=self.MO_PU,
+        )
+        tranche_h = TrancheDevis.objects.create(devis=devis_h, nom='Hôte', ordre=0)
+        aff_hote  = Affectation.objects.create(
+            equipe=self.eq_b, tranche=tranche_h,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 5),
+            created_by=self.admin,
+        )
+        self._presence(self.eq1_a, aff_hote, date(2026, 6, 2), 'matin', heures=7)
+        # Tranche maison : non impactée
+        self.assertAlmostEqual(self._heures_tranche(self.tranche), 0.0)
+        # Tranche hôte : alimentée
+        self.assertAlmostEqual(self._heures_tranche(tranche_h), 7.0)
+
+    def test_pret_chantier_partage_affectation_croisee(self):
+        """
+        Chantier partagé (même tranche) + prêt croisé :
+        eq1_a dont la présence pointe sur aff_b contribue quand même
+        à la tranche commune (car aff_b.tranche == self.tranche).
+        """
+        self._presence(self.eq1_a, self.aff_b, date(2026, 6, 8), 'matin', heures=7)
+        self.assertAlmostEqual(self._heures_tranche(self.tranche), 7.0)
+        self.assertEqual(self._pct(self.tranche), 5)
+
+    # ── C. presence_save — endpoint HTTP ─────────────────────────────────
+
+    def test_presence_save_pret_affectation_hote(self):
+        """
+        Présence avec affectation_id de l'équipe hôte → Presence pointe bien
+        sur l'affectation hôte (les heures iront dans la tranche hôte).
+        """
+        resp = self._post_presence(self.eq1_a, self.aff_b, '2026-06-01', 'matin', heures='7')
+        data = json.loads(resp.content)
+        self.assertTrue(data['ok'])
+        p = Presence.objects.get(equipier=self.eq1_a, date=date(2026, 6, 1), creneau='matin')
+        self.assertEqual(p.affectation_id, self.aff_b.pk)
+
+    def test_presence_save_pret_heures_alimentent_tranche(self):
+        """Après save sur aff_b, le pct de la tranche partagée est mis à jour."""
+        self._post_presence(self.eq1_a, self.aff_b, '2026-06-09', 'matin', heures='7')
+        self.assertEqual(self._pct(self.tranche), 5)
+
+    def test_presence_save_auto_lookup_trouve_aff_maison(self):
+        """
+        Sans affectation_id explicite, l'auto-lookup résout l'affectation
+        active de l'équipe maison (aff_a pour eq1_a).
+        """
+        resp = self._post_presence(self.eq1_a, None, '2026-06-02', 'matin', heures='4')
+        data = json.loads(resp.content)
+        self.assertTrue(data['ok'])
+        p = Presence.objects.get(equipier=self.eq1_a, date=date(2026, 6, 2), creneau='matin')
+        self.assertEqual(p.affectation_id, self.aff_a.pk)
+
+    def test_presence_save_chantier_partage_deux_equipes(self):
+        """
+        Chantier partagé via API : une présence par équipe → somme correcte.
+        """
+        self._post_presence(self.eq1_a, self.aff_a, '2026-06-10', 'matin', heures='7')
+        self._post_presence(self.eq1_b, self.aff_b, '2026-06-10', 'matin', heures='7')
+        self.assertAlmostEqual(self._heures_tranche(self.tranche), 14.0)
+        self.assertEqual(self._pct(self.tranche), 10)
+
+    def test_presence_save_upsert_ne_duplique_pas(self):
+        """
+        Deux saves successifs → 1 seule ligne en base, pct = dernière valeur.
+        """
+        self._post_presence(self.eq1_a, self.aff_a, '2026-06-04', 'aprem', heures='7')
+        self._post_presence(self.eq1_a, self.aff_a, '2026-06-04', 'aprem', heures='3.5')
+        count = Presence.objects.filter(
+            equipier=self.eq1_a, date=date(2026, 6, 4), creneau='aprem'
+        ).count()
+        self.assertEqual(count, 1)
+        p = Presence.objects.get(equipier=self.eq1_a, date=date(2026, 6, 4), creneau='aprem')
+        self.assertEqual(p.heures, Decimal('3.5'))
+        # pct = 3.5/140*100 ≈ 2 % (pas 10.5 % comme si les deux saves s'additionnaient)
+        self.assertEqual(self._pct(self.tranche), 2)
+
+    def test_presence_save_absence_heures_zero(self):
+        """Code absence → heures = 0 → pct reste à 0."""
+        resp = self._post_presence(self.eq1_a, self.aff_a, '2026-06-03', 'aprem', code='C')
+        self.assertTrue(json.loads(resp.content)['ok'])
+        p = Presence.objects.get(equipier=self.eq1_a, date=date(2026, 6, 3), creneau='aprem')
+        self.assertEqual(p.heures, Decimal('0'))
+        self.assertEqual(p.code, 'C')
+        self.assertEqual(self._pct(self.tranche), 0)
+
+    # ── D. pret_save — endpoint HTTP ──────────────────────────────────────
+
+    def test_pret_save_creation_ok(self):
+        """Créer un prêt → objet Pret enregistré en base."""
+        self.client.login(username='adm_barre', password='pw')
+        resp = self.client.post(
+            reverse('core:pret-save'),
+            data=json.dumps({
+                'action': 'create',
+                'equipier_id':    self.eq1_a.pk,
+                'equipe_hote_id': self.eq_b.pk,
+                'date_debut':     '2026-06-08',
+                'creneau_debut':  'matin',
+                'date_fin':       '2026-06-09',
+                'creneau_fin':    'aprem',
+            }),
+            content_type='application/json',
+        )
+        self.assertTrue(json.loads(resp.content)['ok'])
+        self.assertTrue(Pret.objects.filter(equipier=self.eq1_a, equipe_hote=self.eq_b).exists())
+
+    def test_pret_save_bloque_presences_existantes_maison(self):
+        """
+        Création d'un prêt refusée si des présences sont déjà saisies
+        sur l'équipe maison pour la période demandée.
+        """
+        Presence.objects.create(
+            equipier=self.eq1_a, affectation=self.aff_a,
+            date=date(2026, 6, 15), creneau='matin', heures=Decimal('4'),
+        )
+        self.client.login(username='adm_barre', password='pw')
+        resp = self.client.post(
+            reverse('core:pret-save'),
+            data=json.dumps({
+                'action': 'create',
+                'equipier_id':    self.eq1_a.pk,
+                'equipe_hote_id': self.eq_b.pk,
+                'date_debut':     '2026-06-15',
+                'creneau_debut':  'matin',
+                'date_fin':       '2026-06-15',
+                'creneau_fin':    'aprem',
+            }),
+            content_type='application/json',
+        )
+        data = json.loads(resp.content)
+        self.assertFalse(data['ok'])
+        self.assertIn('error', data)
+
+    def test_pret_save_suppression_nettoie_presences_hote(self):
+        """
+        Supprimer un prêt efface les présences de l'équipier sur l'affectation
+        de l'équipe hôte, mais laisse intactes les présences maison.
+        """
+        pret = Pret.objects.create(
+            equipier=self.eq1_a, equipe_hote=self.eq_b,
+            date_debut=date(2026, 6, 22), creneau_debut='matin',
+            date_fin=date(2026, 6, 23), creneau_fin='aprem',
+            cree_par=self.admin,
+        )
+        p_hote = Presence.objects.create(
+            equipier=self.eq1_a, affectation=self.aff_b,
+            date=date(2026, 6, 22), creneau='matin', heures=Decimal('7'),
+        )
+        p_maison = Presence.objects.create(
+            equipier=self.eq1_a, affectation=self.aff_a,
+            date=date(2026, 6, 25), creneau='matin', heures=Decimal('4'),
+        )
+        self.client.login(username='adm_barre', password='pw')
+        resp = self.client.post(
+            reverse('core:pret-save'),
+            data=json.dumps({'action': 'delete', 'pret_id': pret.pk}),
+            content_type='application/json',
+        )
+        self.assertTrue(json.loads(resp.content)['ok'])
+        self.assertFalse(Presence.objects.filter(pk=p_hote.pk).exists())
+        self.assertTrue(Presence.objects.filter(pk=p_maison.pk).exists())
+        self.assertFalse(Pret.objects.filter(pk=pret.pk).exists())
+
+    def test_pret_save_suppression_pct_revient_a_zero(self):
+        """
+        Après suppression du prêt et de sa présence hôte,
+        le pct de la tranche hôte repasse à 0.
+        """
+        client_h2 = Client.objects.create(nom='Hôte Pct')
+        devis_h2  = Devis.objects.create(
+            reference='DEV-HOTE-02', client=client_h2, status='accepted',
+            created_by=self.admin,
+        )
+        LigneDevis.objects.create(
+            devis=devis_h2, type_ligne='FMO', description='MO hôte2',
+            quantite=self.MO_QTE, cout_unitaire=self.MO_PU,
+        )
+        tranche_h2 = TrancheDevis.objects.create(devis=devis_h2, nom='Hôte2', ordre=0)
+        aff_h2 = Affectation.objects.create(
+            equipe=self.eq_b, tranche=tranche_h2,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 5),
+            created_by=self.admin,
+        )
+        pret = Pret.objects.create(
+            equipier=self.eq1_a, equipe_hote=self.eq_b,
+            date_debut=date(2026, 6, 1), creneau_debut='matin',
+            date_fin=date(2026, 6, 1), creneau_fin='aprem',
+            cree_par=self.admin,
+        )
+        Presence.objects.create(
+            equipier=self.eq1_a, affectation=aff_h2,
+            date=date(2026, 6, 1), creneau='matin', heures=Decimal('7'),
+        )
+        self.assertEqual(self._pct(tranche_h2), 5)
+
+        self.client.login(username='adm_barre', password='pw')
+        self.client.post(
+            reverse('core:pret-save'),
+            data=json.dumps({'action': 'delete', 'pret_id': pret.pk}),
+            content_type='application/json',
+        )
+        self.assertEqual(self._pct(tranche_h2), 0)
+
+    def test_pret_save_interdit_sans_acces_planning(self):
+        """Un technicien sans équipe ne peut pas créer un prêt."""
+        user_ext = User.objects.create_user('user_ext_pret', password='pw')
+        ProfilUtilisateur.objects.create(user=user_ext, role='technicien')
+        self.client.login(username='user_ext_pret', password='pw')
+        resp = self.client.post(
+            reverse('core:pret-save'),
+            data=json.dumps({
+                'action': 'create',
+                'equipier_id': self.eq1_a.pk,
+                'equipe_hote_id': self.eq_b.pk,
+                'date_debut': '2026-06-08',
+                'date_fin':   '2026-06-09',
+            }),
+            content_type='application/json',
+        )
+        self.assertFalse(json.loads(resp.content)['ok'])
