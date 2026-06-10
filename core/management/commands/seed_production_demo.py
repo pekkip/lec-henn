@@ -25,8 +25,9 @@ from django.utils import timezone
 
 from core.models import (
     Client, Equipe, Equipier, Devis, LigneDevis, TrancheDevis,
-    Affectation, Presence, Facture,
+    Affectation, Presence, Facture, LigneFacture,
 )
+from core.totaux import total_mo_devis
 
 MARKER = 'SEED_DEMO35'
 EQUIPES_35 = ['55-AQRM A', '55-AQRM B', '58-AQSM', '61-GOSM', '65-GORM', '65-SORM']
@@ -585,6 +586,24 @@ class Command(BaseCommand):
                             date_creation=fac_date,
                             created_at=fac_dt,
                         )
+                        # Lignes MO + MAT pour le tableau de bord insertion
+                        ratio = chantier_cfg['facture_ratio']
+                        mo_total  = (total_mo_devis(devis) * ratio).quantize(Decimal('0.01'))
+                        mat_total = (montant - mo_total).quantize(Decimal('0.01'))
+                        if mo_total > 0:
+                            LigneFacture.objects.create(
+                                facture=fac, type_ligne='FMO',
+                                description="Main d'œuvre", quantite=Decimal('1'),
+                                quantite_originale=Decimal('1'),
+                                cout_unitaire=mo_total, ordre=0,
+                            )
+                        if mat_total > 0:
+                            LigneFacture.objects.create(
+                                facture=fac, type_ligne='FMAT',
+                                description='Matériaux', quantite=Decimal('1'),
+                                quantite_originale=Decimal('1'),
+                                cout_unitaire=mat_total, ordre=1,
+                            )
                         n_fac += 1
 
         self.stdout.write(self.style.SUCCESS(
