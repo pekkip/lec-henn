@@ -1431,6 +1431,19 @@ Pour supprimer proprement :
 - ✅ **`LigneDevis.total_mo()` ignorait les lignes FMO** — les feuilles de type `FMO` (Forfait main d'œuvre) retournaient 0 au lieu de `quantite × cout_unitaire`. Corrigé session 25 : condition étendue à `type_ligne in ('MO', 'FMO')`. `total_mo_devis()` ajouté dans `totaux.py` (même pattern sans N+1, compte MO + FMO).
 
 ### Code / archi
+- **Uniformisation CSS** (diagnostic 11/06/2026, session 36) — le socle existe (variables
+  `:root` + composants partagés dans `base.html`, utilisés partout ; les 9 templates de
+  listes n'ont aucun CSS local). La dérive réelle : **redéfinitions locales de composants
+  génériques** — `.btn` recopié dans ~7 templates, badges réinventés par page
+  (`utilisateurs_list` ×10, `feuilles_liste` ×4…), retouches `.card`/modales éparses.
+  Le CSS spécifique (éditeur devis 331 l., timeline planning 167 l., fiche A4, aperçus)
+  est légitime — ne pas y toucher. **Plan en petites passes, écrans stables d'abord**
+  (pas de big-bang, ni avant la prod réelle) : (1) badges + boutons remontés dans
+  base.html ; (2) tableaux de listes ; (3) modales ; (4) trancher les incohérences de
+  charte — prune `#6B1F3A` (base.html) vs `#67123A` (charte), Segoe UI (app) vs
+  Montserrat (charte, appliquée seulement aux documents clients/aide — peut-être voulu) ;
+  (5) sortir le CSS de base.html vers un fichier statique cacheable. Planning/émargement
+  en dernier (encore en évolution fonctionnelle, attendre ~septembre 2026).
 - **URLs à homogénéiser** — mélange français/anglais (statut/status, supprimer/delete). Choisir une convention et corriger partout.
 - **Context processor** — injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue).
 - **Modèle `BibliothèqueAides`** — nom de classe avec accent (non-ASCII), fragile pour imports/outils. Renommer en ASCII (`BibliothequeAides`) si on retouche le modèle.
