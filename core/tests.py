@@ -16,8 +16,13 @@ from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
     Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
     Equipier, TrancheDevis, Affectation, Presence, Pret,
+    Evenement, FicheNote,
 )
 from .permissions import peut_acceder_planning, est_encadrant
+from .planning_utils import (
+    _jours_feries, _build_grille,
+    _count_working_days, _add_working_days, _build_evenement_sets,
+)
 
 
 class AccesDevisFactureTests(TestCase):
@@ -1617,3 +1622,478 @@ class PlanningBarreTests(TestCase):
             content_type='application/json',
         )
         self.assertFalse(json.loads(resp.content)['ok'])
+
+
+class JoursFeriesTests(TestCase):
+    """`_jours_feries` : fériés légaux FR, Pâques mobile, Pentecôte exclue."""
+
+    def test_feries_2026(self):
+        attendus = {
+            date(2026, 1, 1), date(2026, 4, 6),    # Lundi de Pâques (Pâques = 5 avril)
+            date(2026, 5, 1), date(2026, 5, 8),
+            date(2026, 5, 14),                     # Ascension
+            date(2026, 7, 14), date(2026, 8, 15),
+            date(2026, 11, 1), date(2026, 11, 11),
+            date(2026, 12, 25),
+        }
+        self.assertEqual(set(_jours_feries(2026)), attendus)
+
+    def test_pentecote_exclue(self):
+        # Journée de solidarité travaillée chez CB Bretagne (2026 : 25 mai)
+        self.assertNotIn(date(2026, 5, 25), _jours_feries(2026))
+
+    def test_paques_mobile_2027(self):
+        # Pâques 2027 = 28 mars → lundi 29 mars, Ascension 6 mai
+        feries = _jours_feries(2027)
+        self.assertIn(date(2027, 3, 29), feries)
+        self.assertIn(date(2027, 5, 6), feries)
+
+
+class BuildGrilleTests(TestCase):
+    """
+    `_build_grille` : régressions des 4 bugs corrigés session 31
+    + chevauchement d'année. Les valeurs attendues reproduisent le
+    comportement validé en beta.
+    """
+
+    def test_structure_blocs(self):
+        # Invariants : 5 jours par bloc, labels L M M J V, chaque bloc démarre un lundi.
+        for bloc in _build_grille(2026, 7):
+            self.assertEqual(len(bloc['jours']), 5)
+            self.assertEqual([j['label'] for j in bloc['jours']], ['L', 'M', 'M', 'J', 'V'])
+            self.assertEqual(bloc['jours'][0]['date'].weekday(), 0)  # lundi
+
+    def test_fiche_juillet_2026(self):
+        # 26 juin = vendredi (ouvré) → ambré = semaine du 26 (S26) uniquement.
+        blocs = _build_grille(2026, 7)
+        self.assertEqual([b['num_semaine'] for b in blocs], [26, 27, 28, 29, 30, 31])
+        self.assertTrue(blocs[0]['is_prev'])
+        self.assertEqual(blocs[0]['jours'][0]['date'], date(2026, 6, 22))
+        self.assertFalse(any(b['is_prev'] for b in blocs[1:]))
+
+    def test_fiche_juillet_2026_jours_juin_editables(self):
+        # Bug session 31 : 29-30 juin (1er bloc courant) doivent être
+        # éditables (in_range) ET ambrés (is_prev) — pas grisés.
+        blocs = _build_grille(2026, 7)
+        s27 = blocs[1]
+        jours = {j['date']: j for j in s27['jours']}
+        for d in (date(2026, 6, 29), date(2026, 6, 30)):
+            self.assertTrue(jours[d]['in_range'], f'{d} doit être éditable')
+            self.assertTrue(jours[d]['is_prev'], f'{d} doit être ambré')
+        self.assertFalse(jours[date(2026, 7, 1)]['is_prev'])
+
+    def test_fiche_aout_2026_pas_de_semaine_superflue(self):
+        # Bug session 31 : le 26 juillet 2026 est un dimanche → l'ambré part
+        # de la semaine du dernier jour ouvré de juillet (S31, lun 27/07),
+        # pas de la semaine du 26 (qui ajoutait une S30 superflue).
+        # Le 1er août est un samedi → 1er bloc courant = lun 3 août.
+        blocs = _build_grille(2026, 8)
+        self.assertEqual([b['num_semaine'] for b in blocs], [31, 32, 33, 34, 35, 36])
+        self.assertTrue(blocs[0]['is_prev'])
+        self.assertEqual(blocs[0]['jours'][0]['date'], date(2026, 7, 27))
+        self.assertEqual(blocs[1]['jours'][0]['date'], date(2026, 8, 3))
+
+    def test_fiche_septembre_2026_aout_ambre(self):
+        # Bug session 31 : le 31 août (1er bloc courant de la fiche septembre)
+        # doit être ambré et éditable, pas grisé.
+        blocs = _build_grille(2026, 9)
+        s36 = blocs[1]
+        jour_31 = {j['date']: j for j in s36['jours']}[date(2026, 8, 31)]
+        self.assertTrue(jour_31['in_range'])
+        self.assertTrue(jour_31['is_prev'])
+
+    def test_fiche_janvier_chevauchement_annee(self):
+        # Fiche janvier 2026 : ambré = S52/2025 (lun 22/12) ; la S1 ISO 2026
+        # commence le 29/12/2025 (jours de décembre ambrés, 1er janv normal).
+        blocs = _build_grille(2026, 1)
+        self.assertEqual(blocs[0]['num_semaine'], 52)
+        self.assertEqual(blocs[0]['annee_iso'], 2025)
+        self.assertTrue(blocs[0]['is_prev'])
+        s1 = blocs[1]
+        self.assertEqual((s1['num_semaine'], s1['annee_iso']), (1, 2026))
+        jours = {j['date']: j for j in s1['jours']}
+        self.assertTrue(jours[date(2025, 12, 29)]['is_prev'])
+        self.assertTrue(jours[date(2025, 12, 29)]['in_range'])
+        self.assertFalse(jours[date(2026, 1, 1)]['is_prev'])
+
+
+class JoursOuvresTests(TestCase):
+    """`_count_working_days` / `_add_working_days` : semaine Lun–Jeu + exceptions."""
+
+    LUNDI = date(2026, 6, 1)   # semaine du 1er juin 2026
+
+    def test_semaine_standard_lun_jeu(self):
+        self.assertEqual(_count_working_days(self.LUNDI, date(2026, 6, 7)), 4)
+
+    def test_negatif_bloque_un_jour(self):
+        neg = {date(2026, 6, 3)}  # mercredi bloqué
+        self.assertEqual(_count_working_days(self.LUNDI, date(2026, 6, 7), set(), neg), 3)
+
+    def test_positif_active_vendredi(self):
+        pos = {date(2026, 6, 5)}  # vendredi travaillé
+        self.assertEqual(_count_working_days(self.LUNDI, date(2026, 6, 7), pos, set()), 5)
+
+    def test_add_4_jours_meme_semaine(self):
+        self.assertEqual(_add_working_days(self.LUNDI, 4), date(2026, 6, 4))  # jeudi
+
+    def test_add_5_jours_saute_weekend(self):
+        self.assertEqual(_add_working_days(self.LUNDI, 5), date(2026, 6, 8))  # lundi suivant
+
+    def test_add_5_jours_avec_vendredi_actif(self):
+        pos = {date(2026, 6, 5)}
+        self.assertEqual(_add_working_days(self.LUNDI, 5, pos), date(2026, 6, 5))  # vendredi
+
+    def test_add_depart_weekend_avance_au_lundi(self):
+        self.assertEqual(_add_working_days(date(2026, 6, 6), 1), date(2026, 6, 8))
+
+
+class EvenementSetsTests(TestCase):
+    """`_build_evenement_sets` : portée équipe/global, positifs/négatifs, créneau."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-EvSets')
+        service = Service.objects.create(territoire=terr, nom='Insertion EvSets', module_planning=True)
+        cls.eq_a = Equipe.objects.create(service=service, nom='EVS-A')
+        cls.eq_b = Equipe.objects.create(service=service, nom='EVS-B')
+        cls.debut = date(2026, 6, 1)
+        cls.fin   = date(2026, 6, 30)
+
+    def test_evenement_global_negatif(self):
+        Evenement.objects.create(type='formation', date_debut=date(2026, 6, 3), creneau='journee')
+        pos, neg = _build_evenement_sets(self.eq_a.pk, self.debut, self.fin)
+        self.assertIn(date(2026, 6, 3), neg)
+        # Global → s'applique aussi à l'équipe B
+        _, neg_b = _build_evenement_sets(self.eq_b.pk, self.debut, self.fin)
+        self.assertIn(date(2026, 6, 3), neg_b)
+
+    def test_evenement_cible_une_equipe(self):
+        ev = Evenement.objects.create(type='visite', date_debut=date(2026, 6, 4), creneau='journee')
+        ev.equipes.set([self.eq_b.pk])
+        _, neg_a = _build_evenement_sets(self.eq_a.pk, self.debut, self.fin)
+        _, neg_b = _build_evenement_sets(self.eq_b.pk, self.debut, self.fin)
+        self.assertNotIn(date(2026, 6, 4), neg_a)
+        self.assertIn(date(2026, 6, 4), neg_b)
+
+    def test_evenement_travaille_positif(self):
+        Evenement.objects.create(
+            type='jour_sup', date_debut=date(2026, 6, 5),  # vendredi
+            creneau='journee', travaille=True,
+        )
+        pos, neg = _build_evenement_sets(self.eq_a.pk, self.debut, self.fin)
+        self.assertIn(date(2026, 6, 5), pos)
+        self.assertNotIn(date(2026, 6, 5), neg)
+
+    def test_evenement_demi_journee_ne_bloque_pas(self):
+        # Seul un événement négatif sur la journée entière bloque le jour.
+        Evenement.objects.create(type='reunion', date_debut=date(2026, 6, 2), creneau='matin')
+        _, neg = _build_evenement_sets(self.eq_a.pk, self.debut, self.fin)
+        self.assertNotIn(date(2026, 6, 2), neg)
+
+    def test_plage_multi_jours(self):
+        Evenement.objects.create(
+            type='formation', date_debut=date(2026, 6, 8),
+            date_fin=date(2026, 6, 9), creneau='journee',
+        )
+        _, neg = _build_evenement_sets(self.eq_a.pk, self.debut, self.fin)
+        self.assertIn(date(2026, 6, 8), neg)
+        self.assertIn(date(2026, 6, 9), neg)
+        self.assertNotIn(date(2026, 6, 10), neg)
+
+
+class EvenementEndpointTests(TestCase):
+    """
+    `evenement_save` / `evenement_delete` : recalcul en cascade des
+    affectations chevauchantes (`decale_chantier` / `travaille`).
+
+    Budget : MO 330 € ÷ (82,5 €/j × 1 équipier) = 4 jours ouvrés.
+    Affectation posée lun 1er juin 2026 → fin théorique jeu 4 juin.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-EvEnd')
+        service = Service.objects.create(territoire=terr, nom='Insertion EvEnd', module_planning=True)
+        cls.equipe = Equipe.objects.create(service=service, nom='EVE-A', actif=True, nb_equipiers=1)
+
+        cls.admin = User.objects.create_user('adm_ev', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.technicien = User.objects.create_user('tech_ev', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.technicien, role='technicien')
+
+        client = Client.objects.create(nom='Client EvEnd')
+        cls.devis = Devis.objects.create(
+            reference='DEV-EV-01', client=client, chantier='Chantier EvEnd',
+            status='accepted', created_by=cls.admin,
+        )
+        cls.ligne_mo = LigneDevis.objects.create(
+            devis=cls.devis, type_ligne='MO', description='MO',
+            quantite=Decimal('4'), cout_unitaire=Decimal('82.50'),
+        )
+        cls.tranche = TrancheDevis.objects.create(devis=cls.devis, nom='Complet', ordre=0)
+        cls.aff = Affectation.objects.create(
+            equipe=cls.equipe, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 4),
+            created_by=cls.admin,
+        )
+
+    def _post_evenement(self, payload, username='adm_ev'):
+        self.client.login(username=username, password='pw')
+        return self.client.post(
+            reverse('core:evenement-save'),
+            data=json.dumps(payload), content_type='application/json',
+        )
+
+    def test_evenement_decale_repousse_la_fin(self):
+        # Mercredi 3 juin bloqué → le 4e jour ouvré passe au lundi 8 juin.
+        resp = self._post_evenement({
+            'type': 'formation', 'libelle': 'Formation sécurité',
+            'date_debut': '2026-06-03', 'creneau': 'journee',
+            'decale_chantier': True, 'equipe_ids': [self.equipe.pk],
+        })
+        data = json.loads(resp.content)
+        self.assertTrue(data['ok'])
+        self.assertIn(self.aff.pk, data['recalculated'])
+        self.aff.refresh_from_db()
+        self.assertEqual(self.aff.date_fin, date(2026, 6, 8))
+
+    def test_suppression_evenement_retablit_la_fin(self):
+        self._post_evenement({
+            'type': 'formation', 'date_debut': '2026-06-03',
+            'creneau': 'journee', 'decale_chantier': True,
+            'equipe_ids': [self.equipe.pk],
+        })
+        ev = Evenement.objects.get(type='formation')
+        self.client.post(
+            reverse('core:evenement-delete'),
+            data=json.dumps({'pk': ev.pk}), content_type='application/json',
+        )
+        self.aff.refresh_from_db()
+        self.assertEqual(self.aff.date_fin, date(2026, 6, 4))
+
+    def test_evenement_travaille_avance_la_fin(self):
+        # Budget porté à 5 jours, fin cohérente = lun 8 juin (le recalcul ne
+        # touche que les affectations chevauchant l'événement). Avec le
+        # vendredi 5 activé (travaille=True), la fin revient au ven 5 juin.
+        self.ligne_mo.quantite = Decimal('5')
+        self.ligne_mo.save()
+        Affectation.objects.filter(pk=self.aff.pk).update(date_fin=date(2026, 6, 8))
+        resp = self._post_evenement({
+            'type': 'jour_sup', 'date_debut': '2026-06-05',
+            'creneau': 'journee', 'travaille': True,
+            'equipe_ids': [self.equipe.pk],
+        })
+        self.assertTrue(json.loads(resp.content)['ok'])
+        self.aff.refresh_from_db()
+        self.assertEqual(self.aff.date_fin, date(2026, 6, 5))
+
+    def test_evenement_sans_decalage_ne_recalcule_pas(self):
+        resp = self._post_evenement({
+            'type': 'reunion', 'date_debut': '2026-06-03',
+            'creneau': 'journee', 'equipe_ids': [self.equipe.pk],
+        })
+        data = json.loads(resp.content)
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['recalculated'], [])
+        self.aff.refresh_from_db()
+        self.assertEqual(self.aff.date_fin, date(2026, 6, 4))
+
+    def test_evenement_refuse_sans_acces(self):
+        resp = self._post_evenement(
+            {'type': 'autre', 'date_debut': '2026-06-03'}, username='tech_ev')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_evenement_date_invalide(self):
+        resp = self._post_evenement({'type': 'autre', 'date_debut': 'pas-une-date'})
+        self.assertEqual(resp.status_code, 400)
+
+
+class FeuillesPresenceTests(TestCase):
+    """
+    Feuilles de présence mensuelles : vues (liste + fiche) et endpoints
+    d'auto-save (`fiche_presence_save`, `fiche_note_save`).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-Feuilles')
+        service = Service.objects.create(territoire=terr, nom='Insertion Feuilles', module_planning=True)
+        cls.eq_a = Equipe.objects.create(service=service, nom='FEU-A', actif=True)
+        cls.eq_b = Equipe.objects.create(service=service, nom='FEU-B', actif=True)
+
+        cls.enc_a = User.objects.create_user('enc_a_feu', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_a, role='technicien')
+        cls.eq_a.encadrant = cls.enc_a
+        cls.eq_a.save()
+
+        cls.enc_b = User.objects.create_user('enc_b_feu', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_b, role='technicien')
+        cls.eq_b.encadrant = cls.enc_b
+        cls.eq_b.save()
+
+        cls.technicien = User.objects.create_user('tech_feu', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.technicien, role='technicien')
+
+        cls.equipier    = Equipier.objects.create(prenom='Habtom', nom='Tekie', equipe=cls.eq_a)
+        cls.sans_equipe = Equipier.objects.create(prenom='Sans', nom='Équipe')
+
+    def _post_fiche_presence(self, payload, username='enc_a_feu'):
+        self.client.login(username=username, password='pw')
+        return self.client.post(
+            reverse('core:fiche-presence-save'),
+            data=json.dumps(payload), content_type='application/json',
+        )
+
+    def _post_fiche_note(self, payload, username='enc_a_feu'):
+        self.client.login(username=username, password='pw')
+        return self.client.post(
+            reverse('core:fiche-note-save'),
+            data=json.dumps(payload), content_type='application/json',
+        )
+
+    # ── Vues ─────────────────────────────────────────────────────────────
+
+    def test_feuilles_liste_ok_encadrant(self):
+        self.client.login(username='enc_a_feu', password='pw')
+        resp = self.client.get(reverse('core:feuilles-liste'))
+        self.assertEqual(resp.status_code, 200)
+        # L'encadrant ne voit que ses équipes
+        self.assertEqual([e.pk for e in resp.context['equipes']], [self.eq_a.pk])
+
+    def test_feuilles_liste_refusee_sans_acces(self):
+        self.client.login(username='tech_feu', password='pw')
+        resp = self.client.get(reverse('core:feuilles-liste'))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_presence_feuille_ok(self):
+        self.client.login(username='enc_a_feu', password='pw')
+        resp = self.client.get(
+            reverse('core:presence-feuille', args=[self.equipier.pk, 2026, 6]))
+        self.assertEqual(resp.status_code, 200)
+
+    def test_presence_feuille_equipier_sans_equipe(self):
+        self.client.login(username='enc_a_feu', password='pw')
+        resp = self.client.get(
+            reverse('core:presence-feuille', args=[self.sans_equipe.pk, 2026, 6]))
+        self.assertEqual(resp.status_code, 403)
+
+    # ── fiche_presence_save ──────────────────────────────────────────────
+
+    def test_save_heures(self):
+        resp = self._post_fiche_presence({
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-01', 'creneau': 'matin', 'heures': '4',
+        })
+        self.assertTrue(json.loads(resp.content)['ok'])
+        p = Presence.objects.get(equipier=self.equipier, date=date(2026, 6, 1), creneau='matin')
+        self.assertEqual(p.heures, Decimal('4'))
+        self.assertEqual(p.code, '')
+        self.assertEqual(p.saisi_par, self.enc_a)
+
+    def test_save_code_absence_force_heures_zero(self):
+        self._post_fiche_presence({
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-01', 'creneau': 'aprem',
+            'code': 'm', 'heures': '3',
+        })
+        p = Presence.objects.get(equipier=self.equipier, date=date(2026, 6, 1), creneau='aprem')
+        self.assertEqual(p.code, 'M')          # normalisé en majuscule
+        self.assertEqual(p.heures, Decimal('0'))
+
+    def test_save_vide_supprime_la_presence(self):
+        Presence.objects.create(
+            equipier=self.equipier, date=date(2026, 6, 2),
+            creneau='matin', heures=Decimal('4'),
+        )
+        resp = self._post_fiche_presence({
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-02', 'creneau': 'matin', 'heures': '', 'code': '',
+        })
+        self.assertEqual(json.loads(resp.content)['action'], 'deleted')
+        self.assertFalse(Presence.objects.filter(
+            equipier=self.equipier, date=date(2026, 6, 2), creneau='matin').exists())
+
+    def test_save_lie_affectation_active(self):
+        admin = User.objects.create_user('adm_feu', password='pw')
+        ProfilUtilisateur.objects.create(user=admin, role='admin')
+        client_obj = Client.objects.create(nom='Client Feuilles')
+        devis = Devis.objects.create(
+            reference='DEV-FEU-01', client=client_obj,
+            status='accepted', created_by=admin,
+        )
+        tranche = TrancheDevis.objects.create(devis=devis, nom='Complet', ordre=0)
+        aff = Affectation.objects.create(
+            equipe=self.eq_a, tranche=tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 30),
+            created_by=admin,
+        )
+        self._post_fiche_presence({
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-03', 'creneau': 'matin', 'heures': '4',
+        })
+        p = Presence.objects.get(equipier=self.equipier, date=date(2026, 6, 3), creneau='matin')
+        self.assertEqual(p.affectation, aff)
+
+    def test_save_upsert_ne_duplique_pas(self):
+        for heures in ('4', '3.5'):
+            self._post_fiche_presence({
+                'equipier_id': self.equipier.pk,
+                'date': '2026-06-04', 'creneau': 'matin', 'heures': heures,
+            })
+        qs = Presence.objects.filter(
+            equipier=self.equipier, date=date(2026, 6, 4), creneau='matin')
+        self.assertEqual(qs.count(), 1)
+        self.assertEqual(qs.first().heures, Decimal('3.5'))
+
+    def test_save_refuse_encadrant_autre_equipe(self):
+        resp = self._post_fiche_presence({
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-01', 'creneau': 'matin', 'heures': '4',
+        }, username='enc_b_feu')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_save_creneau_invalide(self):
+        resp = self._post_fiche_presence({
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-01', 'creneau': 'soir', 'heures': '4',
+        })
+        self.assertEqual(resp.status_code, 400)
+
+    # ── fiche_note_save ──────────────────────────────────────────────────
+
+    def test_note_creation(self):
+        resp = self._post_fiche_note({
+            'equipier_id': self.equipier.pk,
+            'annee': 2026, 'mois': 6, 'num_semaine': 23,
+            'chantier_texte': 'Mairie de Rennes',
+        })
+        self.assertTrue(json.loads(resp.content)['ok'])
+        note = FicheNote.objects.get(equipier=self.equipier, annee=2026, mois=6, num_semaine=23)
+        self.assertEqual(note.chantier_texte, 'Mairie de Rennes')
+
+    def test_note_update_partiel_conserve_chantier(self):
+        # Mettre à jour la seule observation ne doit pas écraser le chantier.
+        self._post_fiche_note({
+            'equipier_id': self.equipier.pk,
+            'annee': 2026, 'mois': 6, 'num_semaine': 24,
+            'chantier_texte': 'École Guillevic',
+        })
+        self._post_fiche_note({
+            'equipier_id': self.equipier.pk,
+            'annee': 2026, 'mois': 6, 'num_semaine': 24,
+            'observation_texte': 'Reprise enduits',
+        })
+        note = FicheNote.objects.get(equipier=self.equipier, annee=2026, mois=6, num_semaine=24)
+        self.assertEqual(note.chantier_texte, 'École Guillevic')
+        self.assertEqual(note.observation_texte, 'Reprise enduits')
+        self.assertEqual(FicheNote.objects.filter(
+            equipier=self.equipier, annee=2026, mois=6, num_semaine=24).count(), 1)
+
+    def test_note_refuse_encadrant_autre_equipe(self):
+        resp = self._post_fiche_note({
+            'equipier_id': self.equipier.pk,
+            'annee': 2026, 'mois': 6, 'num_semaine': 23,
+            'chantier_texte': 'X',
+        }, username='enc_b_feu')
+        self.assertEqual(resp.status_code, 403)
+

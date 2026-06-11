@@ -67,7 +67,7 @@ venv\Scripts\pip install -r requirements.txt
 # Lancer / migrer / tester / vérifier (utiliser le python du venv)
 venv\Scripts\python manage.py migrate
 venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
-venv\Scripts\python manage.py test core      # 95 tests (core/tests.py)
+venv\Scripts\python manage.py test core      # 136 tests (core/tests.py)
 venv\Scripts\python manage.py check
 ```
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
@@ -101,7 +101,7 @@ cb-bretagne/
     ├── management/commands/seed_demo.py  — jeu de démo (9 équipes, idempotent, marqué SEED_DEMO)
     ├── management/commands/seed_production_demo.py  — démo production Insertion 35 (6 équipes, Jan–Mai 2026, marqué DEMO35)
     ├── admin.py
-    ├── tests.py               — 95 tests (accès, clients, compta, dashboard, perf, planning)
+    ├── tests.py               — 136 tests (accès, clients, compta, dashboard, perf, planning, feuilles, événements)
     ├── migrations/
     └── templates/core/
         ├── base.html
@@ -1453,7 +1453,14 @@ Pour supprimer proprement :
   Tableau de bord (rendu, gating compta, config, portée) : ✅ couvert session 21 (`DashboardTests`).
   Perf listes + dashboard (totaux, pagination, requêtes bornées, anti N+1) : ✅ couvert
   session 23 (`ListesPerfTests`). Émargement → barre planning : ✅ couvert session 35
-  (`PlanningBarreTests`, 23 tests). **95 tests** au total.
+  (`PlanningBarreTests`, 23 tests). Feuilles de présence + événements : ✅ couvert
+  session 36 (`JoursFeriesTests`, `BuildGrilleTests`, `JoursOuvresTests`,
+  `EvenementSetsTests`, `EvenementEndpointTests`, `FeuillesPresenceTests` — 41 tests :
+  fériés/Pâques, grille fiche mensuelle (régressions session 31, chevauchement d'année),
+  jours ouvrés Lun–Jeu, recalcul en cascade `decale_chantier`/`travaille`,
+  `fiche_presence_save`/`fiche_note_save`, permissions). **136 tests** au total.
+  Reste non couvert : resize multi-équipes (`affectation_move`), tableau de bord
+  insertion (`mo_mat_lignes`, filtres), `vendredi_toggle`, `tranche_creer`.
 
 ### Performance
 - ✅ **Listes (devis/factures/compta/avoirs)** — réglé session 23 : N+1 du calcul des
@@ -1467,6 +1474,24 @@ Pour supprimer proprement :
   seulement si le volume l'exige.
 
 ### Fonctionnel (à prévoir)
+
+> Contexte (11/06/2026) : uniquement des données de test dans l'outil — pas de prod réelle
+> avant l'hébergement définitif, et la phase de test se prolongera probablement jusqu'en
+> septembre 2026. Les items ci-dessous sont à arbitrer avant implémentation.
+
+- **`date.today()` → `timezone.localdate()`** — 14 occurrences (views, views_planning,
+  dashboard_widgets). Railway tourne en UTC : entre minuit et 2 h (heure de Paris),
+  « aujourd'hui » pointe sur la veille (colonne du jour planning, mois par défaut, presets).
+  Fix mécanique, à faire avant la mise en prod réelle.
+- **Audit des présences** — aucun `add_audit` dans `views_planning.py` alors que les
+  présences alimentent la paie (contrôles FSE possibles). Tracer au minimum les
+  modifications rétroactives. À coupler avec le chantier `ClotureMois` ci-dessous.
+- **`planning_mois` charge tous les devis acceptés** (avec lignes prefetch) à chaque
+  affichage pour `devis_mo_json` + le wizard. OK aujourd'hui ; ralentira à plusieurs
+  centaines de devis acceptés. Piste : limiter aux devis affichés + wizard à la demande.
+- **Sauvegarde / conservation réglementaire** — les justificatifs FSE doivent rester
+  disponibles plusieurs années (contrôles a posteriori). Définir la stratégie de backup
+  (dump périodique, export des présences par mois clôturé) au passage hébergement OVH.
 - **`ClotureMois` non branché** — le modèle (verrou mensuel par équipe, schéma + admin
   depuis la session 25) existe mais **aucune vue ne le consulte** : `presence_save` et
   `fiche_presence_save` acceptent les modifications rétroactives sur un mois déjà remis
