@@ -45,7 +45,7 @@ from .permissions import (
     peut_acceder_planning, est_encadrant,
 )
 from .dashboard_widgets import resolve_dashboard, sanitize_config
-from .totaux import attacher_totaux_devis, total_mo_devis
+from .totaux import attacher_totaux_devis, total_mo_devis, mo_mat_lignes
 # ══════════════════════════════════════════
 #  HELPERS
 # ══════════════════════════════════════════
@@ -328,38 +328,12 @@ def insertion_dashboard(request):
     factures = list(fac_qs)
 
     # Calcul MO / matériaux par facture en mémoire (1 requête pour toutes les lignes)
-    from collections import defaultdict as _dd
-    _lignes = list(LigneFacture.objects.filter(facture_id__in=[f.pk for f in factures]))
-    _by_fac = _dd(list)
-    for _l in _lignes:
-        _by_fac[_l.facture_id].append(_l)
-
-    def _mo_mat(lignes_list):
-        _ch = _dd(list)
-        for _l in lignes_list:
-            _ch[_l.parent_id].append(_l)
-        def _walk(_l):
-            sous = _ch.get(_l.pk, [])
-            if _l.type_ligne == 'TITRE':
-                mo  = sum(_walk(e)[0] for e in sous)
-                mat = sum(_walk(e)[1] for e in sous)
-                return mo, mat
-            if sous:
-                mult = _l.quantite or Decimal('0')
-                return (mult * sum(_walk(e)[0] for e in sous),
-                        mult * sum(_walk(e)[1] for e in sous))
-            val = (_l.quantite or Decimal('0')) * (_l.cout_unitaire or Decimal('0'))
-            if _l.type_ligne in ('MO', 'FMO'):
-                return val, Decimal('0')
-            if _l.type_ligne in ('MAT', 'FMAT'):
-                return Decimal('0'), val
-            return Decimal('0'), Decimal('0')
-        racines = _ch.get(None, [])
-        return (sum(_walk(r)[0] for r in racines),
-                sum(_walk(r)[1] for r in racines))
+    _by_fac = {}
+    for _l in LigneFacture.objects.filter(facture_id__in=[f.pk for f in factures]):
+        _by_fac.setdefault(_l.facture_id, []).append(_l)
 
     for f in factures:
-        f.montant_mo, f.montant_mat = _mo_mat(_by_fac[f.pk])
+        f.montant_mo, f.montant_mat = mo_mat_lignes(_by_fac.get(f.pk, []))
 
     tot_fac_mo    = sum(f.montant_mo  for f in factures)
     tot_fac_mat   = sum(f.montant_mat for f in factures)
@@ -3944,7 +3918,11 @@ def affectation_move(request):
     if date_fin < date_debut:
         return JsonResponse({'ok': False, 'error': 'Fin < début'}, status=400)
 
-    changing_equipe = equipe_id and int(equipe_id) != aff.equipe_id
+    try:
+        equipe_id = int(equipe_id) if equipe_id else None
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Équipe invalide'}, status=400)
+    changing_equipe = equipe_id and equipe_id != aff.equipe_id
     if changing_equipe:
         try:
             new_equipe = Equipe.objects.get(pk=equipe_id, actif=True, service__module_planning=True)

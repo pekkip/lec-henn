@@ -94,6 +94,40 @@ def total_mo_devis(devis):
     return sum((_mo(l) for l in racines), Decimal('0'))
 
 
+def mo_mat_lignes(lignes):
+    """(total MO, total matériaux) HT d'une facture depuis ses lignes **préchargées**.
+
+    MO = feuilles MO/FMO, matériaux = feuilles MAT/FMAT ; les lignes composites
+    multiplient leurs enfants par leur quantité (même règle que `_total_depuis_map`).
+    Chaque nœud n'est parcouru qu'une fois (les deux composantes remontent ensemble).
+    """
+    enfants = {}
+    for l in lignes:
+        enfants.setdefault(l.parent_id, []).append(l)
+
+    def _walk(l):
+        sous = enfants.get(l.pk, [])
+        if l.type_ligne == 'TITRE':
+            paires = [_walk(e) for e in sous]
+            return (sum((p[0] for p in paires), Decimal('0')),
+                    sum((p[1] for p in paires), Decimal('0')))
+        if sous:
+            mult = l.quantite or Decimal('0')
+            paires = [_walk(e) for e in sous]
+            return (mult * sum((p[0] for p in paires), Decimal('0')),
+                    mult * sum((p[1] for p in paires), Decimal('0')))
+        val = (l.quantite or Decimal('0')) * (l.cout_unitaire or Decimal('0'))
+        if l.type_ligne in ('MO', 'FMO'):
+            return val, Decimal('0')
+        if l.type_ligne in ('MAT', 'FMAT'):
+            return Decimal('0'), val
+        return Decimal('0'), Decimal('0')
+
+    paires = [_walk(r) for r in enfants.get(None, [])]
+    return (sum((p[0] for p in paires), Decimal('0')),
+            sum((p[1] for p in paires), Decimal('0')))
+
+
 def totaux_lignes(lignes_qs):
     """Renvoie `{ligne_id: total}` pour un ensemble de lignes, en chargeant les
     sous-arbres des devis concernés en **une** requête (pas de N+1).
