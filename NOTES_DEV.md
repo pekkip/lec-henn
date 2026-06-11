@@ -1519,10 +1519,14 @@ Pour supprimer proprement :
   l'impression** (acté 11/06/2026 — l'impression matérialise la remise à la RH).
   ⚠️ Le manuel `/insertion/aide/` documente déjà ce bouton comme fonctionnel — corriger
   le manuel ou livrer la fonction.
-- **Export PDF de tous les documents** (fiches de présence, devis, factures) — chantier
-  à cadrer : génération de fichiers PDF côté serveur (batch, pièces jointes email,
-  snapshot devis « envoyé ») vs impression navigateur actuelle (`window.print` + CSS).
-  Voir discussion session 36 — choix du moteur PDF non arrêté.
+- **Export PDF de tous les documents** (priorité devis/factures, puis fiches) — **acté
+  11/06/2026 : chantier reporté à la mise en place du serveur OVH** (prévue semaine du
+  15/06/2026) — volume persistant pour les snapshots + libs système via apt. Plan retenu :
+  (1) WeasyPrint sur OVH (devis_pdf.html / facture_apercu.html sont rendus serveur, sans
+  JS — cas idéal) ; (2) endpoint `devis/<pk>/pdf/telecharger/` + passe CSS paged media
+  (`@page`, Montserrat en fichier local, masquer la barre de boutons) ; (3) idem facture ;
+  (4) snapshot au passage « envoyé » + pièce jointe email. ⚠️ La fiche de présence remplit
+  ses cases en JS → rendre les valeurs côté serveur avant de la passer à WeasyPrint.
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
 - **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
 - **Restriction email @compagnonsbatisseurs.eu à la création d'utilisateur** — validation
@@ -1544,5 +1548,8 @@ Pour supprimer proprement :
   (Reply-To `@compagnonsbatisseurs.eu`) ; (C) API Microsoft Graph (HTTPS, tenant M365).
   **Contournement actif (session 20)** : `utilisateur_create` affiche **toujours** le mot de
   passe temporaire à l'écran (communication manuelle), l'email reste best-effort.
-- **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés (logo, etc.).
+- **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés
+  (logo, etc.). **Mise en place prévue semaine du 15/06/2026** (info 11/06). Conditionne :
+  export PDF (WeasyPrint + snapshots), restriction email à décommenter, authentification
+  domaine Brevo (IT nationale), HSTS, mise à jour `CSRF_TRUSTED_ORIGINS`/`SITE_URL`.
 - ✅ **Renommage équipes sur Railway (prod)** — fait session 27 : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM, AQSM→58-AQSM, AQRM→AQRM A + AQRM B.
