@@ -1467,6 +1467,11 @@ Pour supprimer proprement :
   seulement si le volume l'exige.
 
 ### Fonctionnel (à prévoir)
+- **`ClotureMois` non branché** — le modèle (verrou mensuel par équipe, schéma + admin
+  depuis la session 25) existe mais **aucune vue ne le consulte** : `presence_save` et
+  `fiche_presence_save` acceptent les modifications rétroactives sur un mois déjà remis
+  à la RH. À implémenter : check du verrou dans les deux endpoints de saisie (+ UI de
+  clôture/déverrouillage, rôle à définir — encadrant ? RH ? admin ?).
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
 - **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
 - **Restriction email @compagnonsbatisseurs.eu à la création d'utilisateur** — validation
