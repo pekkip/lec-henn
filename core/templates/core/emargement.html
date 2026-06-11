@@ -475,9 +475,7 @@
       <label>Chantier (devis accepté) *</label>
       <input class="input" id="aff-search" placeholder="Chercher par client ou chantier…" oninput="filterDevis(this.value)" autocomplete="off">
       <select class="input" id="aff-devis" size="6" style="margin-top:4px;height:120px" onchange="calcDateFin()" onclick="calcDateFin()">
-        {% for d in devis_dispo %}
-        <option value="{{ d.pk }}">{{ d.client.nom }} — {{ d.chantier|default:"(sans titre)" }}</option>
-        {% endfor %}
+        <option disabled>Chargement des chantiers…</option>
       </select>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -508,7 +506,8 @@ const URL_PRES = '{% url "core:presence-save" %}';
 const URL_AFF  = '{% url "core:affectation-save" %}';
 const URL_PRET = '{% url "core:pret-save" %}';
 const EQUIPE_ID = {{ equipe_sel.pk|default:'null' }};
-const DEVIS_MO  = {{ devis_mo_json|safe }};
+let DEVIS_MO    = {};   // chargé à l'ouverture de la modal (planning_wizard_data)
+const URL_WIZARD_DATA = '{% url "core:planning-wizard-data" %}';
 const EQ_EFF    = {{ equipe_effectifs_json|safe }};
 const TAUX_JOUR = 82.5;  // €/jour/équipier (Lun-Jeu, 4 j/semaine)
 const LUNDI_ISO   = '{{ lundi|date:"Y-m-d" }}';
@@ -658,11 +657,35 @@ function filterPanel(q) {
 }
 
 /* ── Modal affectation ─────────────────────────────────── */
+// Devis acceptés + MO chargés à la 1re ouverture (la page se recharge
+// après chaque affectation créée → cache valable pour la vie de la page).
+let _wizardLoaded = false;
 function openAffModal() {
   document.getElementById('aff-err').style.display = 'none';
   document.getElementById('modal-aff').classList.remove('hidden');
   document.getElementById('aff-search').focus();
-  calcDateFin();
+  if (_wizardLoaded) { calcDateFin(); return; }
+  fetch(URL_WIZARD_DATA)
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok) throw new Error(d.error || 'Erreur');
+      DEVIS_MO = d.devis_mo || {};
+      const sel = document.getElementById('aff-devis');
+      sel.innerHTML = '';
+      (d.devis || []).forEach(dv => {
+        const opt = document.createElement('option');
+        opt.value = dv.pk;
+        opt.text  = dv.client + ' — ' + (dv.chantier || '(sans titre)');
+        sel.appendChild(opt);
+      });
+      _wizardLoaded = true;
+      calcDateFin();
+    })
+    .catch(() => {
+      const err = document.getElementById('aff-err');
+      err.textContent = 'Erreur de chargement des chantiers — fermez et rouvrez la fenêtre.';
+      err.style.display = '';
+    });
 }
 function closeAffModal() { document.getElementById('modal-aff').classList.add('hidden'); }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeAffModal(); closePretModal(); } });

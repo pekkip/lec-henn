@@ -366,19 +366,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
       <input class="input" id="aff-search" placeholder="Filtrer par client ou chantier…"
              oninput="filterDevisCards(this.value)" autocomplete="off" style="margin-bottom:6px">
       <div id="aff-cards" class="devis-cards-grid">
-        {% for d in devis_dispo %}
-        <button class="devis-card" type="button"
-                data-pk="{{ d.pk }}"
-                data-ref="{{ d.reference|lower }} {{ d.client.nom|lower }} {{ d.chantier|lower }}">
-          <div class="dc-header">
-            <span class="dc-ref">{{ d.reference }}</span>
-            <a href="{% url 'core:devis-detail' d.pk %}" target="_blank" class="dc-link"
-               onclick="event.stopPropagation()" title="Ouvrir le devis">↗</a>
-          </div>
-          <span class="dc-client">{{ d.client.nom }}</span>
-          <span class="dc-chantier">{{ d.chantier|default:"—" }}</span>
-        </button>
-        {% endfor %}
+        <div id="aff-cards-msg" style="grid-column:1/-1;color:#888;font-size:11px;padding:8px">Chargement des chantiers…</div>
       </div>
     </div>
     <!-- Étape 2 : Équipe -->
@@ -530,11 +518,13 @@ const DEVIS_MO      = {{ devis_mo_json|safe }};
 const EQ_EFF        = {{ equipe_effectifs_json|safe }};
 const TAUX_JOUR     = 82.5;
 const DEVIS_EQUIPES      = {{ devis_equipes_json|safe }};
-const TRANCHES_PAR_DEVIS = {{ tranches_par_devis_json|safe }};
-const MO_PLANIFIE        = {{ mo_planifie_par_devis_json|safe }};
+// Données du wizard — chargées à l'ouverture de la modal (planning_wizard_data)
+let TRANCHES_PAR_DEVIS = {};
+let MO_PLANIFIE        = {};
 const AFF_PAR_EQUIPE     = {{ aff_par_equipe_json|safe }};
 const EQUIPES_PLAN       = {{ equipes_plan_json|safe }};
 const URL_TRANCHE_CREER  = '{% url "core:tranche-creer" %}';
+const URL_WIZARD_DATA    = '{% url "core:planning-wizard-data" %}';
 const EV_POSITIFS   = {{ ev_positifs_json|safe }};
 const EV_NEGATIFS   = {{ ev_negatifs_json|safe }};
 const EVENEMENTS_DATA = {{ evenements_data_json|safe }};
@@ -880,9 +870,103 @@ function openAffModal(equipeId) {
     debutCreneau: 'matin',
   });
   document.getElementById('aff-search').value = '';
-  filterDevisCards('');
   document.getElementById('modal-aff').classList.remove('hidden');
   affGoStep(1);
+  loadWizardData();
+}
+
+// ── Chargement à la demande des données du wizard ──
+// La page se recharge après chaque affectation créée → cache valable
+// pour la durée de vie de la page.
+let _wizardLoaded = false;
+function loadWizardData() {
+  if (_wizardLoaded) { filterDevisCards(document.getElementById('aff-search').value); return; }
+  const msg = document.getElementById('aff-cards-msg');
+  if (msg) msg.textContent = 'Chargement des chantiers…';
+  fetch(URL_WIZARD_DATA)
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.ok) throw new Error(d.error || 'Erreur');
+      TRANCHES_PAR_DEVIS = d.tranches || {};
+      MO_PLANIFIE        = d.mo_planifie || {};
+      Object.assign(DEVIS_MO, d.devis_mo || {});
+      buildDevisCards(d.devis || []);
+      _wizardLoaded = true;
+    })
+    .catch(function() {
+      const m = document.getElementById('aff-cards-msg');
+      if (m) m.textContent = 'Erreur de chargement — fermez et rouvrez la fenêtre.';
+    });
+}
+
+function buildDevisCards(devisList) {
+  const grid = document.getElementById('aff-cards');
+  grid.innerHTML = '';
+  if (!devisList.length) {
+    grid.innerHTML = '<div id="aff-cards-msg" style="grid-column:1/-1;color:#888;font-size:11px;padding:8px">Aucun devis accepté.</div>';
+    return;
+  }
+  const fmt = function(v) { return Math.round(v).toLocaleString('fr') + ' €'; };
+  devisList.forEach(function(d) {
+    const card = document.createElement('button');
+    card.className = 'devis-card';
+    card.type = 'button';
+    card.dataset.pk  = d.pk;
+    card.dataset.ref = (d.ref + ' ' + d.client + ' ' + d.chantier).toLowerCase();
+
+    const header = document.createElement('div');
+    header.className = 'dc-header';
+    const ref = document.createElement('span');
+    ref.className = 'dc-ref';
+    ref.textContent = d.ref;
+    const link = document.createElement('a');
+    link.href = d.url;
+    link.target = '_blank';
+    link.className = 'dc-link';
+    link.title = 'Ouvrir le devis';
+    link.textContent = '↗';
+    link.addEventListener('click', function(e) { e.stopPropagation(); });
+    header.appendChild(ref);
+    header.appendChild(link);
+    card.appendChild(header);
+
+    const client = document.createElement('span');
+    client.className = 'dc-client';
+    client.textContent = d.client;
+    card.appendChild(client);
+
+    const chantier = document.createElement('span');
+    chantier.className = 'dc-chantier';
+    chantier.textContent = d.chantier || '—';
+    card.appendChild(chantier);
+
+    const mo  = DEVIS_MO[d.pk] || 0;
+    const moP = MO_PLANIFIE[d.pk] || 0;
+    if (mo > 0) {
+      const moEl = document.createElement('span');
+      moEl.className = 'dc-mo';
+      if (moP > 0) {
+        moEl.innerHTML = 'MO : ' + fmt(mo)
+          + ' &mdash; <span class="dc-mo-restant">Restant : ' + fmt(Math.max(0, mo - moP)) + '</span>';
+      } else {
+        moEl.textContent = 'MO : ' + fmt(mo);
+      }
+      card.appendChild(moEl);
+    }
+
+    const tranches = TRANCHES_PAR_DEVIS[d.pk] || [];
+    const noms = tranches.filter(function(t) { return t.equipes.length > 0; })
+      .flatMap(function(t) { return t.equipes.map(function(e) { return e.nom; }); });
+    if (noms.length > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'dc-badge';
+      badge.textContent = [...new Set(noms)].join(', ');
+      card.appendChild(badge);
+    }
+
+    grid.appendChild(card);
+  });
+  filterDevisCards(document.getElementById('aff-search').value);
 }
 
 function closeAffModal() {
@@ -933,42 +1017,6 @@ document.getElementById('aff-cards').addEventListener('click', function(e) {
   _aff.devisMoRestant = Math.max(0, moTotal - moPlanifie);
   affGoStep(2);
 });
-
-// Peupler les cartes devis avec MO + indicateur de planification
-(function() {
-  document.querySelectorAll('.devis-card[data-pk]').forEach(function(card) {
-    const pk    = parseInt(card.dataset.pk);
-    const mo    = DEVIS_MO[pk] || 0;
-    const moP   = MO_PLANIFIE[pk] || 0;
-    const rest  = Math.max(0, mo - moP);
-    const tranches = TRANCHES_PAR_DEVIS[pk] || [];
-    const eqAssignees = tranches.filter(function(t) { return t.equipes.length > 0; });
-
-    if (mo > 0) {
-      const moEl = document.createElement('span');
-      moEl.className = 'dc-mo';
-      const fmt = function(v) { return Math.round(v).toLocaleString('fr') + ' €'; };
-      if (moP > 0) {
-        moEl.innerHTML = 'MO : ' + fmt(mo)
-          + ' &mdash; <span class="dc-mo-restant">Restant : ' + fmt(rest) + '</span>';
-      } else {
-        moEl.textContent = 'MO : ' + fmt(mo);
-      }
-      card.appendChild(moEl);
-    }
-
-    if (eqAssignees.length > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'dc-badge';
-      const noms = eqAssignees.flatMap(function(t) {
-        return t.equipes.map(function(e) { return e.nom; });
-      });
-      const unique = [...new Set(noms)];
-      badge.textContent = unique.join(', ');
-      card.appendChild(badge);
-    }
-  });
-})();
 
 function renderEquipeCards() {
   const grid  = document.getElementById('aff-equipe-cards');

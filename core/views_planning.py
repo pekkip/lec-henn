@@ -16,6 +16,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.db.models import Q, Count, Prefetch
 
@@ -443,21 +444,8 @@ def emargement_view(request):
             'cren_rows': cren_rows, 'total_h': total_h,
         })
 
-    panel_equipes = list(
-        Equipe.objects.filter(actif=True, service__module_planning=True)
-        .prefetch_related(
-            Prefetch('equipiers',
-                     queryset=Equipier.objects.filter(actif=True).order_by('nom', 'prenom'))
-        ).order_by('nom')
-    )
-
-    devis_dispo = list(
-        Devis.objects.filter(status='accepted')
-        .select_related('client')
-        .prefetch_related('lignes')
-        .order_by('client__nom')
-    )
-    devis_mo_json  = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
+    # Liste des devis acceptés + MO : servis à la demande par
+    # planning_wizard_data (ouverture de la modal Affecter).
     panel_equipes_all = list(
         Equipe.objects.filter(actif=True, service__module_planning=True)
         .prefetch_related(
@@ -484,8 +472,6 @@ def emargement_view(request):
         'grid_rows_maison': grid_rows_maison,
         'grid_rows_empruntes': grid_rows_empruntes,
         'panel_equipes': panel_equipes_all,
-        'devis_dispo': devis_dispo,
-        'devis_mo_json': devis_mo_json,
         'equipe_effectifs_json': equipe_effectifs_json,
         'semaine_prec': (lundi - timedelta(weeks=1)).isoformat(),
         'semaine_suiv': (lundi + timedelta(weeks=1)).isoformat(),
@@ -541,14 +527,12 @@ def planning_mois(request):
     aff_color = {aff.pk: COLORS_AFF[aff.tranche.devis_id % len(COLORS_AFF)] for aff in affectations}
     equipes_modifiables_ids = {e.pk for e in equipes if est_encadrant(request.user, e)}
 
-    # MO des devis sur la grille (pour pct_consomme)
-    devis_dispo = list(
-        Devis.objects.filter(status='accepted')
-        .select_related('client')
-        .prefetch_related('lignes')
-        .order_by('client__nom')
-    )
-    devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
+    # MO des seuls devis affichés sur la grille (pct_consomme, drag & drop,
+    # indicateur de divergence). La liste complète des devis acceptés est
+    # servie à la demande par planning_wizard_data (ouverture de la modal).
+    devis_ids_grille = {aff.tranche.devis_id for aff in affectations}
+    devis_grille = Devis.objects.filter(pk__in=devis_ids_grille).prefetch_related('lignes')
+    devis_mo_json = {d.pk: float(total_mo_devis(d)) for d in devis_grille}
     equipe_effectifs_json = {e.pk: e.nb_equipiers for e in equipes}
 
     # Heures consommées par tranche (somme presences de toutes les équipes affectées)
@@ -710,20 +694,6 @@ def planning_mois(request):
     # 12 cols/semaine : 10 demi-j (10×13px) + 1 Sam (8px) + 1 Dim (8px)
     tl_min_width = 180 + nb_semaines * (10 * 13 + 2 * 8)
 
-    # —— Nouvelles données pour la modal d'affectation ——
-    tranches_par_devis = {}
-    for t in TrancheDevis.objects.filter(devis__in=devis_dispo).prefetch_related('affectations__equipe').order_by('ordre', 'nom'):
-        tranches_par_devis.setdefault(t.devis_id, []).append({
-            'id': t.pk,
-            'nom': t.nom,
-            'equipes': [{'nom': a.equipe.nom} for a in t.affectations.all()],
-        })
-    mo_planifie_par_devis = {}
-    for _a in Affectation.objects.filter(tranche__devis__in=devis_dispo).select_related('equipe', 'tranche__devis'):
-        _pos, _neg = _build_evenement_sets(_a.equipe_id, _a.date_debut, _a.date_fin)
-        _nbj = _count_working_days(_a.date_debut, _a.date_fin, _pos, _neg)
-        _mo = float(_nbj * _a.equipe.nb_equipiers * _TAUX_JOUR_PLANNING)
-        mo_planifie_par_devis[_a.tranche.devis_id] = mo_planifie_par_devis.get(_a.tranche.devis_id, 0) + _mo
     aff_par_equipe = {}
     for _a in affectations:
         aff_par_equipe.setdefault(str(_a.equipe_id), []).append({
@@ -749,12 +719,9 @@ def planning_mois(request):
         'suiv_debut': suiv_debut,
         'peut_modifier_global': peut_modifier_global,
         'equipes_modifiables_ids': list(equipes_modifiables_ids),
-        'devis_dispo': devis_dispo,
         'devis_mo_json': devis_mo_json,
         'equipe_effectifs_json': equipe_effectifs_json,
         'devis_equipes_json': json.dumps(devis_equipes),
-        'tranches_par_devis_json': json.dumps(tranches_par_devis),
-        'mo_planifie_par_devis_json': json.dumps(mo_planifie_par_devis),
         'aff_par_equipe_json': json.dumps(aff_par_equipe),
         'equipes_plan_json': json.dumps([{'id': e.pk, 'nom': e.nom, 'nb_eq': e.nb_equipiers, 'modifiable': e.pk in equipes_modifiables_ids} for e in equipes]),
         'ev_positifs_json': json.dumps(ev_positifs_json_data),
@@ -774,6 +741,56 @@ def planning_mois(request):
             }
             for ev in evenements
         }),
+    })
+
+
+@login_required
+def planning_wizard_data(request):
+    """
+    Données de la modal « Affecter un chantier », chargées à son ouverture.
+
+    Sorti du rendu de planning_mois : la liste complète des devis acceptés
+    (avec l'arbre des lignes pour le MO) croît avec le volume de devis et
+    n'est utile qu'au wizard, pas à l'affichage de la timeline.
+    """
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+
+    devis_dispo = list(
+        Devis.objects.filter(status='accepted')
+        .select_related('client')
+        .prefetch_related('lignes')
+        .order_by('client__nom')
+    )
+    devis_data = [{
+        'pk': d.pk,
+        'ref': d.reference,
+        'client': d.client.nom,
+        'chantier': d.chantier or '',
+        'url': reverse('core:devis-detail', args=[d.pk]),
+    } for d in devis_dispo]
+    devis_mo = {d.pk: float(total_mo_devis(d)) for d in devis_dispo}
+
+    tranches_par_devis = {}
+    for t in TrancheDevis.objects.filter(devis__in=devis_dispo).prefetch_related('affectations__equipe').order_by('ordre', 'nom'):
+        tranches_par_devis.setdefault(t.devis_id, []).append({
+            'id': t.pk,
+            'nom': t.nom,
+            'equipes': [{'nom': a.equipe.nom} for a in t.affectations.all()],
+        })
+    mo_planifie = {}
+    for a in Affectation.objects.filter(tranche__devis__in=devis_dispo).select_related('equipe', 'tranche'):
+        pos, neg = _build_evenement_sets(a.equipe_id, a.date_debut, a.date_fin)
+        nbj = _count_working_days(a.date_debut, a.date_fin, pos, neg)
+        mo = float(nbj * a.equipe.nb_equipiers * _TAUX_JOUR_PLANNING)
+        mo_planifie[a.tranche.devis_id] = mo_planifie.get(a.tranche.devis_id, 0) + mo
+
+    return JsonResponse({
+        'ok': True,
+        'devis': devis_data,
+        'devis_mo': devis_mo,
+        'mo_planifie': mo_planifie,
+        'tranches': tranches_par_devis,
     })
 
 

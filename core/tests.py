@@ -2097,3 +2097,71 @@ class FeuillesPresenceTests(TestCase):
         }, username='enc_b_feu')
         self.assertEqual(resp.status_code, 403)
 
+
+class PlanningWizardDataTests(TestCase):
+    """
+    `planning_wizard_data` : données de la modal Affecter, servies à la
+    demande (sorties du rendu de planning_mois / emargement_view).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-Wizard')
+        service = Service.objects.create(territoire=terr, nom='Insertion Wizard', module_planning=True)
+        cls.equipe = Equipe.objects.create(service=service, nom='WIZ-A', actif=True, nb_equipiers=1)
+
+        cls.admin = User.objects.create_user('adm_wiz', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.technicien = User.objects.create_user('tech_wiz', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.technicien, role='technicien')
+
+        client = Client.objects.create(nom='Client Wizard')
+        cls.devis = Devis.objects.create(
+            reference='DEV-WIZ-01', client=client, chantier='Chantier Wizard',
+            status='accepted', created_by=cls.admin,
+        )
+        LigneDevis.objects.create(
+            devis=cls.devis, type_ligne='MO', description='MO',
+            quantite=Decimal('4'), cout_unitaire=Decimal('82.50'),
+        )
+        # Devis non accepté → ne doit pas apparaître
+        cls.devis_brouillon = Devis.objects.create(
+            reference='DEV-WIZ-02', client=client,
+            status='draft', created_by=cls.admin,
+        )
+        cls.tranche = TrancheDevis.objects.create(devis=cls.devis, nom='Complet', ordre=0)
+        cls.aff = Affectation.objects.create(
+            equipe=cls.equipe, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 4),  # 4 j ouvrés
+            created_by=cls.admin,
+        )
+
+    def test_refuse_sans_acces(self):
+        self.client.login(username='tech_wiz', password='pw')
+        resp = self.client.get(reverse('core:planning-wizard-data'))
+        self.assertEqual(resp.status_code, 403)
+
+    def test_payload_complet(self):
+        self.client.login(username='adm_wiz', password='pw')
+        resp = self.client.get(reverse('core:planning-wizard-data'))
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertTrue(data['ok'])
+
+        pks = [d['pk'] for d in data['devis']]
+        self.assertIn(self.devis.pk, pks)
+        self.assertNotIn(self.devis_brouillon.pk, pks)
+        d = next(x for x in data['devis'] if x['pk'] == self.devis.pk)
+        self.assertEqual(d['ref'], 'DEV-WIZ-01')
+        self.assertEqual(d['client'], 'Client Wizard')
+        self.assertIn(f'/devis/{self.devis.pk}/', d['url'])
+
+        # MO total = 4 × 82,50 = 330 € ; MO planifié = 4 j × 1 éq × 82,5
+        self.assertEqual(data['devis_mo'][str(self.devis.pk)], 330.0)
+        self.assertEqual(data['mo_planifie'][str(self.devis.pk)], 330.0)
+
+        tranches = data['tranches'][str(self.devis.pk)]
+        self.assertEqual(len(tranches), 1)
+        self.assertEqual(tranches[0]['nom'], 'Complet')
+        self.assertEqual(tranches[0]['equipes'], [{'nom': 'WIZ-A'}])
+

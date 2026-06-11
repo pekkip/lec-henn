@@ -67,7 +67,7 @@ venv\Scripts\pip install -r requirements.txt
 # Lancer / migrer / tester / vérifier (utiliser le python du venv)
 venv\Scripts\python manage.py migrate
 venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
-venv\Scripts\python manage.py test core      # 136 tests (core/tests.py)
+venv\Scripts\python manage.py test core      # 138 tests (core/tests.py)
 venv\Scripts\python manage.py check
 ```
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
@@ -1486,9 +1486,13 @@ Pour supprimer proprement :
 - **Audit des présences** — aucun `add_audit` dans `views_planning.py` alors que les
   présences alimentent la paie (contrôles FSE possibles). Tracer au minimum les
   modifications rétroactives. À coupler avec le chantier `ClotureMois` ci-dessous.
-- **`planning_mois` charge tous les devis acceptés** (avec lignes prefetch) à chaque
-  affichage pour `devis_mo_json` + le wizard. OK aujourd'hui ; ralentira à plusieurs
-  centaines de devis acceptés. Piste : limiter aux devis affichés + wizard à la demande.
+- ✅ **`planning_mois` / `emargement_view` chargeaient tous les devis acceptés** (avec
+  lignes prefetch) à chaque affichage — réglé session 36 : `devis_mo_json` restreint aux
+  devis affichés sur la grille ; liste complète + MO planifié + tranches servis à la
+  demande par `GET /planning/wizard-data/` (`planning_wizard_data`), appelé à l'ouverture
+  de la modal Affecter (cache JS, page rechargée après chaque création). Les cartes de
+  l'étape 1 du wizard sont construites côté client. Requête `panel_equipes` dupliquée
+  supprimée dans `emargement_view`.
 - **Sauvegarde / conservation réglementaire** — les justificatifs FSE doivent rester
   disponibles plusieurs années (contrôles a posteriori). Définir la stratégie de backup
   (dump périodique, export des présences par mois clôturé) au passage hébergement OVH.
