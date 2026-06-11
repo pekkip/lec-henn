@@ -65,7 +65,7 @@ venv\Scripts\pip install -r requirements.txt
 # Lancer / migrer / tester / vérifier (utiliser le python du venv)
 venv\Scripts\python manage.py migrate
 venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
-venv\Scripts\python manage.py test core      # 72 tests (core/tests.py)
+venv\Scripts\python manage.py test core      # 95 tests (core/tests.py)
 venv\Scripts\python manage.py check
 ```
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
@@ -97,7 +97,7 @@ cb-bretagne/
     ├── management/commands/seed_demo.py  — jeu de démo (9 équipes, idempotent, marqué SEED_DEMO)
     ├── management/commands/seed_production_demo.py  — démo production Insertion 35 (6 équipes, Jan–Mai 2026, marqué DEMO35)
     ├── admin.py
-    ├── tests.py               — 21 tests (contrôle d'accès, clients)
+    ├── tests.py               — 95 tests (accès, clients, compta, dashboard, perf, planning)
     ├── migrations/
     └── templates/core/
         ├── base.html
@@ -1430,7 +1430,7 @@ Pour supprimer proprement :
 - **URLs à homogénéiser** — mélange français/anglais (statut/status, supprimer/delete). Choisir une convention et corriger partout.
 - **Context processor** — injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue).
 - **Modèle `BibliothèqueAides`** — nom de classe avec accent (non-ASCII), fragile pour imports/outils. Renommer en ASCII (`BibliothequeAides`) si on retouche le modèle.
-- **Auditer les templates** — chercher `f.reference` parasites (→ doit être `f.get_reference`).
+- ✅ **Auditer les templates** — vérifié session 36 (11/06/2026) : aucun `{{ f.reference }}` parasite restant dans `core/templates/`.
 - **Calcul des totaux dupliqué (2 implémentations)** — le parcours d'arbre du total existe à
   **deux endroits** : `core/totaux.py` (version **en mémoire**, anti N+1, utilisée par les
   **listes ET le dashboard** via un import partagé) et `models.py` `LigneDevis.total()` /
@@ -1448,7 +1448,8 @@ Pour supprimer proprement :
   Compta (factures structure/appel, avoirs, type_client) : ✅ couvert session 19 (`FactureComptaTests`).
   Tableau de bord (rendu, gating compta, config, portée) : ✅ couvert session 21 (`DashboardTests`).
   Perf listes + dashboard (totaux, pagination, requêtes bornées, anti N+1) : ✅ couvert
-  session 23 (`ListesPerfTests`). **52 tests** au total.
+  session 23 (`ListesPerfTests`). Émargement → barre planning : ✅ couvert session 35
+  (`PlanningBarreTests`, 23 tests). **95 tests** au total.
 
 ### Performance
 - ✅ **Listes (devis/factures/compta/avoirs)** — réglé session 23 : N+1 du calcul des
