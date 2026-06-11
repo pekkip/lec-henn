@@ -1512,6 +1512,17 @@ Pour supprimer proprement :
   partent à la RH pour la paie, et les données de présence devront être exportées vers
   le logiciel RH. **Format d'échange pas encore connu** (info 11/06/2026) — attendre la
   spec avant d'implémenter.
+- **Bouton « Imprimer toutes les fiches » inactif** — le lien passe `?imprimer=1` mais
+  `feuilles_liste` ne lit jamais ce paramètre (le bouton recharge la liste). À
+  implémenter : page imprimable regroupant les fiches de tous les équipiers de l'équipe
+  (une page A4 paysage par fiche) + **clôture automatique du mois au déclenchement de
+  l'impression** (acté 11/06/2026 — l'impression matérialise la remise à la RH).
+  ⚠️ Le manuel `/insertion/aide/` documente déjà ce bouton comme fonctionnel — corriger
+  le manuel ou livrer la fonction.
+- **Export PDF de tous les documents** (fiches de présence, devis, factures) — chantier
+  à cadrer : génération de fichiers PDF côté serveur (batch, pièces jointes email,
+  snapshot devis « envoyé ») vs impression navigateur actuelle (`window.print` + CSS).
+  Voir discussion session 36 — choix du moteur PDF non arrêté.
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
 - **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
 - **Restriction email @compagnonsbatisseurs.eu à la création d'utilisateur** — validation
