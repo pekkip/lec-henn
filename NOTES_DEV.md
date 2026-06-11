@@ -1479,10 +1479,11 @@ Pour supprimer proprement :
 > avant l'hébergement définitif, et la phase de test se prolongera probablement jusqu'en
 > septembre 2026. Les items ci-dessous sont à arbitrer avant implémentation.
 
-- **`date.today()` → `timezone.localdate()`** — 14 occurrences (views, views_planning,
-  dashboard_widgets). Railway tourne en UTC : entre minuit et 2 h (heure de Paris),
-  « aujourd'hui » pointe sur la veille (colonne du jour planning, mois par défaut, presets).
-  Fix mécanique, à faire avant la mise en prod réelle.
+- ✅ **`date.today()` → `timezone.localdate()`** — réglé session 36 : 12 occurrences
+  remplacées dans le code applicatif (views ×6, views_planning ×5, dashboard_widgets ×1).
+  Railway tourne en UTC : entre minuit et 2 h (heure de Paris), « aujourd'hui » pointait
+  sur la veille. `tests.py` et `seed_demo.py` conservent `date.today()` (setup de données
+  et commande manuelle — sans enjeu).
 - **Audit des présences** — aucun `add_audit` dans `views_planning.py` alors que les
   présences alimentent la paie (contrôles FSE possibles). Tracer au minimum les
   modifications rétroactives. À coupler avec le chantier `ClotureMois` ci-dessous.

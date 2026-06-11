@@ -70,7 +70,7 @@ def paginer(request, queryset, par_page=50):
 
 
 def gen_reference(prefix):
-    year = date.today().year
+    year = timezone.localdate().year
     if prefix == 'DEV':
         qs = Devis.objects.filter(
             reference__startswith=f'DEV-{year}-'
@@ -117,7 +117,7 @@ def gen_numero_facture(type_doc):
     """Génère le prochain numéro de facture selon le type_doc (préfixe + séquence)."""
     cfg = NUMEROTATION_FACTURE.get(type_doc, NUMEROTATION_FACTURE['facture'])
     prefix, seq = cfg['prefix'], cfg['sequence']
-    year = date.today().year
+    year = timezone.localdate().year
     group = [td for td, c in NUMEROTATION_FACTURE.items() if c['sequence'] == seq]
     qs = Facture.objects.filter(type_doc__in=group, numero__isnull=False)
     nums = []
@@ -730,7 +730,7 @@ def devis_create(request):
             client=client,
             chantier=chantier,
             equipe_id=equipe_id,
-            date_validite=date.today() + timedelta(days=validite_jours),
+            date_validite=timezone.localdate() + timedelta(days=validite_jours),
             taux_mo=taux_mo,
             notes=request.POST.get('notes', ''),
             conditions_devis=profil.conditions_devis,
@@ -826,7 +826,7 @@ def devis_duplicate(request, pk):
         chantier=src.chantier + ' (copie)',
         equipe=src.equipe,
         status='draft',
-        date_validite=date.today() + timedelta(days=30),
+        date_validite=timezone.localdate() + timedelta(days=30),
         taux_mo=src.taux_mo,
         notes=src.notes,
         conditions_devis=src.conditions_devis,
@@ -1568,7 +1568,7 @@ def facture_create(request, devis_pk):
             echeance_jours = int(request.POST.get('echeance_jours') or 30)
         except (TypeError, ValueError):
             echeance_jours = 30
-        date_echeance  = date.today() + timedelta(days=echeance_jours)
+        date_echeance  = timezone.localdate() + timedelta(days=echeance_jours)
 
         facture = Facture.objects.create(
             devis=devis,
@@ -2463,7 +2463,7 @@ def facture_compta_create(request, type_doc):
             contact_client=contact,
             destinataire=destinataire or 'Sans nom',
             notes=objet,
-            date_echeance=date.today() + timedelta(days=echeance_jours),
+            date_echeance=timezone.localdate() + timedelta(days=echeance_jours),
             conditions_facture=profil.conditions_facture,
             coordonnees_cb=profil.coordonnees_cb,
             created_by=request.user,

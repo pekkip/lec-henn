@@ -17,6 +17,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponseForbidden
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.db.models import Q, Count, Prefetch
 
@@ -62,7 +63,7 @@ def insertion_dashboard(request):
         except (ValueError, TypeError):
             pass
 
-    today = date.today()
+    today = timezone.localdate()
     debut_str = request.GET.get('debut', '')
     fin_str   = request.GET.get('fin', '')
     try:
@@ -246,7 +247,7 @@ def emargement_view(request):
     equipe_id = request.GET.get('equipe', '').strip()
     debut_str = request.GET.get('debut', '').strip()
 
-    today = date.today()
+    today = timezone.localdate()
     try:
         debut = datetime.strptime(debut_str, '%Y-%m-%d').date() if debut_str else today
     except ValueError:
@@ -490,7 +491,7 @@ def planning_mois(request):
     default_sem = 8 if profil.role in ('admin', 'responsable', 'rh') else 4
     nb_semaines = max(1, min(52, int(request.GET.get('semaines', '') or default_sem)))
 
-    today = date.today()
+    today = timezone.localdate()
     debut_str = request.GET.get('debut', '')
     try:
         debut_grille = datetime.strptime(debut_str, '%Y-%m-%d').date()
@@ -726,7 +727,7 @@ def planning_mois(request):
         'equipes_plan_json': json.dumps([{'id': e.pk, 'nom': e.nom, 'nb_eq': e.nb_equipiers, 'modifiable': e.pk in equipes_modifiables_ids} for e in equipes]),
         'ev_positifs_json': json.dumps(ev_positifs_json_data),
         'ev_negatifs_json': json.dumps(ev_negatifs_json_data),
-        'today': date.today(),
+        'today': timezone.localdate(),
         'equipes_json': json.dumps([{'pk': e.pk, 'nom': e.nom} for e in equipes]),
         'evenements_data_json': json.dumps({
             ev.pk: {
@@ -1347,7 +1348,7 @@ def feuilles_liste(request):
         return HttpResponseForbidden("Accès réservé au module Insertion.")
 
     profil = get_profil(request.user)
-    today  = date.today()
+    today  = timezone.localdate()
 
     try:
         annee = int(request.GET.get('annee', today.year))

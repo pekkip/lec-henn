@@ -340,7 +340,7 @@ def _activity_recent(user, scope):
 # ══════════════════════════════════════════
 
 def _mois_courant():
-    today = date.today()
+    today = timezone.localdate()
     return (date(today.year, today.month, 1),
             date(today.year, today.month, calendar.monthrange(today.year, today.month)[1]))
 
