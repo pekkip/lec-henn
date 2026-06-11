@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import views_planning
 
 app_name = 'core'
 
@@ -90,27 +91,27 @@ urlpatterns = [
     path('compta/contacts/creation-rapide/',             views.contact_client_create, name='contact-client-create'),
     path('compta/contacts/<int:pk>/supprimer/',          views.contact_client_delete, name='contact-client-delete'),
 
-    # PLANNING & ÉMARGEMENT (insertion) — réservé peut_acceder_planning
-    path('planning/equipiers/',                  views.equipiers_list,        name='equipiers'),
-    path('planning/equipiers/sauvegarder/',      views.equipier_save,         name='equipier-save'),
-    path('planning/equipiers/<int:pk>/actif/',   views.equipier_toggle_actif, name='equipier-toggle-actif'),
-    path('planning/',                            views.planning_mois,         name='planning'),
-    path('planning/emargement/',                 views.emargement_view,       name='emargement'),
-    path('planning/affectation/sauvegarder/',    views.affectation_save,      name='affectation-save'),
-    path('planning/affectation/deplacer/',       views.affectation_move,      name='affectation-move'),
-    path('planning/affectation/supprimer/',      views.affectation_delete,    name='affectation-delete'),
-    path('planning/affectation/vendredi/',       views.vendredi_toggle,       name='vendredi-toggle'),
-    path('planning/evenement/sauvegarder/',      views.evenement_save,         name='evenement-save'),
-    path('planning/evenement/supprimer/',        views.evenement_delete,       name='evenement-delete'),
-    path('planning/presence/sauvegarder/',       views.presence_save,         name='presence-save'),
-    path('planning/pret/sauvegarder/',           views.pret_save,             name='pret-save'),
-    path('planning/tranche/creer/',           views.tranche_creer,         name='tranche-creer'),
-    path('insertion/aide/',                   views.aide_insertion_view,   name='aide-insertion'),
-    path('insertion/tableau-de-bord/',        views.insertion_dashboard,   name='insertion-dashboard'),
-    path('planning/feuilles/',                                    views.feuilles_liste,       name='feuilles-liste'),
-    path('planning/feuilles/note/',                               views.fiche_note_save,      name='fiche-note-save'),
-    path('planning/feuilles/presence/',                           views.fiche_presence_save,  name='fiche-presence-save'),
-    path('planning/feuilles/<int:eq_pk>/<int:annee>/<int:mois>/', views.presence_feuille,     name='presence-feuille'),
+    # PLANNING & ÉMARGEMENT (insertion) — réservé peut_acceder_planning (views_planning.py)
+    path('planning/equipiers/',                  views_planning.equipiers_list,        name='equipiers'),
+    path('planning/equipiers/sauvegarder/',      views_planning.equipier_save,         name='equipier-save'),
+    path('planning/equipiers/<int:pk>/actif/',   views_planning.equipier_toggle_actif, name='equipier-toggle-actif'),
+    path('planning/',                            views_planning.planning_mois,         name='planning'),
+    path('planning/emargement/',                 views_planning.emargement_view,       name='emargement'),
+    path('planning/affectation/sauvegarder/',    views_planning.affectation_save,      name='affectation-save'),
+    path('planning/affectation/deplacer/',       views_planning.affectation_move,      name='affectation-move'),
+    path('planning/affectation/supprimer/',      views_planning.affectation_delete,    name='affectation-delete'),
+    path('planning/affectation/vendredi/',       views_planning.vendredi_toggle,       name='vendredi-toggle'),
+    path('planning/evenement/sauvegarder/',      views_planning.evenement_save,        name='evenement-save'),
+    path('planning/evenement/supprimer/',        views_planning.evenement_delete,      name='evenement-delete'),
+    path('planning/presence/sauvegarder/',       views_planning.presence_save,         name='presence-save'),
+    path('planning/pret/sauvegarder/',           views_planning.pret_save,             name='pret-save'),
+    path('planning/tranche/creer/',           views_planning.tranche_creer,         name='tranche-creer'),
+    path('insertion/aide/',                   views_planning.aide_insertion_view,   name='aide-insertion'),
+    path('insertion/tableau-de-bord/',        views_planning.insertion_dashboard,   name='insertion-dashboard'),
+    path('planning/feuilles/',                                    views_planning.feuilles_liste,      name='feuilles-liste'),
+    path('planning/feuilles/note/',                               views_planning.fiche_note_save,     name='fiche-note-save'),
+    path('planning/feuilles/presence/',                           views_planning.fiche_presence_save, name='fiche-presence-save'),
+    path('planning/feuilles/<int:eq_pk>/<int:annee>/<int:mois>/', views_planning.presence_feuille,    name='presence-feuille'),
 
     # Gestion utilisateurs
     path('utilisateurs/', views.utilisateurs_list, name='utilisateurs-list'),
