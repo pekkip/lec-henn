@@ -368,7 +368,7 @@ def _prod_taux_color(taux):
 def _prod_data(ctx=None):
     """Agrège les données de production pour la période et équipes du contexte."""
     from django.db.models import Count, Sum as DSum
-    from .views import _count_working_days
+    from .planning_utils import _count_working_days
     from .models import ParametresAssociation
 
     if ctx:
