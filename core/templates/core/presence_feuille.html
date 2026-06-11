@@ -86,6 +86,11 @@
   <div class="fiche-actions">
     <a href="{% url 'core:feuilles-liste' %}?equipe={{ equipe.pk }}&annee={{ annee }}&mois={{ mois }}"
        class="btn-retour"><i class="ti ti-arrow-left"></i> Retour</a>
+    {% if cloture_courante %}
+    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:12px;font-size:12px;background:#fef3c7;color:#92400e;font-weight:600">
+      <i class="ti ti-lock"></i> Mois clôturé — saisie verrouillée
+    </span>
+    {% endif %}
     <button class="btn-print" onclick="window.print()">
       <i class="ti ti-printer"></i> Imprimer
     </button>
@@ -284,6 +289,18 @@ const CSRF_TOKEN    = "{{ csrf_token }}";
 const PEUT_MODIFIER = {{ peut_modifier|yesno:'true,false' }};
 const DEF_MATIN     = {{ def_matin }};
 const DEF_APREM     = {{ def_aprem }};
+const CLOTURES      = {{ clotures_json|safe }};   // mois 'YYYY-MM' clôturés (verrou saisie)
+
+// Verrou clôture : inputs des jours d'un mois clôturé en lecture seule
+document.addEventListener('DOMContentLoaded', function() {
+  if (!CLOTURES.length) return;
+  document.querySelectorAll('.cell-input[data-date]').forEach(function(inp) {
+    if (CLOTURES.includes(inp.dataset.date.slice(0, 7))) {
+      inp.readOnly = true;
+      inp.title = 'Mois clôturé (fiche remise à la RH) — saisie verrouillée.';
+    }
+  });
+});
 </script>
 {% endblock %}
 

@@ -41,6 +41,11 @@
 
 .print-all-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:var(--r);background:var(--gray-lt);color:var(--gray);font-size:12px;text-decoration:none;border:1px solid var(--gray-bd);cursor:pointer}
 .print-all-btn:hover{background:var(--gray-bd)}
+
+/* Clôture du mois */
+.cloture-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:var(--r);font-size:12px;border:1px solid var(--gray-bd);cursor:pointer;background:#fff;color:var(--gray)}
+.cloture-btn:hover{background:var(--gray-lt)}
+.cloture-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:12px;font-size:12px;background:#fef3c7;color:#92400e;font-weight:600}
 </style>
 {% endblock %}
 
@@ -97,10 +102,22 @@
 
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
       <h2 style="font-size:1rem;font-weight:600;margin:0">{{ equipe_sel.nom }}</h2>
-      <a href="{% url 'core:feuilles-liste' %}?equipe={{ equipe_sel.pk }}&annee={{ annee }}&mois={{ mois }}&imprimer=1"
-         target="_blank" class="print-all-btn">
-        <i class="ti ti-printer"></i> Imprimer toutes les fiches
-      </a>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        {% if cloture %}
+        <span class="cloture-badge" title="Clôturé par {{ cloture.cloture_par.get_full_name|default:cloture.cloture_par.username|default:'?' }} le {{ cloture.cloture_le|date:'d/m/Y H:i' }}">
+          <i class="ti ti-lock"></i> Mois clôturé
+        </span>
+        {% endif %}
+        {% if peut_modifier %}
+        <button type="button" class="cloture-btn" onclick="toggleCloture()">
+          {% if cloture %}<i class="ti ti-lock-open"></i> Déverrouiller{% else %}<i class="ti ti-lock"></i> Clôturer le mois{% endif %}
+        </button>
+        {% endif %}
+        <a href="{% url 'core:feuilles-liste' %}?equipe={{ equipe_sel.pk }}&annee={{ annee }}&mois={{ mois }}&imprimer=1"
+           target="_blank" class="print-all-btn">
+          <i class="ti ti-printer"></i> Imprimer toutes les fiches
+        </a>
+      </div>
     </div>
 
     <div class="card">
@@ -144,4 +161,27 @@
     {% endif %}
   </div><!-- fl-main -->
 </div><!-- fl-layout -->
+
+{% if equipe_sel and peut_modifier %}
+<script>
+function toggleCloture() {
+  {% if not cloture %}
+  if (!confirm('Clôturer {{ mois_nom }} {{ annee }} pour {{ equipe_sel.nom }} ?\n\nLa saisie des présences sera verrouillée (émargement, fiches, prêts).')) return;
+  {% else %}
+  if (!confirm('Déverrouiller {{ mois_nom }} {{ annee }} pour {{ equipe_sel.nom }} ?\n\nLa saisie des présences sera de nouveau possible.')) return;
+  {% endif %}
+  fetch('{% url "core:cloture-toggle" %}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+    body: JSON.stringify({equipe_id: {{ equipe_sel.pk }}, annee: {{ annee }}, mois: {{ mois }}}),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) { location.reload(); }
+    else { alert(d.error || 'Erreur'); }
+  })
+  .catch(function() { alert('Erreur réseau'); });
+}
+</script>
+{% endif %}
 {% endblock %}

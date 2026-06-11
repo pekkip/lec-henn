@@ -512,6 +512,20 @@ const EQ_EFF    = {{ equipe_effectifs_json|safe }};
 const TAUX_JOUR = 82.5;  // €/jour/équipier (Lun-Jeu, 4 j/semaine)
 const LUNDI_ISO   = '{{ lundi|date:"Y-m-d" }}';
 const VENDREDI_ISO = '{{ vendredi|date:"Y-m-d" }}';
+const CLOTURES    = {{ clotures_json|safe }};   // mois 'YYYY-MM' clôturés (équipe sélectionnée)
+
+// Verrou clôture : cellules des jours d'un mois clôturé en lecture seule
+document.addEventListener('DOMContentLoaded', function() {
+  if (!CLOTURES.length) return;
+  document.querySelectorAll('.cell[data-date]').forEach(function(cell) {
+    if (!CLOTURES.includes(cell.dataset.date.slice(0, 7))) return;
+    cell.style.opacity = '.55';
+    cell.querySelectorAll('input').forEach(function(inp) {
+      inp.readOnly = true;
+      inp.title = 'Mois clôturé (fiche remise à la RH) — saisie verrouillée.';
+    });
+  });
+});
 
 function addWorkingDays(startStr, n) {
   if (n <= 0) return startStr;
@@ -619,6 +633,7 @@ function saveCell(inp) {
       if (eqId) updateTotEquipier(eqId);
     } else {
       inp.classList.add('saving');
+      if (d.error) alert(d.error);
     }
   })
   .catch(() => { inp.classList.remove('saving'); });

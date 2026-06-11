@@ -16,7 +16,7 @@ from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
     Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
     Equipier, TrancheDevis, Affectation, Presence, Pret,
-    Evenement, FicheNote,
+    Evenement, FicheNote, ClotureMois,
 )
 from .permissions import peut_acceder_planning, est_encadrant
 from .planning_utils import (
@@ -2096,6 +2096,140 @@ class FeuillesPresenceTests(TestCase):
             'chantier_texte': 'X',
         }, username='enc_b_feu')
         self.assertEqual(resp.status_code, 403)
+
+
+class ClotureMoisTests(TestCase):
+    """
+    Verrou mensuel (`ClotureMois`) : un mois clôturé bloque toute écriture
+    de présences (émargement, fiche, prêts) pour les équipiers de l'équipe.
+    Endpoint `cloture_toggle` : encadrant clôt et déverrouille (choix S36).
+    Les notes de semaine (FicheNote) restent modifiables.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-Cloture')
+        service = Service.objects.create(territoire=terr, nom='Insertion Cloture', module_planning=True)
+        cls.eq_a = Equipe.objects.create(service=service, nom='CLO-A', actif=True)
+        cls.eq_b = Equipe.objects.create(service=service, nom='CLO-B', actif=True)
+
+        cls.enc_a = User.objects.create_user('enc_a_clo', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_a, role='technicien')
+        cls.eq_a.encadrant = cls.enc_a
+        cls.eq_a.save()
+
+        cls.enc_b = User.objects.create_user('enc_b_clo', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_b, role='technicien')
+        cls.eq_b.encadrant = cls.enc_b
+        cls.eq_b.save()
+
+        cls.equipier = Equipier.objects.create(prenom='Habtom', nom='Tekie', equipe=cls.eq_a)
+
+    def _cloturer(self, annee=2026, mois=6):
+        return ClotureMois.objects.create(
+            equipe=self.eq_a, annee=annee, mois=mois, cloture_par=self.enc_a)
+
+    def _post_json(self, url_name, payload, username='enc_a_clo'):
+        self.client.login(username=username, password='pw')
+        return self.client.post(
+            reverse(url_name), data=json.dumps(payload),
+            content_type='application/json')
+
+    # ── cloture_toggle ───────────────────────────────────────────────────
+
+    def test_toggle_cloture_puis_deverrouille(self):
+        resp = self._post_json('core:cloture-toggle',
+                               {'equipe_id': self.eq_a.pk, 'annee': 2026, 'mois': 6})
+        self.assertTrue(json.loads(resp.content)['cloture'])
+        c = ClotureMois.objects.get(equipe=self.eq_a, annee=2026, mois=6)
+        self.assertEqual(c.cloture_par, self.enc_a)
+
+        resp = self._post_json('core:cloture-toggle',
+                               {'equipe_id': self.eq_a.pk, 'annee': 2026, 'mois': 6})
+        self.assertFalse(json.loads(resp.content)['cloture'])
+        self.assertFalse(ClotureMois.objects.filter(equipe=self.eq_a, annee=2026, mois=6).exists())
+
+    def test_toggle_refuse_encadrant_autre_equipe(self):
+        resp = self._post_json('core:cloture-toggle',
+                               {'equipe_id': self.eq_a.pk, 'annee': 2026, 'mois': 6},
+                               username='enc_b_clo')
+        self.assertEqual(resp.status_code, 403)
+
+    # ── Verrou sur fiche_presence_save ───────────────────────────────────
+
+    def test_fiche_save_bloquee_mois_cloture(self):
+        self._cloturer()
+        resp = self._post_json('core:fiche-presence-save', {
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-15', 'creneau': 'matin', 'heures': '4',
+        })
+        self.assertEqual(resp.status_code, 403)
+        self.assertIn('clôturé', json.loads(resp.content)['error'])
+        self.assertFalse(Presence.objects.exists())
+
+    def test_fiche_save_ok_apres_deverrouillage(self):
+        c = self._cloturer()
+        c.delete()
+        resp = self._post_json('core:fiche-presence-save', {
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-15', 'creneau': 'matin', 'heures': '4',
+        })
+        self.assertTrue(json.loads(resp.content)['ok'])
+        self.assertEqual(Presence.objects.count(), 1)
+
+    def test_fiche_save_autre_mois_non_bloque(self):
+        self._cloturer(mois=5)   # mai clôturé, juin libre
+        resp = self._post_json('core:fiche-presence-save', {
+            'equipier_id': self.equipier.pk,
+            'date': '2026-06-15', 'creneau': 'matin', 'heures': '4',
+        })
+        self.assertTrue(json.loads(resp.content)['ok'])
+
+    # ── Verrou sur presence_save (émargement) ────────────────────────────
+
+    def test_emargement_save_bloque_mois_cloture(self):
+        self._cloturer()
+        resp = self._post_json('core:presence-save', {'presences': [{
+            'equipier_id': self.equipier.pk, 'affectation_id': None,
+            'date': '2026-06-15', 'creneau': 'matin', 'heures': '4', 'code': '',
+        }]})
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Presence.objects.exists())
+
+    # ── Verrou sur pret_save ─────────────────────────────────────────────
+
+    def test_pret_creation_bloquee_mois_cloture(self):
+        self._cloturer()
+        resp = self._post_json('core:pret-save', {
+            'action': 'create',
+            'equipier_id': self.equipier.pk,
+            'equipe_hote_id': self.eq_b.pk,
+            'date_debut': '2026-06-08', 'date_fin': '2026-06-09',
+        })
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(Pret.objects.exists())
+
+    def test_pret_suppression_bloquee_mois_cloture(self):
+        pret = Pret.objects.create(
+            equipier=self.equipier, equipe_hote=self.eq_b,
+            date_debut=date(2026, 6, 8), date_fin=date(2026, 6, 9),
+            cree_par=self.enc_a,
+        )
+        self._cloturer()
+        resp = self._post_json('core:pret-save', {'action': 'delete', 'pret_id': pret.pk})
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(Pret.objects.filter(pk=pret.pk).exists())
+
+    # ── FicheNote non verrouillée (choix S36) ────────────────────────────
+
+    def test_note_modifiable_malgre_cloture(self):
+        self._cloturer()
+        resp = self._post_json('core:fiche-note-save', {
+            'equipier_id': self.equipier.pk,
+            'annee': 2026, 'mois': 6, 'num_semaine': 25,
+            'observation_texte': 'Correction RH',
+        })
+        self.assertTrue(json.loads(resp.content)['ok'])
 
 
 class PlanningWizardDataTests(TestCase):

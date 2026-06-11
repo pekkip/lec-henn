@@ -110,6 +110,7 @@ urlpatterns = [
     path('insertion/aide/',                   views_planning.aide_insertion_view,   name='aide-insertion'),
     path('insertion/tableau-de-bord/',        views_planning.insertion_dashboard,   name='insertion-dashboard'),
     path('planning/feuilles/',                                    views_planning.feuilles_liste,      name='feuilles-liste'),
+    path('planning/feuilles/cloture/',                            views_planning.cloture_toggle,      name='cloture-toggle'),
     path('planning/feuilles/note/',                               views_planning.fiche_note_save,     name='fiche-note-save'),
     path('planning/feuilles/presence/',                           views_planning.fiche_presence_save, name='fiche-presence-save'),
     path('planning/feuilles/<int:eq_pk>/<int:annee>/<int:mois>/', views_planning.presence_feuille,    name='presence-feuille'),

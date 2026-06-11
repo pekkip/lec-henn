@@ -67,7 +67,7 @@ venv\Scripts\pip install -r requirements.txt
 # Lancer / migrer / tester / vérifier (utiliser le python du venv)
 venv\Scripts\python manage.py migrate
 venv\Scripts\python manage.py runserver      # http://127.0.0.1:8000/
-venv\Scripts\python manage.py test core      # 138 tests (core/tests.py)
+venv\Scripts\python manage.py test core      # 147 tests (core/tests.py)
 venv\Scripts\python manage.py check
 ```
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
@@ -1497,11 +1497,21 @@ Pour supprimer proprement :
 - **Sauvegarde / conservation réglementaire** — les justificatifs FSE doivent rester
   disponibles plusieurs années (contrôles a posteriori). Définir la stratégie de backup
   (dump périodique, export des présences par mois clôturé) au passage hébergement OVH.
-- **`ClotureMois` non branché** — le modèle (verrou mensuel par équipe, schéma + admin
-  depuis la session 25) existe mais **aucune vue ne le consulte** : `presence_save` et
-  `fiche_presence_save` acceptent les modifications rétroactives sur un mois déjà remis
-  à la RH. À implémenter : check du verrou dans les deux endpoints de saisie (+ UI de
-  clôture/déverrouillage, rôle à définir — encadrant ? RH ? admin ?).
+- ✅ **`ClotureMois` branché** — réglé session 36. Verrou serveur dans les **trois**
+  endpoints d'écriture (`presence_save`, `fiche_presence_save`, `pret_save` création ET
+  suppression — la suppression d'un prêt efface des présences). Règle : le verrou suit
+  l'**équipe maison** de l'équipier (sa fiche est partie à la RH). Endpoint
+  `POST /planning/feuilles/cloture/` (`cloture_toggle`) : **l'encadrant clôt et
+  déverrouille** (choix acté ; `est_encadrant` couvre aussi admin/responsable/rh →
+  la RH peut déverrouiller → corriger sur la fiche → re-clôturer, conforme au circuit
+  papier). **FicheNote non verrouillée** (présences seulement — choix acté). UI :
+  bouton Clôturer/Déverrouiller + badge dans `feuilles_liste` ; bannière + inputs
+  readonly sur la fiche (y compris jours ambrés d'un mois précédent clôturé) ; cellules
+  grisées dans l'émargement + alert si le serveur refuse. 9 tests `ClotureMoisTests`.
+- **Export présences → logiciel RH** — à prévoir : les feuilles imprimées/signées
+  partent à la RH pour la paie, et les données de présence devront être exportées vers
+  le logiciel RH. **Format d'échange pas encore connu** (info 11/06/2026) — attendre la
+  spec avant d'implémenter.
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
 - **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
 - **Restriction email @compagnonsbatisseurs.eu à la création d'utilisateur** — validation

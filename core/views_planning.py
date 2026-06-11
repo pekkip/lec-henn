@@ -24,7 +24,7 @@ from django.db.models import Q, Count, Prefetch
 from .models import (
     Devis, Facture, LigneFacture, Equipe,
     Equipier, TrancheDevis, Affectation, Presence, Evenement, Pret,
-    FicheNote,
+    FicheNote, ClotureMois,
 )
 from .permissions import peut_acceder_planning, est_encadrant
 from .planning_utils import (
@@ -477,6 +477,14 @@ def emargement_view(request):
         'semaine_prec': (lundi - timedelta(weeks=1)).isoformat(),
         'semaine_suiv': (lundi + timedelta(weeks=1)).isoformat(),
         'peut_modifier': est_encadrant(request.user, equipe_sel),
+        # Mois clôturés couvrant la semaine affichée (équipe sélectionnée) —
+        # le serveur reste seul juge (équipe maison de chaque équipier).
+        'clotures_json': json.dumps([
+            '%04d-%02d' % (a, m)
+            for a, m in ClotureMois.objects.filter(equipe=equipe_sel)
+            .filter(Q(annee=lundi.year, mois=lundi.month) | Q(annee=vendredi.year, mois=vendredi.month))
+            .values_list('annee', 'mois')
+        ] if equipe_sel else []),
     })
 
 
@@ -1154,6 +1162,39 @@ def affectation_delete(request):
     return JsonResponse({'ok': True, 'recalculated': recalculated})
 
 
+def _mois_cloture(equipe_id, d, cache=None):
+    """True si le mois de `d` est clôturé (ClotureMois) pour cette équipe.
+
+    Le verrou suit l'équipe **maison** de l'équipier : c'est sa fiche de
+    présence qui a été remise à la RH. `cache` ({(eq, an, mois): bool})
+    évite de re-frapper la base dans les boucles de saisie.
+    """
+    if not equipe_id:
+        return False
+    key = (equipe_id, d.year, d.month)
+    if cache is not None and key in cache:
+        return cache[key]
+    val = ClotureMois.objects.filter(equipe_id=equipe_id, annee=d.year, mois=d.month).exists()
+    if cache is not None:
+        cache[key] = val
+    return val
+
+
+def _plage_cloturee(equipe_id, d1, d2):
+    """True si au moins un mois de l'intervalle [d1, d2] est clôturé pour l'équipe."""
+    if not equipe_id:
+        return False
+    mois = Q()
+    d = date(d1.year, d1.month, 1)
+    while d <= d2:
+        mois |= Q(annee=d.year, mois=d.month)
+        d = date(d.year + (1 if d.month == 12 else 0), (d.month % 12) + 1, 1)
+    return ClotureMois.objects.filter(equipe_id=equipe_id).filter(mois).exists()
+
+
+MSG_MOIS_CLOTURE = 'Mois clôturé (fiche remise à la RH) — saisie verrouillée.'
+
+
 @login_required
 @require_POST
 def presence_save(request):
@@ -1164,7 +1205,8 @@ def presence_save(request):
     except (json.JSONDecodeError, ValueError):
         return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
 
-    saved = deleted = 0
+    saved = deleted = verrouille = 0
+    clotures_cache = {}
     for item in data.get('presences', []):
         try:
             equipier_id = int(item.get('equipier_id', 0))
@@ -1177,6 +1219,10 @@ def presence_save(request):
 
         equipier = Equipier.objects.select_related('equipe').filter(pk=equipier_id, actif=True).first()
         if not equipier:
+            continue
+
+        if _mois_cloture(equipier.equipe_id, d, clotures_cache):
+            verrouille += 1
             continue
 
         # Résolution de l'affectation — nullable depuis migration 0024.
@@ -1229,7 +1275,9 @@ def presence_save(request):
             )
             saved += 1
 
-    return JsonResponse({'ok': True, 'saved': saved, 'deleted': deleted})
+    if verrouille and not (saved or deleted):
+        return JsonResponse({'ok': False, 'error': MSG_MOIS_CLOTURE}, status=403)
+    return JsonResponse({'ok': True, 'saved': saved, 'deleted': deleted, 'verrouille': verrouille})
 
 
 @login_required
@@ -1247,6 +1295,9 @@ def pret_save(request):
     if action == 'delete':
         try:
             pret = Pret.objects.select_related('equipe_hote', 'equipier').get(pk=data.get('pret_id'))
+            # Supprimer le prêt effacerait les présences saisies chez l'hôte
+            if _plage_cloturee(pret.equipier.equipe_id, pret.date_debut, pret.date_fin):
+                return JsonResponse({'ok': False, 'error': MSG_MOIS_CLOTURE}, status=403)
             Presence.objects.filter(
                 equipier=pret.equipier,
                 date__range=(pret.date_debut, pret.date_fin),
@@ -1261,6 +1312,12 @@ def pret_save(request):
         equipier = Equipier.objects.select_related('equipe').get(pk=int(data['equipier_id']))
         date_debut = data['date_debut']
         date_fin   = data['date_fin']
+
+        if _plage_cloturee(
+            equipier.equipe_id,
+            date.fromisoformat(date_debut), date.fromisoformat(date_fin),
+        ):
+            return JsonResponse({'ok': False, 'error': MSG_MOIS_CLOTURE}, status=403)
 
         deja_saisi = Presence.objects.filter(
             equipier=equipier,
@@ -1419,6 +1476,11 @@ def feuilles_liste(request):
         'next_annee':   next_annee,
         'next_mois':    next_mois,
         'peut_modifier': est_encadrant(request.user, equipe_sel) if equipe_sel else False,
+        'cloture': (
+            ClotureMois.objects.filter(equipe=equipe_sel, annee=annee, mois=mois)
+            .select_related('cloture_par').first()
+            if equipe_sel else None
+        ),
     })
 
 
@@ -1515,7 +1577,20 @@ def presence_feuille(request, eq_pk, annee, mois):
         """Formate un Decimal d'heures sans décimales inutiles : 4.00→'4', 1.50→'1.5'"""
         return '{:g}'.format(float(val))
 
+    # Mois clôturés visibles sur la fiche (mois courant + mois précédent pour
+    # les jours ambrés) → inputs verrouillés côté JS, banner si mois courant.
+    prev_an = annee if mois > 1 else annee - 1
+    prev_mo = mois - 1 if mois > 1 else 12
+    clotures_fiche = list(
+        ClotureMois.objects.filter(equipe=equipe)
+        .filter(Q(annee=annee, mois=mois) | Q(annee=prev_an, mois=prev_mo))
+        .values_list('annee', 'mois')
+    )
+    cloture_courante = (annee, mois) in clotures_fiche
+
     return render(request, 'core/presence_feuille.html', {
+        'cloture_courante':  cloture_courante,
+        'clotures_json':     json.dumps(['%04d-%02d' % (a, m) for a, m in clotures_fiche]),
         'equipier':         equipier,
         'equipe':           equipe,
         'encadrant':        encadrant,
@@ -1564,6 +1639,9 @@ def fiche_presence_save(request):
 
     if not est_encadrant(request.user, equipier.equipe):
         return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
+
+    if _mois_cloture(equipier.equipe_id, d):
+        return JsonResponse({'ok': False, 'error': MSG_MOIS_CLOTURE}, status=403)
 
     # Résolution affectation : présence existante → active → dernière → None
     existing = Presence.objects.filter(equipier=equipier, date=d, creneau=creneau).select_related('affectation').first()
@@ -1641,3 +1719,38 @@ def fiche_note_save(request):
         )
 
     return JsonResponse({'ok': True})
+
+
+@login_required
+@require_POST
+def cloture_toggle(request):
+    """
+    Clôture / déverrouille un mois pour une équipe (fiche remise à la RH).
+    Un mois clôturé bloque toute écriture de présences (émargement, fiche,
+    prêts) pour les équipiers de l'équipe. Les notes de semaine (FicheNote)
+    restent modifiables — choix acté session 36.
+    """
+    if not peut_acceder_planning(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+    try:
+        data      = json.loads(request.body)
+        equipe_id = int(data.get('equipe_id', 0))
+        annee     = int(data.get('annee', 0))
+        mois      = int(data.get('mois', 0))
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Paramètres invalides'}, status=400)
+    if not (1 <= mois <= 12 and 2020 <= annee <= 2100):
+        return JsonResponse({'ok': False, 'error': 'Mois invalide'}, status=400)
+
+    equipe = Equipe.objects.filter(pk=equipe_id, actif=True, service__module_planning=True).first()
+    if not equipe:
+        return JsonResponse({'ok': False, 'error': 'Équipe introuvable'}, status=404)
+    if not est_encadrant(request.user, equipe):
+        return JsonResponse({'ok': False, 'error': 'Non autorisé sur cette équipe'}, status=403)
+
+    existing = ClotureMois.objects.filter(equipe=equipe, annee=annee, mois=mois).first()
+    if existing:
+        existing.delete()
+        return JsonResponse({'ok': True, 'cloture': False})
+    ClotureMois.objects.create(equipe=equipe, annee=annee, mois=mois, cloture_par=request.user)
+    return JsonResponse({'ok': True, 'cloture': True})
