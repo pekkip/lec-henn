@@ -136,14 +136,27 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Prod (Railway) : noms de fichiers hashés (manifest) → cache navigateur longue
+# durée, invalidé automatiquement à chaque déploiement (collectstatic du Procfile).
+# Dev/tests : pas de manifest (exigerait collectstatic après chaque retouche CSS) ;
+# WhiteNoise sert directement depuis core/static/ via les finders.
+_IS_PROD = not DEBUG and bool(os.environ.get('DATABASE_URL'))
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        "BACKEND": (
+            "whitenoise.storage.CompressedManifestStaticFilesStorage"
+            if _IS_PROD
+            else "django.contrib.staticfiles.storage.StaticFilesStorage"
+        ),
     },
 }
+if not _IS_PROD:
+    WHITENOISE_USE_FINDERS = True
+    WHITENOISE_AUTOREFRESH = True
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
