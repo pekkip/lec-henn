@@ -1444,8 +1444,11 @@ Pour supprimer proprement :
   classes fantômes, badges transparents) + `btn-warning`/`btn-success` dans base.html ;
   7 templates nettoyés ; scroll ajouté sur tableau de bord insertion (piège flex-shrink :
   les cartes se compressaient au lieu de déborder) et utilisateurs (`page-body` + classes
-  fantômes `page-header`/`btn-primary`/`alert` remplacées). Restent : (2) tableaux de
-  listes ; (3) modales ; (4) trancher les incohérences de
+  fantômes `page-header`/`btn-primary`/`alert` remplacées). ✅ **(2) tableaux de listes** —
+  fait 12/06/2026 : `.eq-table` (feuilles) et `.ins-tbl` (×3, tableau de bord insertion)
+  supprimées → style `table` standard de base.html partout ; classe `.scroll-y` remplace
+  les 7 wrappers `style="flex:1;overflow-y:auto"` inline des listes. Restent :
+  (3) modales ; (4) trancher les incohérences de
   charte — prune `#6B1F3A` (base.html) vs `#67123A` (charte), Segoe UI (app) vs
   Montserrat (charte, appliquée seulement aux documents clients/aide — peut-être voulu) ;
   (5) sortir le CSS de base.html vers un fichier statique cacheable. Planning/émargement
