@@ -754,7 +754,9 @@ class LigneFacture(models.Model):
     def total(self):
         enfants = self.enfants.all()
         if self.type_ligne == 'TITRE':
-            return sum(e.total() for e in enfants)
+            if self.quantite == 0:
+                return Decimal('0')
+            return self.quantite * sum(e.total() for e in enfants)
         if enfants.exists():
             return self.quantite * sum(e.total() for e in enfants)
         if self.cout_unitaire is not None:

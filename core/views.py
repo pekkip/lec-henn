@@ -1838,6 +1838,8 @@ def facture_apercu(request, pk):
         result = []
         for lf in lignes_qs:
             if lf.type_ligne == 'TITRE':
+                if float(lf.quantite) == 0:
+                    continue
                 enfants = filtrer_lignes(lf.enfants.all())
                 if enfants:  # titre affiché seulement s'il a des enfants visibles
                     lf.enfants_filtres = enfants

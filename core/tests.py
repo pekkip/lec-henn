@@ -146,6 +146,51 @@ class AccesDevisFactureTests(TestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
+    def test_lignes_facture_titre_a_zero_exclu_du_total(self):
+        # TITRE à 0 = section exclue de la facture ; le montant sauvegardé doit l'ignorer.
+        f = Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='Client Test',
+            status='draft', created_by=self.user_a,
+        )
+        self.client.login(username='alice', password='pw')
+        payload = {'lignes': [
+            {'type_ligne': 'TITRE', 'description': 'Lot exclut', 'quantite': '0',
+             'quantite_originale': '1', 'unite': '', 'cout_unitaire': None, 'ouvert': True,
+             'enfants': [
+                 {'type_ligne': 'F', 'description': 'Peinture', 'quantite': '10',
+                  'quantite_originale': '10', 'unite': 'm2', 'cout_unitaire': '50', 'enfants': []},
+             ]},
+        ]}
+        resp = self.client.post(
+            reverse('core:lignes-facture-save', args=[f.pk]),
+            data=json.dumps(payload),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['montant'], 0.0)
+        f.refresh_from_db()
+        self.assertEqual(float(f.montant), 0.0)
+
+    def test_apercu_titre_a_zero_non_affiche(self):
+        # Un TITRE avec quantite=0 ne doit pas apparaître dans l'aperçu.
+        f = Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='Client Test',
+            status='validated', montant=Decimal('0'), created_by=self.user_a,
+        )
+        titre = LigneFacture.objects.create(
+            facture=f, type_ligne='TITRE', description='Section exclue',
+            quantite=Decimal('0'), ordre=0,
+        )
+        LigneFacture.objects.create(
+            facture=f, parent=titre, type_ligne='F', description='Travaux',
+            quantite=Decimal('5'), cout_unitaire=Decimal('100'), ordre=0,
+        )
+        self.client.login(username='alice', password='pw')
+        resp = self.client.get(reverse('core:facture-apercu', args=[f.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn('Section exclue', resp.content.decode())
+
     # ── Critiques ────────────────────────────────────────────────────
 
     def test_facture_create_exige_login(self):
