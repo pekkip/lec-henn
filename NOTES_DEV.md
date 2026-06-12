@@ -1438,8 +1438,14 @@ Pour supprimer proprement :
   (`utilisateurs_list` ×10, `feuilles_liste` ×4…), retouches `.card`/modales éparses.
   Le CSS spécifique (éditeur devis 331 l., timeline planning 167 l., fiche A4, aperçus)
   est légitime — ne pas y toucher. **Plan en petites passes, écrans stables d'abord**
-  (pas de big-bang, ni avant la prod réelle) : (1) badges + boutons remontés dans
-  base.html ; (2) tableaux de listes ; (3) modales ; (4) trancher les incohérences de
+  (pas de big-bang, ni avant la prod réelle) : ✅ **(1) badges + boutons** — fait 12/06/2026 :
+  8 modificateurs couleur génériques (`b-gray/teal/prune/green/amber/red/blue/violet`) +
+  statuts facture manquants (`b-fdraft/fvalidated/fcancelled/fbypass` — étaient des
+  classes fantômes, badges transparents) + `btn-warning`/`btn-success` dans base.html ;
+  7 templates nettoyés ; scroll ajouté sur tableau de bord insertion (piège flex-shrink :
+  les cartes se compressaient au lieu de déborder) et utilisateurs (`page-body` + classes
+  fantômes `page-header`/`btn-primary`/`alert` remplacées). Restent : (2) tableaux de
+  listes ; (3) modales ; (4) trancher les incohérences de
   charte — prune `#6B1F3A` (base.html) vs `#67123A` (charte), Segoe UI (app) vs
   Montserrat (charte, appliquée seulement aux documents clients/aide — peut-être voulu) ;
   (5) sortir le CSS de base.html vers un fichier statique cacheable. Planning/émargement
