@@ -2036,6 +2036,7 @@ def lignes_facture_save(request, pk):
                 cout_unitaire=to_decimal(cout),
                 ordre=ordre,
                 ouvert=item.get('ouvert', True),
+                ligne_devis_source_id=item.get('ligne_devis_source_id'),
             )
             create_lignes(item.get('enfants', []), parent=lf)
             ordre += 1
