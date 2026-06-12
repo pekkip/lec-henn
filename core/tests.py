@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from django.db import connection
 from django.urls import reverse
 from django.contrib.auth.models import User
@@ -994,6 +995,23 @@ class PlanningGrilleTests(TestCase):
         self.client.login(username='tech2', password='pw')
         resp = self.client.get(reverse('core:planning'))
         self.assertEqual(resp.status_code, 403)
+
+    def test_planning_mois_fenetre_defaut(self):
+        """Fenêtre large : 26 semaines, démarrant 6 semaines avant le lundi courant."""
+        self.client.login(username='david2', password='pw')
+        resp = self.client.get(reverse('core:planning'))
+        today = timezone.localdate()
+        lundi = today - timedelta(days=today.weekday())
+        self.assertEqual(resp.context['nb_semaines'], 26)
+        self.assertEqual(resp.context['cible_lundi'], lundi)
+        self.assertEqual(resp.context['debut_grille'], lundi - timedelta(weeks=6))
+
+    def test_planning_mois_debut_recentre_la_fenetre(self):
+        """?debut= = date cible : la fenêtre rendue commence 6 semaines avant."""
+        self.client.login(username='david2', password='pw')
+        resp = self.client.get(reverse('core:planning') + '?debut=2026-09-16')  # un mercredi
+        self.assertEqual(resp.context['cible_lundi'], date(2026, 9, 14))
+        self.assertEqual(resp.context['debut_grille'], date(2026, 9, 14) - timedelta(weeks=6))
 
     # ── affectation_save ──────────────────────────────────────
 

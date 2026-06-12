@@ -496,16 +496,21 @@ def planning_mois(request):
     profil = get_profil(request.user)
     peut_modifier_global = profil.role in ('admin', 'responsable')
 
-    default_sem = 8 if profil.role in ('admin', 'responsable', 'rh') else 4
-    nb_semaines = max(1, min(52, int(request.GET.get('semaines', '') or default_sem)))
+    # Fenêtre large : 26 semaines rendues d'un coup (−6/+20 autour de la
+    # semaine cible) ; la navigation se fait par scroll côté client, sans
+    # rechargement. `?debut=` = date cible (un saut hors fenêtre recharge
+    # la page recentrée sur cette date).
+    SEM_AVANT, SEM_APRES = 6, 20
+    nb_semaines = SEM_AVANT + SEM_APRES
 
     today = timezone.localdate()
     debut_str = request.GET.get('debut', '')
     try:
-        debut_grille = datetime.strptime(debut_str, '%Y-%m-%d').date()
-        debut_grille -= timedelta(days=debut_grille.weekday())  # recaler au lundi
+        cible = datetime.strptime(debut_str, '%Y-%m-%d').date()
     except (ValueError, AttributeError):
-        debut_grille = today - timedelta(days=today.weekday())
+        cible = today
+    cible_lundi = cible - timedelta(days=cible.weekday())  # recaler au lundi
+    debut_grille = cible_lundi - timedelta(weeks=SEM_AVANT)
 
     nb_jours   = nb_semaines * 7
     fin_grille = debut_grille + timedelta(days=nb_jours - 1)
@@ -689,8 +694,10 @@ def planning_mois(request):
             'peut_modifier': peut_modifier_ligne,
         })
 
+    # Cibles de rechargement quand on bute sur un bord de la fenêtre :
+    # la nouvelle fenêtre (−6/+20 autour de la cible) chevauche l'ancienne.
     prec_debut = (debut_grille - timedelta(weeks=1)).isoformat()
-    suiv_debut = (debut_grille + timedelta(weeks=1)).isoformat()
+    suiv_debut = (fin_grille + timedelta(days=1)).isoformat()
 
     # Pour chaque devis déjà affiché sur la grille : liste des équipes déjà affectées
     devis_equipes: dict[int, list[int]] = {}
@@ -699,9 +706,6 @@ def planning_mois(request):
         devis_equipes.setdefault(did, [])
         if aff.equipe_id not in devis_equipes[did]:
             devis_equipes[did].append(aff.equipe_id)
-
-    # 12 cols/semaine : 10 demi-j (10×13px) + 1 Sam (8px) + 1 Dim (8px)
-    tl_min_width = 180 + nb_semaines * (10 * 13 + 2 * 8)
 
     aff_par_equipe = {}
     for _a in affectations:
@@ -718,11 +722,11 @@ def planning_mois(request):
         'jours_cells': jours_cells,
         'nb_jours': nb_jours,
         'nb_semaines': nb_semaines,
-        'tl_min_width': tl_min_width,
         'semaines': semaines,
         'mois_hdr': mois_hdr,
         'lignes': lignes,
         'debut_grille': debut_grille,
+        'cible_lundi': cible_lundi,
         'fin_grille': fin_grille,
         'prec_debut': prec_debut,
         'suiv_debut': suiv_debut,

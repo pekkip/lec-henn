@@ -11,7 +11,11 @@
 /* ── Timeline container ──────────────────────────────── */
 .tl-outer{display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--gray-bd);border-radius:var(--r);background:#fff;flex:1}
 .tl-scroll{overflow-x:auto;overflow-y:auto;flex:1}
-.tl-inner{display:flex;flex-direction:column}
+/* --ch / --cw : largeur demi-journée / jour de weekend — pilotées par le zoom JS */
+.tl-inner{display:flex;flex-direction:column;--ch:13px;--cw:8px;
+  min-width:calc(180px + {{ nb_semaines }}*(10*var(--ch) + 2*var(--cw)))}
+/* 12 colonnes/semaine : 10 demi-journées + Sam + Dim */
+.tl-cols{grid-template-columns:repeat({{ nb_semaines }},var(--ch) var(--ch) var(--ch) var(--ch) var(--ch) var(--ch) var(--ch) var(--ch) var(--ch) var(--ch) var(--cw) var(--cw))}
 
 /* ── Row layout : label | track ─────────────────────── */
 .tl-row{display:grid;grid-template-columns:180px 1fr;border-bottom:1px solid var(--gray-bd)}
@@ -83,6 +87,7 @@
 .bar-prog{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.15);overflow:hidden;min-width:16px}
 .bar-prog-fill{height:100%;background:currentColor;opacity:.55;border-radius:2px}
 .bar-pct{flex-shrink:0;white-space:nowrap}
+.tl-bar{cursor:pointer}
 .tl-bar:hover{box-shadow:0 2px 6px rgba(0,0,0,.16);filter:brightness(.97)}
 .tl-bar.cha{background:var(--teal-lt);border:1px solid var(--teal-bd);border-left:3px solid var(--teal);color:var(--teal-dk)}
 .tl-bar.chb{background:var(--amber-lt);border:1px solid #F0D9A8;border-left:3px solid var(--amber);color:#8B5E0A}
@@ -118,6 +123,31 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .resize-l{left:2px}.resize-r{right:2px}
 /* Indicateur durée divergente de la durée calculée */
 .tl-bar.divergent{outline:2px dashed var(--amber);outline-offset:-2px}
+/* ── Sélecteur de mois (saut direct) — même esthétique que le mini-calendrier prêt ── */
+.mois-pick{position:relative}
+.mois-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:232px;background:#fff;
+  border:1px solid var(--gray-bd);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);
+  padding:10px 12px;user-select:none}
+.mois-pop-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem}
+.mois-pop-hd b{font-size:13px;color:var(--gray)}
+.mois-pop-nav{background:none;border:none;cursor:pointer;font-size:18px;color:var(--gray);
+  padding:1px 7px;border-radius:3px;line-height:1}
+.mois-pop-nav:hover{background:var(--gray-lt)}
+.mois-pop-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px}
+.mois-cell{text-align:center;font-size:12px;padding:9px 2px;border-radius:4px;line-height:1;
+  cursor:pointer;border:none;background:none;color:var(--gray)}
+.mois-cell:hover{background:var(--teal-lt)}
+.mois-cell.cur{background:var(--prune-lt);color:var(--prune);font-weight:700}
+
+/* ── Carte devis (clic sur une barre) ────────────────── */
+.bar-pop{position:fixed;z-index:60;width:250px;background:#fff;border:1px solid var(--gray-bd);
+  border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 12px;font-size:12px}
+.bar-pop .bp-ref{font-size:10px;font-weight:700;color:var(--gray-md);letter-spacing:.03em}
+.bar-pop .bp-client{font-weight:600;font-size:13px;color:var(--gray);margin:2px 0}
+.bar-pop .bp-line{color:var(--gray-md);font-size:11px;margin-top:1px}
+.bar-pop .bp-link{display:inline-flex;align-items:center;gap:4px;margin-top:8px;
+  font-size:12px;font-weight:600;color:var(--teal);text-decoration:none}
+.bar-pop .bp-link:hover{text-decoration:underline}
 /* Flash après recalcul multi-équipes */
 @keyframes bar-flash{0%,100%{filter:brightness(1)}40%{filter:brightness(1.35) saturate(1.4)}}
 .tl-bar.just-updated{animation:bar-flash .7s ease-in-out}
@@ -187,24 +217,39 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
       </div>
     </div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <!-- Navigation ±1 semaine -->
+      <!-- Navigation ±1 semaine : scroll côté client (rechargement seulement aux bords de la fenêtre) -->
       <div style="display:flex;align-items:center;gap:3px">
-        <a href="?debut={{ prec_debut }}&semaines={{ nb_semaines }}" class="btn btn-sm" title="−1 semaine">
+        <button type="button" class="btn btn-sm" onclick="navSemaine(-1)" title="−1 semaine">
           <i class="ti ti-chevron-left"></i>
-        </a>
-        <a href="?semaines={{ nb_semaines }}" class="btn btn-sm">Aujourd'hui</a>
-        <a href="?debut={{ suiv_debut }}&semaines={{ nb_semaines }}" class="btn btn-sm" title="+1 semaine">
+        </button>
+        <button type="button" class="btn btn-sm" onclick="goAujourdhui()">Aujourd'hui</button>
+        <button type="button" class="btn btn-sm" onclick="navSemaine(1)" title="+1 semaine">
           <i class="ti ti-chevron-right"></i>
-        </a>
+        </button>
       </div>
-      <!-- Sélecteur de fenêtre -->
+      <!-- Saut direct à un mois (scroll si dans la fenêtre, rechargement sinon) -->
+      <div class="mois-pick">
+        <button type="button" class="btn btn-sm" onclick="toggleMoisPop()" title="Aller au mois…">
+          <i class="ti ti-calendar"></i> <span id="mois-btn-lbl">{{ cible_lundi|date:"F Y" }}</span>
+          <i class="ti ti-chevron-down" style="font-size:10px"></i>
+        </button>
+        <div id="mois-pop" class="mois-pop hidden">
+          <div class="mois-pop-hd">
+            <button type="button" class="mois-pop-nav" onclick="moisPopNav(-1)" title="Année précédente">‹</button>
+            <b id="mois-pop-annee"></b>
+            <button type="button" class="mois-pop-nav" onclick="moisPopNav(1)" title="Année suivante">›</button>
+          </div>
+          <div class="mois-pop-grid" id="mois-pop-grid"></div>
+        </div>
+      </div>
+      <!-- Zoom (remplace le sélecteur 4/8/12 semaines) -->
       <div style="display:flex;gap:2px">
-        <a href="?debut={{ debut_grille|date:'Y-m-d' }}&semaines=4"
-           class="btn btn-sm {% if nb_semaines == 4 %}btn-teal{% endif %}">4 sem.</a>
-        <a href="?debut={{ debut_grille|date:'Y-m-d' }}&semaines=8"
-           class="btn btn-sm {% if nb_semaines == 8 %}btn-teal{% endif %}">8 sem.</a>
-        <a href="?debut={{ debut_grille|date:'Y-m-d' }}&semaines=12"
-           class="btn btn-sm {% if nb_semaines == 12 %}btn-teal{% endif %}">12 sem.</a>
+        <button type="button" class="btn btn-sm" onclick="zoomPlanning(-1)" title="Zoom arrière">
+          <i class="ti ti-zoom-out"></i>
+        </button>
+        <button type="button" class="btn btn-sm" onclick="zoomPlanning(1)" title="Zoom avant">
+          <i class="ti ti-zoom-in"></i>
+        </button>
       </div>
       {% if peut_modifier_global %}
       <button class="btn btn-prune btn-sm" onclick="openAffModal(null)">
@@ -227,14 +272,14 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
   <!-- ── Timeline ──────────────────────────────────── -->
   <div class="tl-outer">
     <div class="tl-scroll">
-      <div class="tl-inner" style="min-width:{{ tl_min_width }}px">
+      <div class="tl-inner">
 
         <!-- En-têtes collants -->
         <div class="tl-hdr">
           <!-- Ligne mois -->
           <div class="tl-row tl-hdr-row">
             <div class="tl-lbl">&nbsp;</div>
-            <div class="tl-mois-track" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
+            <div class="tl-mois-track tl-cols">
               {% for m in mois_hdr %}
               <div class="tl-mois" style="grid-column:span {{ m.span }}">{{ m.date|date:"F Y" }}</div>
               {% endfor %}
@@ -243,7 +288,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
           <!-- Ligne semaines -->
           <div class="tl-row tl-hdr-row">
             <div class="tl-lbl">Équipe</div>
-            <div class="tl-wk-track" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
+            <div class="tl-wk-track tl-cols">
               {% for sem in semaines %}
               <div class="tl-wk" style="grid-column:span 12">Sem.&nbsp;{{ sem.num }}</div>
               {% endfor %}
@@ -252,7 +297,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
           <!-- Ligne jours -->
           <div class="tl-row tl-hdr-row">
             <div class="tl-lbl">&nbsp;</div>
-            <div class="tl-day-track" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
+            <div class="tl-day-track tl-cols">
               {% for j in jours_hdr %}
               <div class="tl-day{% if j.weekday == 0 %} mon-hd{% endif %}{% if j.weekday == 4 %} fri-hd{% endif %}{% if j.weekday >= 5 %} we-hd{% endif %}{% if j.date == today %} today-hd{% endif %}"
                    style="grid-column:{{ j.col_debut }}/{{ j.col_fin }}">
@@ -281,7 +326,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
             </button>
             {% endif %}
           </div>
-          <div class="tl-track" data-equipe="{{ ligne.equipe.pk }}" style="grid-template-columns:repeat({{ nb_semaines }},13px 13px 13px 13px 13px 13px 13px 13px 13px 13px 8px 8px)">
+          <div class="tl-track tl-cols" data-equipe="{{ ligne.equipe.pk }}">
             {# Fond de cellules : 2 demi-colonnes par jour ouvré, 1 par weekend #}
             {% for cell in jours_cells %}
             <div class="tl-cell{% if cell.weekday == 0 and not cell.aprem %} mon-cell{% endif %}{% if cell.weekday == 4 %} fri-cell{% endif %}{% if cell.is_we %} we-cell{% endif %}{% if cell.aprem %} aprem{% endif %}{% if cell.is_today %} today-cell{% endif %}"
@@ -310,6 +355,9 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
                style="grid-column:{{ barre.col_debut }}/{{ barre.col_fin_excl }}"
                title="{{ barre.label }}"
                data-devis="{{ barre.aff.tranche.devis.pk }}"
+               data-url="{% url 'core:devis-detail' barre.aff.tranche.devis.pk %}"
+               data-client="{{ barre.aff.tranche.devis.client.nom }}"
+               data-lieu="{{ barre.lieu }}"
                data-debut="{{ barre.aff.date_debut|date:'Y-m-d' }}"
                data-fin="{{ barre.aff.date_fin|date:'Y-m-d' }}"
                data-debut-creneau="{{ barre.aff.debut_creneau }}"
@@ -344,6 +392,9 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
   </div>
 
   {% endif %}
+
+  <!-- Carte devis affichée au clic sur une barre -->
+  <div id="bar-pop" class="bar-pop hidden"></div>
 </div>
 {% endblock %}
 
@@ -533,6 +584,131 @@ const EVENEMENTS_DATA = {{ evenements_data_json|safe }};
 const WE_EXCLUDED = [0, 5, 6]; // JS: Sun=0, Fri=5, Sat=6
 const TODAY_ISO   = '{{ today|date:"Y-m-d" }}';
 
+// ── Navigation par scroll (fenêtre large −6/+20 semaines) ─────────────
+const SC           = document.querySelector('.tl-scroll');
+const TL_INNER     = document.querySelector('.tl-inner');
+const DEBUT_GRILLE = '{{ debut_grille|date:"Y-m-d" }}';
+const CIBLE_LUNDI  = '{{ cible_lundi|date:"Y-m-d" }}';
+const NB_SEM       = {{ nb_semaines }};
+const PREC_URL     = '?debut={{ prec_debut }}';
+const SUIV_URL     = '?debut={{ suiv_debut }}';
+const LBL_W        = 180;   // largeur de la colonne libellés (sticky)
+
+function semW() {  // largeur d'une semaine en px (10 demi-j + Sam + Dim)
+  const cs = getComputedStyle(TL_INNER);
+  return 10 * parseFloat(cs.getPropertyValue('--ch')) + 2 * parseFloat(cs.getPropertyValue('--cw'));
+}
+function weekIndexOf(iso) {  // index de semaine (0-based) d'une date dans la fenêtre
+  const d = (new Date(iso + 'T12:00:00') - new Date(DEBUT_GRILLE + 'T12:00:00')) / 864e5;
+  return Math.floor(d / 7);
+}
+function scrollToWeek(idx, smooth) {
+  if (!SC) return;
+  SC.scrollTo({left: Math.max(0, idx * semW() - SC.clientWidth * 0.15),
+               behavior: smooth ? 'smooth' : 'auto'});
+}
+function navSemaine(dir) {
+  if (!SC) return;
+  const max = SC.scrollWidth - SC.clientWidth;
+  // Au bord de la fenêtre : rechargement recentré (historique / planification lointaine)
+  if (dir < 0 && SC.scrollLeft <= 2)       { location.href = PREC_URL; return; }
+  if (dir > 0 && SC.scrollLeft >= max - 2) { location.href = SUIV_URL; return; }
+  SC.scrollBy({left: dir * semW(), behavior: 'smooth'});
+}
+function goAujourdhui() {
+  const idx = weekIndexOf(TODAY_ISO);
+  if (idx < 0 || idx >= NB_SEM) { location.href = '{% url "core:planning" %}'; return; }
+  scrollToWeek(idx, true);
+}
+function sautMois(val) {  // val = 'YYYY-MM'
+  if (!val) return;
+  const idx = weekIndexOf(val + '-01');
+  if (idx >= 0 && idx < NB_SEM) {
+    scrollToWeek(idx, true);
+    const lbl = document.getElementById('mois-btn-lbl');
+    if (lbl) lbl.textContent = MOIS_FR[parseInt(val.slice(5), 10) - 1] + ' ' + val.slice(0, 4);
+  } else {
+    location.href = '?debut=' + val + '-01';
+  }
+}
+
+// ── Sélecteur de mois (popover façon mini-calendrier prêt) ──
+const MOIS_FR    = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+                    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const MOIS_FR_AB = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
+                    'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const CIBLE_MOIS = CIBLE_LUNDI.slice(0, 7);  // 'YYYY-MM' — mois mis en avant dans la grille
+let moisPopAnnee = parseInt(CIBLE_LUNDI.slice(0, 4), 10);
+
+function renderMoisPop() {
+  document.getElementById('mois-pop-annee').textContent = moisPopAnnee;
+  const grid = document.getElementById('mois-pop-grid');
+  grid.innerHTML = '';
+  for (let m = 1; m <= 12; m++) {
+    const val = moisPopAnnee + '-' + String(m).padStart(2, '0');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'mois-cell' + (val === CIBLE_MOIS ? ' cur' : '');
+    b.textContent = MOIS_FR_AB[m - 1];
+    b.title = MOIS_FR[m - 1] + ' ' + moisPopAnnee;
+    b.onclick = () => { hideMoisPop(); sautMois(val); };
+    grid.appendChild(b);
+  }
+}
+function toggleMoisPop() {
+  const pop = document.getElementById('mois-pop');
+  if (pop.classList.contains('hidden')) {
+    moisPopAnnee = parseInt(CIBLE_LUNDI.slice(0, 4), 10);
+    renderMoisPop();
+    pop.classList.remove('hidden');
+  } else pop.classList.add('hidden');
+}
+function hideMoisPop() { document.getElementById('mois-pop').classList.add('hidden'); }
+function moisPopNav(d) { moisPopAnnee += d; renderMoisPop(); }
+document.addEventListener('click', e => { if (!e.target.closest('.mois-pick')) hideMoisPop(); });
+
+// Zoom : largeur demi-journée / weekend (persisté par navigateur)
+const ZOOMS = [[9, 6], [13, 8], [20, 12]];
+let zoomIdx = Math.max(0, Math.min(ZOOMS.length - 1, parseInt(localStorage.getItem('planningZoom') || '1', 10) || 1));
+function applyZoom() {
+  if (!TL_INNER) return;
+  TL_INNER.style.setProperty('--ch', ZOOMS[zoomIdx][0] + 'px');
+  TL_INNER.style.setProperty('--cw', ZOOMS[zoomIdx][1] + 'px');
+}
+function zoomPlanning(dir) {
+  if (!SC) return;
+  const ni = Math.max(0, Math.min(ZOOMS.length - 1, zoomIdx + dir));
+  if (ni === zoomIdx) return;
+  const ratio = (SC.scrollLeft + (SC.clientWidth - LBL_W) / 2) / (semW() * NB_SEM);  // garder le centre
+  zoomIdx = ni;
+  localStorage.setItem('planningZoom', String(zoomIdx));
+  applyZoom();
+  SC.scrollLeft = ratio * semW() * NB_SEM - (SC.clientWidth - LBL_W) / 2;
+}
+
+// Position initiale : scroll mémorisé (retour après un reload), sinon semaine cible
+applyZoom();
+(function initScroll() {
+  if (!SC) return;
+  const key = 'planScroll:' + DEBUT_GRILLE;
+  const saved = sessionStorage.getItem(key);
+  if (saved !== null) SC.scrollLeft = parseFloat(saved) * semW();
+  else scrollToWeek(Math.max(0, weekIndexOf(CIBLE_LUNDI)), false);
+  let t = null;
+  SC.addEventListener('scroll', () => {
+    clearTimeout(t);
+    t = setTimeout(() => sessionStorage.setItem(key, String(SC.scrollLeft / semW())), 150);
+  });
+})();
+
+// Flèches clavier ← / → (hors champs de saisie et modales)
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.target.closest('input,select,textarea')) return;
+  if (document.querySelector('.modal-bg:not(.hidden)')) return;
+  navSemaine(e.key === 'ArrowLeft' ? -1 : 1);
+});
+
 function isWorkingDay(dateStr, equipeId) {
   const eqKey = String(equipeId || '');
   const neg = (EV_NEGATIFS[eqKey] || []).concat(EV_NEGATIFS['global'] || []);
@@ -555,10 +731,12 @@ function snapFin(dateStr, equipeId) {
 // ── Drag & drop ────────────────────────────────────────
 let dragData = null;
 let cellPositionCache = null; // {equipeId: [{cell,left,right}]} — construit au dragstart
+let cacheScrollLeft = 0;      // scrollLeft au moment de la construction du cache
 let rafDragPending = false, rafDragX = 0, rafDragTrack = null;
 
 function buildCellPositionCache() {
   const cache = {};
+  cacheScrollLeft = SC.scrollLeft;
   document.querySelectorAll('.tl-track[data-equipe]').forEach(tr => {
     const eq = tr.dataset.equipe;
     cache[eq] = [];
@@ -572,7 +750,11 @@ function buildCellPositionCache() {
 
 function cellAtX(track, clientX) {
   const eq = track.dataset.equipe;
-  const entries = (cellPositionCache && cellPositionCache[eq]) || (() => {
+  const cached = cellPositionCache && cellPositionCache[eq];
+  // Le cache stocke des positions viewport figées au dragstart : si la grille
+  // a défilé depuis (auto-scroll), on compense par le delta de scroll.
+  const x = cached ? clientX + (SC.scrollLeft - cacheScrollLeft) : clientX;
+  const entries = cached || (() => {
     const a = [];
     track.querySelectorAll('.tl-cell[data-date]').forEach(cell => {
       const r = cell.getBoundingClientRect();
@@ -582,11 +764,27 @@ function cellAtX(track, clientX) {
   })();
   let best = null, bestDist = Infinity;
   for (const { cell, left, right } of entries) {
-    const d = (clientX >= left && clientX <= right)
-      ? 0 : Math.min(Math.abs(clientX - left), Math.abs(clientX - right));
+    const d = (x >= left && x <= right)
+      ? 0 : Math.min(Math.abs(x - left), Math.abs(x - right));
     if (d < bestDist) { bestDist = d; best = cell; }
   }
   return best;
+}
+
+// ── Auto-scroll horizontal quand le drag approche un bord ──
+let autoScrollRAF = null, lastDragClientX = null;
+function startAutoScroll() {
+  if (autoScrollRAF) return;
+  const step = () => {
+    if (!dragData) { autoScrollRAF = null; return; }
+    if (lastDragClientX !== null) {
+      const r = SC.getBoundingClientRect();
+      if (lastDragClientX < r.left + LBL_W + 40 && SC.scrollLeft > 0) SC.scrollLeft -= 14;
+      else if (lastDragClientX > r.right - 40) SC.scrollLeft += 14;
+    }
+    autoScrollRAF = requestAnimationFrame(step);
+  };
+  autoScrollRAF = requestAnimationFrame(step);
 }
 
 function clearDropOver() {
@@ -642,6 +840,7 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
     cellPositionCache = buildCellPositionCache();
     document.body.classList.add('dragging-active');
+    startAutoScroll();
     setTimeout(() => { bar.style.opacity = '.45'; }, 0);
   });
 
@@ -651,6 +850,7 @@ document.querySelectorAll('.tl-bar[data-aff]').forEach(bar => {
     clearDropOver();
     dragData = null;
     cellPositionCache = null;
+    lastDragClientX = null;
   });
 });
 
@@ -673,6 +873,7 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
     e.dataTransfer.setData('text/plain', bar.dataset.aff);
     cellPositionCache = buildCellPositionCache();
     document.body.classList.add('dragging-active');
+    startAutoScroll();
     setTimeout(() => { bar.style.opacity = '.45'; }, 0);
   });
 
@@ -683,6 +884,7 @@ document.querySelectorAll('.resize-l, .resize-r').forEach(handle => {
     clearDropOver();
     dragData = null;
     cellPositionCache = null;
+    lastDragClientX = null;
   });
 });
 
@@ -698,6 +900,47 @@ document.querySelectorAll('.bar-lock').forEach(btn => {
   });
 });
 
+// ── Carte devis au clic sur une barre ──────────────────
+const barPop = document.getElementById('bar-pop');
+let suppressBarClick = false;  // un drag vient de se terminer → ignorer le clic résiduel
+document.addEventListener('dragstart', () => { suppressBarClick = true; });
+document.addEventListener('dragend',   () => { setTimeout(() => { suppressBarClick = false; }, 100); });
+
+function hideBarPop() { barPop.classList.add('hidden'); }
+
+function escHtml(s) {
+  return String(s || '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+}
+
+document.querySelectorAll('.tl-bar[data-url]').forEach(bar => {
+  bar.addEventListener('click', e => {
+    if (suppressBarClick || dragData) return;
+    if (e.target.closest('.bar-del,.bar-lock,.resize-l,.resize-r')) return;
+    const ref      = bar.querySelector('.bar-ref');
+    const nom      = bar.querySelector('.bar-name');
+    const jours    = bar.querySelector('.bar-days');
+    const pct      = bar.querySelector('.bar-pct');
+    barPop.innerHTML =
+      `<div class="bp-ref">${escHtml(ref ? ref.textContent : '')}</div>` +
+      `<div class="bp-client">${escHtml(bar.dataset.client)}</div>` +
+      `<div class="bp-line">${escHtml(nom ? nom.textContent : '')}</div>` +
+      (bar.dataset.lieu ? `<div class="bp-line"><i class="ti ti-map-pin"></i> ${escHtml(bar.dataset.lieu)}</div>` : '') +
+      ((jours && pct) ? `<div class="bp-line">${escHtml(jours.textContent)} · ${escHtml(pct.textContent)} consommé</div>` : '') +
+      `<a class="bp-link" href="${bar.dataset.url}">Ouvrir le devis <i class="ti ti-external-link"></i></a>`;
+    barPop.classList.remove('hidden');
+    const r = bar.getBoundingClientRect();
+    const x = Math.max(8, Math.min(e.clientX - 60, window.innerWidth - 270));
+    let   y = r.bottom + 6;
+    if (y + 150 > window.innerHeight) y = r.top - 150;
+    barPop.style.left = x + 'px';
+    barPop.style.top  = y + 'px';
+  });
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#bar-pop') && !e.target.closest('.tl-bar')) hideBarPop();
+});
+if (SC) SC.addEventListener('scroll', hideBarPop);  // la carte est en position fixe
+
 // Drop sur les tracks (plus fiable que cell-level pour le drag inter-lignes)
 document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
   const eq = parseInt(track.dataset.equipe);
@@ -708,6 +951,7 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
     if (!PEUT_GLOBAL && !MODIFIABLES.has(eq)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+    lastDragClientX = e.clientX;  // consommé par la boucle d'auto-scroll
     // Mise à jour visuelle throttlée via RAF — e.preventDefault() doit rester synchrone
     rafDragX = e.clientX;
     rafDragTrack = track;
@@ -1274,7 +1518,7 @@ function submitAff() {
 }
 
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closeAffModal(); closeModalEv(); }
+  if (e.key === 'Escape') { closeAffModal(); closeModalEv(); hideBarPop(); hideMoisPop(); }
 });
 
 // ── Modale événement ──────────────────────────────────
