@@ -1388,6 +1388,8 @@ politique de rôle du bypass OTP.
    `compagnonsbatisseurs.eu`). Tant que ce n'est pas fait, les invitations vers
    `@compagnonsbatisseurs.eu` rebondissent (soft bounce « Access denied ») ; contournement =
    message d'invitation affiché à l'écran à la création (session 20). Voir § Infra.
+   **Mise à jour 13/06/2026 : remplacé par la demande IT unique Graph (`Mail.Send`) —
+   voir § Infra, ne pas faire la demande DNS Brevo séparément.**
 
 ---
 
@@ -1567,6 +1569,22 @@ Pour supprimer proprement :
   (`@page`, Montserrat en fichier local, masquer la barre de boutons) ; (3) idem facture ;
   (4) snapshot au passage « envoyé » + pièce jointe email. ⚠️ La fiche de présence remplit
   ses cases en JS → rendre les valeurs côté serveur avant de la passer à WeasyPrint.
+- **Dépôt SharePoint via Microsoft Graph — factures + fiches de présence** (acté 13/06/2026) :
+  pousser les PDF générés vers le SharePoint partagé (tenant M365 de l'association) —
+  factures au passage validé/envoyé, fiches de présence à la clôture du mois (s'emboîte
+  avec la clôture auto à l'impression, déjà actée). Répond en partie à la conservation
+  réglementaire FSE. **Ordre des dépendances : OVH → WeasyPrint → ce chantier.**
+  Côté code : `msal` (jeton applicatif) + `PUT /sites/{site-id}/drive/items/.../content`.
+  Prérequis bloquant : **demande IT nationale unique** (voir § Infra) — ne rien développer
+  avant d'avoir les identifiants.
+- **Annexes au devis (croquis, fiches techniques, plans)** (spec actée 13/06/2026) :
+  nouveau modèle `AnnexeDevis` (FK devis, FileField, titre, created_by, created_at) +
+  upload/liste/suppression dans l'éditeur de devis (droits = `peut_modifier_devis`).
+  **Formats acceptés : images (JPG/PNG) et PDF uniquement.** **Intégrées au PDF client** :
+  images = pages d'annexe ajoutées en fin de devis (WeasyPrint), PDF joints = fusion via
+  `pypdf` après génération. **Dépend de : OVH (volume persistant `media/` — Railway perd
+  les uploads au redéploiement, cf. session 12 logo) puis WeasyPrint.** Les annexes
+  suivront aussi le dépôt SharePoint (même pipeline que les factures).
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
 - **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
 - **Restriction email @compagnonsbatisseurs.eu à la création d'utilisateur** — validation
@@ -1588,6 +1606,35 @@ Pour supprimer proprement :
   (Reply-To `@compagnonsbatisseurs.eu`) ; (C) API Microsoft Graph (HTTPS, tenant M365).
   **Contournement actif (session 20)** : `utilisateur_create` affiche **toujours** le mot de
   passe temporaire à l'écran (communication manuelle), l'email reste best-effort.
+  **Mise à jour 13/06/2026** : la demande DNS Brevo devient caduque si la demande Graph
+  ci-dessous aboutit (`Mail.Send` remplace Brevo) — ne pas faire les deux demandes.
+- **🔴 Demande IT nationale unique — app Entra ID / Microsoft Graph** (actée 13/06/2026,
+  **à envoyer une fois l'OVH en place** — une seule demande, couvre SharePoint + emails) :
+  1. App registration « CB Bretagne — outil devis/facturation » dans Entra ID
+     (récupérer `tenant_id` + `client_id`).
+  2. Permission Graph **`Sites.Selected`** (type Application) + **grant en écriture sur le
+     site SharePoint CB Bretagne** (fournir l'URL du site dans la demande — sans ce grant
+     explicite, `Sites.Selected` ne donne accès à rien).
+  3. Permission **`Mail.Send`** (type Application) + **`ApplicationAccessPolicy`** limitée
+     à la boîte `noreply@compagnonsbatisseurs.eu` (sans la policy, l'app pourrait envoyer
+     depuis n'importe quelle adresse du tenant).
+  4. De préférence authentification par **certificat** (clé publique fournie par nous) ;
+     à défaut secret client de durée maximale — **noter la date d'expiration** (≤ 24 mois,
+     panne silencieuse classique au renouvellement).
+
+  Brouillon prêt à envoyer :
+  > Objet : Enregistrement d'une application Entra ID pour l'outil de gestion CB Bretagne
+  >
+  > Bonjour, dans le cadre de notre outil interne de devis/facturation (hébergé sur notre
+  > VPS OVH), nous aurions besoin d'un enregistrement d'application dans Entra ID :
+  > (1) app « CB Bretagne — outil devis/facturation », en nous communiquant tenant_id et
+  > client_id ; (2) permission Microsoft Graph Sites.Selected (Application) avec grant en
+  > écriture sur notre site SharePoint : [URL du site] ; (3) permission Mail.Send
+  > (Application) restreinte par ApplicationAccessPolicy à noreply@compagnonsbatisseurs.eu ;
+  > (4) de préférence une authentification par certificat (nous fournissons la clé
+  > publique), sinon un secret client avec sa date d'expiration. Cette demande remplace
+  > notre demande précédente d'authentification du domaine dans Brevo (SPF/DKIM), qui
+  > devient sans objet.
 - **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés
   (logo, etc.). **Mise en place prévue semaine du 15/06/2026** (info 11/06). Conditionne :
   export PDF (WeasyPrint + snapshots), restriction email à décommenter, authentification
