@@ -161,17 +161,16 @@ def ligne_facture_to_dict(ligne, deja_par_source=None):
     """
     Sérialise une LigneFacture en dict JSON pour le frontend.
 
-    deja_par_source : dict {ligne_devis_source_id: montant_total_deja_facture}
+    deja_par_source : dict {ligne_devis_source_id: {'montant', 'qty', 'refs'}}
     Calculé une fois pour toute la facture et passé en paramètre (évite N+1).
-
-    # PROTO : le calcul du "déjà facturé" est fait depuis les factures validées
-    # uniquement (status='validated', 'sent', 'paid'). Les brouillons ne comptent pas.
     """
     if deja_par_source is None:
         deja_par_source = {}
 
     source_id = ligne.ligne_devis_source_id
-    deja = float(deja_par_source.get(source_id, 0)) if source_id else 0
+    entry = deja_par_source.get(source_id) if source_id else None
+    deja_montant = entry['montant'] if entry else 0.0
+    refs_deja = [{'ref': r, 'montant': m} for r, m in entry['refs'].items()] if entry else []
 
     return {
         'id': ligne.pk,
@@ -184,43 +183,43 @@ def ligne_facture_to_dict(ligne, deja_par_source=None):
         'ordre': ligne.ordre,
         'ouvert': ligne.ouvert,
         'parent_id': ligne.parent_id,
-        'deja_facture': deja,           # montant déjà facturé sur les factures précédentes validées
+        'deja_facture': deja_montant,
+        'refs_deja_facture': refs_deja,
         'ligne_devis_source_id': source_id,
         'enfants': [ligne_facture_to_dict(e, deja_par_source) for e in ligne.enfants.all()],
     }
 
 
-def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None, ordre=0):
+def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None, ordre=0,
+                                      deja_par_source=None):
     """
     Copie récursivement les lignes du devis vers la facture.
 
-    Différence vs version précédente :
-    - quantite est initialisée à la qté du devis
-      → l'utilisateur modifit ce qu'il veut facturer, 
-    - ligne_devis_source est renseigné pour tracer l'origine
-      → permet de calculer "déjà facturé" sur les factures suivantes
-
-    # PROTO : quantite est initialisée avec la qté du devis (pas à 0).
-    # L'utilisateur met à 0 ou ajuste ce qu'il ne veut pas facturer.
-    # quantite_originale garde la qté devis figée comme référence (snapshot)
+    Si deja_par_source est fourni (factures précédentes validées), la quantite
+    initiale est ajustée : max(0, qty_devis - qty_deja_facturee).
+    quantite_originale garde la qté devis figée comme référence (snapshot).
     """
     for ligne in lignes_devis:
+        entry = deja_par_source.get(ligne.pk) if deja_par_source else None
+        qty_deja = entry['qty'] if entry else Decimal('0')
+        qty_nouvelle = max(Decimal('0'), ligne.quantite - qty_deja)
+
         lf = LigneFacture.objects.create(
             facture=facture,
             parent=parent_facture,
             type_ligne=ligne.type_ligne,
             description=ligne.description,
-            quantite=ligne.quantite,         # ← qté devis
-            quantite_originale=ligne.quantite,  # qté devis figée au snapshot
+            quantite=qty_nouvelle,
+            quantite_originale=ligne.quantite,
             unite=ligne.unite,
             cout_unitaire=ligne.cout_unitaire,
             ordre=ordre,
             ouvert=ligne.ouvert,
-            ligne_devis_source=ligne,       # ← NOUVEAU : traçabilité
+            ligne_devis_source=ligne,
         )
         if ligne.enfants.exists():
             copier_lignes_devis_vers_facture(
-                ligne.enfants.all(), facture, lf, 0
+                ligne.enfants.all(), facture, lf, 0, deja_par_source
             )
         ordre += 1
 
@@ -1578,8 +1577,10 @@ def facture_create(request, devis_pk):
             date_echeance=date_echeance,
             created_by=request.user,
         )
-        # Copie des lignes du devis
-        copier_lignes_devis_vers_facture(devis.lignes.filter(parent=None), facture)
+        # Copie des lignes du devis, quantités ajustées selon les factures précédentes
+        deja_detail = calc_deja_par_source_detail(devis, facture)
+        copier_lignes_devis_vers_facture(devis.lignes.filter(parent=None), facture,
+                                          deja_par_source=deja_detail)
 
         AuditLog.objects.create(
             user=request.user,
@@ -1729,39 +1730,39 @@ def facture_bypass_send_code(request, pk):
         return JsonResponse({'ok': False, 'error': "Impossible d'envoyer le code par email. Contactez un administrateur."})
 
 
-def calc_deja_facture_par_source(devis, facture_courante):
+def calc_deja_par_source_detail(devis, facture_courante):
     """
-    Retourne un dict {ligne_devis_id: montant_total_facture} pour toutes les
-    factures VALIDÉES du devis, en excluant la facture courante.
+    Retourne {ligne_devis_id: {'montant': float, 'qty': Decimal, 'refs': {ref: montant}}}
+    pour toutes les factures VALIDÉES du devis, en excluant la facture courante.
 
-    Statuts comptabilisés : validated, sent, paid.
-    Exclus : draft, cancelled.
-
-    # PROTO : on agrège par ligne_devis_source_id. Si une facture n'a pas ce champ
-    # renseigné (factures créées avant session 6), elle est ignorée dans le calcul.
+    Statuts comptabilisés : validated, sent, paid. Exclus : draft, cancelled, avoirs.
+    Règle TITRE : si TITRE.quantite=0, on ne descend pas dans ses enfants (la section
+    était exclue — ses lignes feuilles n'ont pas été facturées).
     """
     STATUTS_VALIDES = ('validated', 'sent', 'paid')
-
-    factures_prec = devis.factures.filter(
-        status__in=STATUTS_VALIDES,
-        type_doc='facture',
-    ).exclude(pk=facture_courante.pk)
-
     deja = {}
-    for f in factures_prec:
+    for f in devis.factures.filter(
+        status__in=STATUTS_VALIDES, type_doc='facture'
+    ).exclude(pk=facture_courante.pk):
+        ref = f.get_reference()
         for lf in f.lignes.filter(parent=None):
-            _agreger_ligne(lf, deja)
-
+            _agreger_deja(lf, deja, ref)
     return deja
 
 
-def _agreger_ligne(ligne, deja):
-    """Parcourt récursivement et accumule les montants par source."""
+def _agreger_deja(ligne, deja, ref_facture):
+    """Accumule montant + qty + refs par source_id ; stoppe sur TITRE exclu."""
     if ligne.ligne_devis_source_id:
-        montant = float(ligne.total())
-        deja[ligne.ligne_devis_source_id] = deja.get(ligne.ligne_devis_source_id, 0) + montant
+        sid = ligne.ligne_devis_source_id
+        e = deja.setdefault(sid, {'montant': 0.0, 'qty': Decimal('0'), 'refs': {}})
+        e['montant'] += float(ligne.total())
+        e['qty'] += ligne.quantite
+        if ligne.quantite > 0:
+            e['refs'][ref_facture] = e['refs'].get(ref_facture, 0.0) + float(ligne.total())
+    if ligne.type_ligne == 'TITRE' and ligne.quantite == 0:
+        return
     for enfant in ligne.enfants.all():
-        _agreger_ligne(enfant, deja)
+        _agreger_deja(enfant, deja, ref_facture)
 
 
 # ──────────────────────────────────────────
@@ -1954,7 +1955,7 @@ def lignes_facture_get(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_voir_facture(request.user, facture):
         return JsonResponse({'error': 'Permission refusée'}, status=403)
-    deja_par_source = calc_deja_facture_par_source(facture.devis, facture)
+    deja_par_source = calc_deja_par_source_detail(facture.devis, facture)
     racines = facture.lignes.filter(parent=None)
     data = [ligne_facture_to_dict(l, deja_par_source) for l in racines]
 

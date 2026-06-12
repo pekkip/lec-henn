@@ -343,26 +343,25 @@ function renderNode(n, parentZero) {
     const pctDejaShow = Math.min(pctDeja, 100);
     const pctThisShow = Math.min(pctThis, 100 - pctDejaShow);
 
-    // Récapitulatif des factures précédentes pour ce titre
-    // On affiche les factures_prec qui ont un montant > 0 sur ce titre (approximation : on
-    // utilise le montant global de chaque facture — PROTO, affinage possible)
+    // Récapitulatif des factures précédentes pour ce titre : montants par titre
+    // (refs_deja_facture est spécifique à ce nœud, contrairement au montant global)
     let precRows = '';
-    let totalPrecTitre = 0;
-    if (factures_prec.length > 0 && totalDeja > 0) {
-      // PROTO : on affiche toutes les factures précédentes avec leur montant global.
-      // Une version plus fine calculerait le montant par titre.
-      factures_prec.forEach(fp => {
-        totalPrecTitre += fp.montant;
+    const refsNoeud = n.refs_deja_facture || [];
+    if (refsNoeud.length > 0 && totalDeja > 0) {
+      refsNoeud.forEach(r => {
+        const fp = factures_prec.find(f => f.reference === r.ref);
+        const libelle = fp ? fp.libelle : '';
+        const canEdit = fp && MODIFIABLE;
         precRows += `
           <div class="prec-row">
-            <span class="prec-ref">${fp.reference}</span>
+            <span class="prec-ref">${escHtml(r.ref)}</span>
             <div class="prec-libelle">
-              <div contenteditable="${MODIFIABLE ? 'true' : 'false'}"
-                   data-prec-pk="${fp.pk}"
-                   onblur="saveLibelle(this, ${fp.pk})"
-              >${escHtml(fp.libelle)}</div>
+              <div ${canEdit
+                   ? `contenteditable="true" data-prec-pk="${fp.pk}" onblur="saveLibelle(this,${fp.pk})"`
+                   : ''}
+              >${escHtml(libelle)}</div>
             </div>
-            <span class="prec-montant">${fmtV(fp.montant)}</span>
+            <span class="prec-montant">${fmtV(r.montant)}</span>
           </div>`;
       });
       const totalPrec = factures_prec.reduce((s, f) => s + f.montant, 0);

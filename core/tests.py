@@ -191,6 +191,70 @@ class AccesDevisFactureTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn('Section exclue', resp.content.decode())
 
+    def test_nouvelle_facture_titre_deja_facture_a_zero(self):
+        # Facture 1 validée avec TITRE (qty=1) + enfant OUV (qty=10, PU=50)
+        titre_ld = LigneDevis.objects.create(
+            devis=self.devis, type_ligne='TITRE', description='Lot A',
+            quantite=Decimal('1'), ordre=0,
+        )
+        ouv_ld = LigneDevis.objects.create(
+            devis=self.devis, parent=titre_ld, type_ligne='OUV', description='Peinture',
+            quantite=Decimal('10'), cout_unitaire=Decimal('50'), ordre=0,
+        )
+        f1 = Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='C', status='validated',
+            montant=Decimal('500'), created_by=self.user_a,
+        )
+        titre_lf = LigneFacture.objects.create(
+            facture=f1, type_ligne='TITRE', description='Lot A',
+            quantite=Decimal('1'), quantite_originale=Decimal('1'), ordre=0,
+            ligne_devis_source=titre_ld,
+        )
+        LigneFacture.objects.create(
+            facture=f1, parent=titre_lf, type_ligne='OUV', description='Peinture',
+            quantite=Decimal('5'), quantite_originale=Decimal('10'),
+            cout_unitaire=Decimal('50'), ordre=0, ligne_devis_source=ouv_ld,
+        )
+        # Créer la 2ème facture via la vue
+        self.client.login(username='alice', password='pw')
+        resp = self.client.post(
+            reverse('core:facture-create', args=[self.devis.pk]),
+            {'type_doc': 'facture', 'destinataire': 'C', 'echeance_jours': '30'},
+        )
+        self.assertEqual(resp.status_code, 302)
+        f2 = Facture.objects.filter(type_doc='facture', status='draft').last()
+        titre_f2 = f2.lignes.get(type_ligne='TITRE')
+        self.assertEqual(float(titre_f2.quantite), 0.0,
+                         "TITRE déjà facturé (qty=1) doit démarrer à 0")
+        ouv_f2 = f2.lignes.get(type_ligne='OUV')
+        self.assertEqual(float(ouv_f2.quantite), 5.0,
+                         "OUV partiellement facturé (5/10) → reste 5")
+
+    def test_nouvelle_facture_titre_non_facture_garde_qty(self):
+        # TITRE exclu (qty=0) dans la 1ère facture → doit rester à 1 dans la 2ème
+        titre_ld = LigneDevis.objects.create(
+            devis=self.devis, type_ligne='TITRE', description='Lot B',
+            quantite=Decimal('1'), ordre=1,
+        )
+        f1 = Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='C', status='validated',
+            montant=Decimal('0'), created_by=self.user_a,
+        )
+        LigneFacture.objects.create(
+            facture=f1, type_ligne='TITRE', description='Lot B',
+            quantite=Decimal('0'), quantite_originale=Decimal('1'), ordre=0,
+            ligne_devis_source=titre_ld,
+        )
+        self.client.login(username='alice', password='pw')
+        self.client.post(
+            reverse('core:facture-create', args=[self.devis.pk]),
+            {'type_doc': 'facture', 'destinataire': 'C', 'echeance_jours': '30'},
+        )
+        f2 = Facture.objects.filter(type_doc='facture', status='draft').last()
+        titre_f2 = f2.lignes.get(ligne_devis_source=titre_ld)
+        self.assertEqual(float(titre_f2.quantite), 1.0,
+                         "TITRE non facturé (qty=0 dans f1) doit rester à 1 dans f2")
+
     # ── Critiques ────────────────────────────────────────────────────
 
     def test_facture_create_exige_login(self):
