@@ -199,13 +199,18 @@
       <h2>2. Planning</h2>
 
       <h3 id="planning-vue">Vue d'ensemble</h3>
-      <p>Le planning affiche un <strong>calendrier mensuel</strong> avec une ligne par équipe. Chaque <strong>barre colorée</strong> représente une affectation (un chantier planifié sur une période donnée).</p>
+      <p>Le planning affiche une <strong>frise de 26 semaines</strong> (6 semaines en arrière, 20 en avant) avec une ligne par équipe. Chaque <strong>barre colorée</strong> représente une affectation (un chantier planifié sur une période donnée).</p>
       <ul>
-        <li>Naviguez entre les mois avec les flèches <strong>‹</strong> et <strong>›</strong></li>
-        <li>Chaque barre indique le <strong>nom du chantier</strong>, le <strong>nombre de jours</strong> et le <strong>créneau de début</strong> (M = matin, A = après-midi)</li>
+        <li>Les flèches <strong>‹</strong> et <strong>›</strong> font <strong>défiler d'une semaine</strong>, sans rechargement (la molette et la barre de défilement horizontale fonctionnent aussi, ainsi que les flèches du clavier). Arrivé au bord de la frise, un clic supplémentaire recharge la page recentrée — vous pouvez ainsi remonter l'historique ou planifier loin en avant</li>
+        <li><strong>Aujourd'hui</strong> recentre la vue sur la semaine en cours (colonne surlignée en vert)</li>
+        <li>Le bouton <strong>mois</strong> (ex. « juin 2026 ») ouvre un mini-calendrier : cliquez un mois pour y sauter directement, les flèches ‹ › changent d'année</li>
+        <li>Les boutons <strong>zoom − / +</strong> élargissent ou resserrent les colonnes (votre réglage est mémorisé)</li>
+        <li>Chaque barre indique le <strong>nom du chantier</strong>, le <strong>nombre de jours</strong> et le <strong>% consommé</strong></li>
+        <li><strong>Cliquez sur une barre</strong> pour ouvrir une petite carte récapitulative (référence, client, chantier, lieu) avec un lien <strong>Ouvrir le devis</strong></li>
         <li>Une <strong>icône de verrou</strong> sur une barre indique qu'au moins une présence a déjà été enregistrée en émargement — cette affectation ne peut plus être supprimée</li>
       </ul>
       <div class="tip"><strong>Jours fériés et événements</strong> — les colonnes des jours non ouvrés (fériés, fermetures) apparaissent en gris clair et ne comptent pas dans le calcul des durées.</div>
+      <div class="tip"><strong>Déplacement lointain</strong> — pendant un glisser-déposer, approchez la barre du bord gauche ou droit de l'écran : le planning défile automatiquement, vous pouvez déposer le chantier sur une date hors écran sans le lâcher.</div>
 
       <h3 id="planning-affecter">Affecter un chantier</h3>
       <p>Cliquez sur le bouton <strong>Affecter un chantier</strong> (ou directement sur le bouton <strong>+</strong> à droite d'une ligne d'équipe). Une fenêtre s'ouvre en 4 étapes :</p>
