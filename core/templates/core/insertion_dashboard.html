@@ -12,12 +12,6 @@
 .ins-kpi{flex:1;min-width:140px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:14px 18px}
 .ins-kpi-val{font-size:26px;font-weight:700;color:var(--prune);font-variant-numeric:tabular-nums;line-height:1}
 .ins-kpi-lbl{font-size:11px;color:var(--gray-md);margin-top:4px}
-table.ins-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
-table.ins-tbl th{background:var(--gray-lt);color:var(--gray-md);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:6px 10px;border-bottom:2px solid var(--gray-bd);white-space:nowrap}
-table.ins-tbl td{padding:7px 10px;border-bottom:1px solid var(--gray-bd);color:var(--gray)}
-table.ins-tbl tr:last-child td{border-bottom:none}
-table.ins-tbl tr:hover td{background:var(--gray-lt)}
-table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
 .taux-ok{color:var(--teal-dk);font-weight:600}
 .taux-over{color:var(--red);font-weight:600}
 .taux-bar-wrap{display:flex;align-items:center;gap:8px}
@@ -93,7 +87,7 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
   <div class="card">
     <div class="card-hd"><span class="card-title"><i class="ti ti-users" style="color:var(--teal)"></i>Par équipe</span></div>
     <div class="card-body" style="padding:0;overflow-x:auto">
-      <table class="ins-tbl">
+      <table>
         <thead><tr>
           <th>Équipe</th>
           <th class="num">J. facturables</th>
@@ -131,7 +125,7 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
   <div class="card">
     <div class="card-hd"><span class="card-title"><i class="ti ti-building" style="color:var(--teal)"></i>Par chantier</span></div>
     <div class="card-body" style="padding:0;overflow-x:auto">
-      <table class="ins-tbl">
+      <table>
         <thead><tr>
           <th>Équipe</th>
           <th>Chantier</th>
@@ -167,7 +161,7 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
   <div class="card">
     <div class="card-hd"><span class="card-title"><i class="ti ti-receipt" style="color:var(--teal)"></i>Factures — {{ debut_lbl }}</span></div>
     <div class="card-body" style="padding:0;overflow-x:auto">
-      <table class="ins-tbl">
+      <table>
         <thead><tr>
           <th>Référence</th>
           <th>Équipe</th>

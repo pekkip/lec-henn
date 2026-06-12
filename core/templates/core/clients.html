@@ -32,7 +32,7 @@
   <a href="{% url 'core:clients' %}" class="btn btn-sm">Réinitialiser</a>
 </form>
 
-<div style="flex:1;overflow-y:auto">
+<div class="scroll-y">
   <table>
     <thead><tr>
       <th>Nom</th><th>Type</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Ville</th><th>CP</th><th class="num">Devis</th>{% if is_admin %}<th></th>{% endif %}
