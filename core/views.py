@@ -190,37 +190,73 @@ def ligne_facture_to_dict(ligne, deja_par_source=None):
     }
 
 
+# Types dont la quantité reflète le prix unitaire et non le métrage facturé.
+# On ne leur applique jamais de réduction deja_par_source.
+_TYPES_STRUCTURELS = frozenset({'OUV', 'MO', 'MAT'})
+
+
 def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None, ordre=0,
                                       deja_par_source=None):
     """
     Copie récursivement les lignes du devis vers la facture.
 
-    Si deja_par_source est fourni (factures précédentes validées), la quantite
-    initiale est ajustée : max(0, qty_devis - qty_deja_facturee).
-    quantite_originale garde la qté devis figée comme référence (snapshot).
+    Règles de pré-remplissage (si deja_par_source fourni) :
+    - TITRE : démarre à qty devis ; se replie à 0 si et seulement si
+      il était inclus dans une facture précédente ET que son total() == 0
+      (tous les enfants « métrage » sont épuisés).
+    - _TYPES_STRUCTURELS (OUV, MO, MAT) : toujours à qty devis (prix unitaire).
+    - Autres (C, S, F, FMO, FMAT, FIN, FINX…) : max(0, qty_devis - qty_deja).
+    quantite_originale garde la qty devis figée comme référence (snapshot).
     """
     for ligne in lignes_devis:
-        entry = deja_par_source.get(ligne.pk) if deja_par_source else None
-        qty_deja = entry['qty'] if entry else Decimal('0')
-        qty_nouvelle = max(Decimal('0'), ligne.quantite - qty_deja)
+        if ligne.type_ligne == 'TITRE':
+            entry = deja_par_source.get(ligne.pk) if deja_par_source else None
+            was_billed = bool(entry and entry['qty'] > 0)
 
-        lf = LigneFacture.objects.create(
-            facture=facture,
-            parent=parent_facture,
-            type_ligne=ligne.type_ligne,
-            description=ligne.description,
-            quantite=qty_nouvelle,
-            quantite_originale=ligne.quantite,
-            unite=ligne.unite,
-            cout_unitaire=ligne.cout_unitaire,
-            ordre=ordre,
-            ouvert=ligne.ouvert,
-            ligne_devis_source=ligne,
-        )
-        if ligne.enfants.exists():
+            lf = LigneFacture.objects.create(
+                facture=facture,
+                parent=parent_facture,
+                type_ligne='TITRE',
+                description=ligne.description,
+                quantite=ligne.quantite,
+                quantite_originale=ligne.quantite,
+                unite=ligne.unite,
+                cout_unitaire=ligne.cout_unitaire,
+                ordre=ordre,
+                ouvert=ligne.ouvert,
+                ligne_devis_source=ligne,
+            )
             copier_lignes_devis_vers_facture(
                 ligne.enfants.all(), facture, lf, 0, deja_par_source
             )
+            if was_billed and lf.total() == Decimal('0'):
+                lf.quantite = Decimal('0')
+                lf.save(update_fields=['quantite'])
+        else:
+            if deja_par_source is not None and ligne.type_ligne not in _TYPES_STRUCTURELS:
+                entry = deja_par_source.get(ligne.pk)
+                qty_deja = entry['qty'] if entry else Decimal('0')
+            else:
+                qty_deja = Decimal('0')
+            qty_nouvelle = max(Decimal('0'), ligne.quantite - qty_deja)
+
+            lf = LigneFacture.objects.create(
+                facture=facture,
+                parent=parent_facture,
+                type_ligne=ligne.type_ligne,
+                description=ligne.description,
+                quantite=qty_nouvelle,
+                quantite_originale=ligne.quantite,
+                unite=ligne.unite,
+                cout_unitaire=ligne.cout_unitaire,
+                ordre=ordre,
+                ouvert=ligne.ouvert,
+                ligne_devis_source=ligne,
+            )
+            if ligne.enfants.exists():
+                copier_lignes_devis_vers_facture(
+                    ligne.enfants.all(), facture, lf, 0, deja_par_source
+                )
         ordre += 1
 
 
