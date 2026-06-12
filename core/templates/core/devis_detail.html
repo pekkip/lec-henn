@@ -724,15 +724,15 @@
         <span class="fact-status" style="padding-top:2px">
           {% if f.type_doc == 'acompte' %}
             {% if f.status == 'draft' %}
-              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">Acompte · Brouillon</span>
+              <span class="badge b-gray">Acompte · Brouillon</span>
             {% elif f.status == 'validated' %}
-              <span class="badge" style="background:var(--teal-lt);color:var(--teal-dk)">Acompte · Validé</span>
+              <span class="badge b-teal">Acompte · Validé</span>
             {% elif f.status == 'sent' %}
-              <span class="badge" style="background:var(--prune-lt);color:var(--prune)">Acompte · Envoyé</span>
+              <span class="badge b-prune">Acompte · Envoyé</span>
             {% elif f.status == 'paid' %}
-              <span class="badge" style="background:#EAF3DE;color:#27500A">Acompte · Payé</span>
+              <span class="badge b-green">Acompte · Payé</span>
             {% else %}
-              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">Acompte · {{ f.get_status_display }}</span>
+              <span class="badge b-gray">Acompte · {{ f.get_status_display }}</span>
             {% endif %}
           {% else %}
             <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>

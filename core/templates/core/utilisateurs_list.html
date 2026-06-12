@@ -2,21 +2,16 @@
 {% block title %}Utilisateurs{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <h1>Utilisateurs</h1>
+<div class="page-hd">
+  <div><div class="page-title">Utilisateurs</div><div class="page-sub">{{ profils|length }} utilisateur{{ profils|length|pluralize }}</div></div>
   {% if profil.role == 'admin' or profil.role == 'responsable' %}
-  <a href="{% url 'core:utilisateur-create' %}" class="btn btn-primary">
+  <a href="{% url 'core:utilisateur-create' %}" class="btn btn-prune">
     <i class="ti ti-plus"></i> Nouvel utilisateur
   </a>
   {% endif %}
 </div>
 
-{% if messages %}
-  {% for msg in messages %}
-  <div class="alert alert-{{ msg.tags }}">{{ msg }}</div>
-  {% endfor %}
-{% endif %}
-
+<div class="page-body">
 <div class="card">
   <table class="table">
     <thead>
@@ -39,30 +34,30 @@
           <br><small class="text-muted">{{ p.user.email }}</small>
           {% endif %}
           {% if p.invitation_envoyee %}
-          <br><span class="badge badge-invitation"><i class="ti ti-mail-check"></i> Invitation envoyée</span>
+          <br><span class="badge b-teal"><i class="ti ti-mail-check"></i> Invitation envoyée</span>
           {% elif p.user.email %}
-          <br><span class="badge badge-invitation-pending"><i class="ti ti-mail-x"></i> Invitation non envoyée</span>
+          <br><span class="badge b-amber"><i class="ti ti-mail-x"></i> Invitation non envoyée</span>
           {% endif %}
         </td>
         <td><code>{{ p.user.username }}</code></td>
         <td>
-          <span class="badge badge-role badge-{{ p.role }}">
+          <span class="badge {% if p.role == 'admin' %}b-violet{% elif p.role == 'responsable' %}b-teal{% elif p.role == 'technicien' %}b-blue{% elif p.role == 'comptable' %}b-amber{% elif p.role == 'rh' %}b-prune{% elif p.role == 'encadrant' %}b-green{% else %}b-gray{% endif %}">
             {{ p.get_role_display }}
           </span>
         </td>
         <td>{{ p.service|default:"—" }}</td>
         <td>
           {% for eq in p.equipes.all %}
-            <span class="badge badge-equipe">{{ eq.nom }}</span>
+            <span class="badge b-gray">{{ eq.nom }}</span>
           {% empty %}
             <span class="text-muted">—</span>
           {% endfor %}
         </td>
         <td>
           {% if p.user.is_active %}
-            <span class="badge badge-success">Actif</span>
+            <span class="badge b-green">Actif</span>
           {% else %}
-            <span class="badge badge-inactive">Inactif</span>
+            <span class="badge b-gray">Inactif</span>
           {% endif %}
         </td>
         <td class="actions">
@@ -94,21 +89,11 @@
     </tbody>
   </table>
 </div>
+</div><!-- page-body -->
 
 <style>
   .row-inactive td { opacity: 0.5; }
-  .badge-role { font-size: 12px; padding: 3px 8px; border-radius: 4px; }
-  .badge-admin { background: #EEEDFE; color: #3C3489; }
-  .badge-responsable { background: #E1F5EE; color: #0F6E56; }
-  .badge-technicien { background: #E6F1FB; color: #185FA5; }
-  .badge-comptable { background: #FAEEDA; color: #854F0B; }
-  .badge-equipe { background: #F1EFE8; color: #5F5E5A; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-right: 3px; }
-  .badge-success { background: #EAF3DE; color: #3B6D11; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
-  .badge-inactive { background: #F1EFE8; color: #888780; font-size: 12px; padding: 3px 8px; border-radius: 4px; }
-  .badge-invitation { background: #E0F5F2; color: #007A64; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
-  .badge-invitation-pending { background: #FEF3C7; color: #92400E; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
   .actions { white-space: nowrap; }
-  .btn-warning { border-color: #EF9F27; color: #854F0B; }
-  .btn-warning:hover { background: #FAEEDA; }
+  td .badge { margin-right: 3px; }
 </style>
 {% endblock %}

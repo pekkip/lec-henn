@@ -27,25 +27,10 @@
 .eq-table td{padding:8px 10px;border-bottom:1px solid var(--gray-bd);font-size:13px;vertical-align:middle}
 .eq-table tr:hover td{background:var(--gray-lt)}
 
-/* Badges statut */
-.badge-vide{display:inline-flex;align-items:center;gap:4px;color:#999;font-size:12px}
-.badge-partiel{display:inline-flex;align-items:center;gap:4px;color:#f59e0b;font-size:12px}
-.badge-complet{display:inline-flex;align-items:center;gap:4px;color:#10b981;font-size:12px}
-.badge-vide i,.badge-partiel i,.badge-complet i{font-size:15px}
-
-.btn-fiche{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:var(--r);background:var(--teal);color:#fff;font-size:12px;text-decoration:none;border:none;cursor:pointer}
-.btn-fiche:hover{background:var(--teal-dk)}
+.badge i{font-size:14px}
 
 .empty-state{text-align:center;padding:3rem;color:var(--gray-md)}
 .empty-state i{font-size:3rem;display:block;margin-bottom:.5rem}
-
-.print-all-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:var(--r);background:var(--gray-lt);color:var(--gray);font-size:12px;text-decoration:none;border:1px solid var(--gray-bd);cursor:pointer}
-.print-all-btn:hover{background:var(--gray-bd)}
-
-/* Clôture du mois */
-.cloture-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 14px;border-radius:var(--r);font-size:12px;border:1px solid var(--gray-bd);cursor:pointer;background:#fff;color:var(--gray)}
-.cloture-btn:hover{background:var(--gray-lt)}
-.cloture-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:12px;font-size:12px;background:#fef3c7;color:#92400e;font-weight:600}
 </style>
 {% endblock %}
 
@@ -104,17 +89,17 @@
       <h2 style="font-size:1rem;font-weight:600;margin:0">{{ equipe_sel.nom }}</h2>
       <div style="display:flex;align-items:center;gap:.5rem">
         {% if cloture %}
-        <span class="cloture-badge" title="Clôturé par {{ cloture.cloture_par.get_full_name|default:cloture.cloture_par.username|default:'?' }} le {{ cloture.cloture_le|date:'d/m/Y H:i' }}">
+        <span class="badge b-amber" title="Clôturé par {{ cloture.cloture_par.get_full_name|default:cloture.cloture_par.username|default:'?' }} le {{ cloture.cloture_le|date:'d/m/Y H:i' }}">
           <i class="ti ti-lock"></i> Mois clôturé
         </span>
         {% endif %}
         {% if peut_modifier %}
-        <button type="button" class="cloture-btn" onclick="toggleCloture()">
+        <button type="button" class="btn" onclick="toggleCloture()">
           {% if cloture %}<i class="ti ti-lock-open"></i> Déverrouiller{% else %}<i class="ti ti-lock"></i> Clôturer le mois{% endif %}
         </button>
         {% endif %}
         <a href="{% url 'core:feuilles-liste' %}?equipe={{ equipe_sel.pk }}&annee={{ annee }}&mois={{ mois }}&imprimer=1"
-           target="_blank" class="print-all-btn">
+           target="_blank" class="btn">
           <i class="ti ti-printer"></i> Imprimer toutes les fiches
         </a>
       </div>
@@ -136,11 +121,11 @@
             <td><strong>{{ row.equipier.prenom }} {{ row.equipier.nom }}</strong></td>
             <td>
               {% if row.statut == 'vide' %}
-                <span class="badge-vide"><i class="ti ti-circle"></i> Non commencée</span>
+                <span class="badge b-gray"><i class="ti ti-circle"></i> Non commencée</span>
               {% elif row.statut == 'partiel' %}
-                <span class="badge-partiel"><i class="ti ti-clock"></i> En cours</span>
+                <span class="badge b-amber"><i class="ti ti-clock"></i> En cours</span>
               {% else %}
-                <span class="badge-complet"><i class="ti ti-circle-check"></i> Complète</span>
+                <span class="badge b-green"><i class="ti ti-circle-check"></i> Complète</span>
               {% endif %}
             </td>
             <td style="font-size:12px;color:var(--gray-md)">
@@ -148,7 +133,7 @@
             </td>
             <td>
               <a href="{% url 'core:presence-feuille' row.equipier.pk annee mois %}"
-                 class="btn-fiche">
+                 class="btn btn-teal btn-sm">
                 <i class="ti ti-file-text"></i> Ouvrir la fiche
               </a>
             </td>

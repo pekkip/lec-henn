@@ -49,12 +49,12 @@
         <td class="num">{{ f.montant|floatformat:2 }} €</td>
         <td>
           <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
-          {% if f.bypass_validation %}<span class="badge" style="background:var(--amber-lt);color:#8B5E0A;margin-left:4px"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span>{% endif %}
+          {% if f.bypass_validation %}<span class="badge b-amber" style="margin-left:4px"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span>{% endif %}
           {% with av=f.avoirs.all %}{% if av %}
             {% if av|length == 1 %}
-            <a href="{% url 'core:compta-facture-detail' av.0.pk %}" class="badge" style="background:var(--red-lt);color:var(--red);margin-left:4px" title="Avoir {{ av.0.get_reference }}"><i class="ti ti-receipt-refund" style="font-size:11px"></i> Avoir</a>
+            <a href="{% url 'core:compta-facture-detail' av.0.pk %}" class="badge b-red" style="margin-left:4px" title="Avoir {{ av.0.get_reference }}"><i class="ti ti-receipt-refund" style="font-size:11px"></i> Avoir</a>
             {% else %}
-            <a href="{% url 'core:avoirs-list' %}" class="badge" style="background:var(--red-lt);color:var(--red);margin-left:4px" title="{{ av|length }} avoirs"><i class="ti ti-receipt-refund" style="font-size:11px"></i> {{ av|length }} avoirs</a>
+            <a href="{% url 'core:avoirs-list' %}" class="badge b-red" style="margin-left:4px" title="{{ av|length }} avoirs"><i class="ti ti-receipt-refund" style="font-size:11px"></i> {{ av|length }} avoirs</a>
             {% endif %}
           {% endif %}{% endwith %}
         </td>

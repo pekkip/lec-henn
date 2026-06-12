@@ -5,6 +5,7 @@
 {% block extra_css %}
 <style>
 .ins-page{display:flex;flex-direction:column;gap:16px}
+.ins-page>*{flex-shrink:0}  /* sans ça, les cartes se compressent au lieu de déclencher le scroll du conteneur */
 .ins-filter{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 20px;padding:10px 14px}
 .flt-lbl{font-size:10.5px;color:var(--gray-md);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .ins-kpi-row{display:flex;gap:12px;flex-wrap:wrap}
@@ -24,12 +25,11 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
 .taux-bar-fill{height:100%;border-radius:4px}
 .taux-val{min-width:42px;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;font-size:12px}
 .card-hd2{padding:10px 14px 0;font-size:11px;font-weight:700;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em}
-.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="ins-page">
+<div class="page-body ins-page">
 
   {# ── Barre de filtres ── #}
   <form method="get" id="prod-filter-form" class="card ins-filter">
@@ -190,17 +190,7 @@ table.ins-tbl td.num,table.ins-tbl th.num{text-align:right;font-variant-numeric:
           <td class="num">{% if f.montant_mat %}{{ f.montant_mat|floatformat:2 }} €{% else %}<span style="color:var(--gray-bd)">—</span>{% endif %}</td>
           <td class="num" style="font-weight:600">{{ f.montant|floatformat:2 }} €</td>
           <td>
-            {% if f.status == 'draft' %}
-              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">Brouillon</span>
-            {% elif f.status == 'validated' %}
-              <span class="badge" style="background:#e6f4f1;color:var(--teal-dk)">Validée</span>
-            {% elif f.status == 'sent' %}
-              <span class="badge" style="background:#fef3cd;color:#856404">Envoyée</span>
-            {% elif f.status == 'paid' %}
-              <span class="badge" style="background:#d1f5e0;color:#166534">Payée</span>
-            {% else %}
-              <span class="badge" style="background:var(--gray-lt);color:var(--gray-md)">{{ f.get_status_display }}</span>
-            {% endif %}
+            <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
           </td>
         </tr>
         {% empty %}

@@ -77,8 +77,14 @@ html.sb-collapsed .sidebar .nav-collapse-btn i{transform:rotate(180deg)}
 .btn-ghost{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:rgba(255,255,255,.88)}
 .btn-ghost:hover{background:rgba(255,255,255,.16);color:#fff}
 select.btn-ghost option{color:var(--gray);background:#fff}
+.btn-warning{border-color:#EF9F27;color:#854F0B}
+.btn-warning:hover{background:var(--amber-lt)}
+.btn-success{border-color:var(--teal);color:var(--teal-dk)}
+.btn-success:hover{background:var(--teal-lt)}
 
-/* BADGES */
+/* BADGES — pilule canonique + modificateurs.
+   Statuts devis : b-<status> · statuts facture : b-f<status> ·
+   couleurs génériques (préférer aux styles inline) : b-gray/teal/prune/green/amber/red/blue/violet */
 .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .b-draft{background:#EFEFED;color:#5F5E5A}.dot-draft{background:#888780}
@@ -86,9 +92,20 @@ select.btn-ghost option{color:var(--gray);background:#fff}
 .b-accepted{background:var(--teal-lt);color:var(--teal-dk)}.dot-accepted{background:var(--teal)}
 .b-refused{background:#FCEBEB;color:#791F1F}.dot-refused{background:#A32D2D}
 .b-expired{background:var(--amber-lt);color:#8B5E0A}.dot-expired{background:var(--amber)}
-.b-fval{background:var(--teal-lt);color:var(--teal-dk)}
-.b-fpaid{background:#EAF3DE;color:#27500A}
+.b-fdraft{background:#EFEFED;color:#5F5E5A}
+.b-fvalidated{background:var(--teal-lt);color:var(--teal-dk)}
 .b-fsent{background:var(--prune-lt);color:var(--prune-dk)}
+.b-fpaid{background:#EAF3DE;color:#27500A}
+.b-fcancelled{background:var(--red-lt);color:var(--red)}
+.b-fbypass{background:var(--amber-lt);color:#8B5E0A}
+.b-gray{background:var(--gray-lt);color:var(--gray-md)}
+.b-teal{background:var(--teal-lt);color:var(--teal-dk)}
+.b-prune{background:var(--prune-lt);color:var(--prune)}
+.b-green{background:#EAF3DE;color:#27500A}
+.b-amber{background:var(--amber-lt);color:#8B5E0A}
+.b-red{background:var(--red-lt);color:var(--red)}
+.b-blue{background:#E6F1FB;color:#185FA5}
+.b-violet{background:#EEEDFE;color:#3C3489}
 
 /* CARDS / TABLES */
 .card{background:var(--white);border:1px solid var(--gray-bd);border-radius:var(--r);overflow:hidden;margin-bottom:1rem}

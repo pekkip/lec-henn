@@ -8,10 +8,6 @@
 /* ── Layout général ─────────────────────── */
 .fiche-wrap{padding:1rem 1.5rem;max-width:1400px;overflow-x:auto}
 .fiche-actions{display:flex;align-items:center;gap:.75rem;margin-bottom:1rem}
-.btn-retour{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r);border:1px solid var(--gray-bd);background:#fff;color:var(--gray);font-size:13px;text-decoration:none;cursor:pointer}
-.btn-retour:hover{background:var(--gray-lt)}
-.btn-print{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--r);background:var(--teal);color:#fff;font-size:13px;border:none;cursor:pointer}
-.btn-print:hover{background:var(--teal-dk)}
 
 /* ── Fiche (format A4 paysage) ─────────── */
 .fiche{background:#fff;border:1px solid #ccc;padding:10px 12px;font-size:11px;font-family:Arial,sans-serif;min-width:900px}
@@ -85,13 +81,13 @@
   <!-- Barre d'actions -->
   <div class="fiche-actions">
     <a href="{% url 'core:feuilles-liste' %}?equipe={{ equipe.pk }}&annee={{ annee }}&mois={{ mois }}"
-       class="btn-retour"><i class="ti ti-arrow-left"></i> Retour</a>
+       class="btn"><i class="ti ti-arrow-left"></i> Retour</a>
     {% if cloture_courante %}
-    <span style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:12px;font-size:12px;background:#fef3c7;color:#92400e;font-weight:600">
+    <span class="badge b-amber">
       <i class="ti ti-lock"></i> Mois clôturé — saisie verrouillée
     </span>
     {% endif %}
-    <button class="btn-print" onclick="window.print()">
+    <button class="btn btn-teal" onclick="window.print()">
       <i class="ti ti-printer"></i> Imprimer
     </button>
   </div>

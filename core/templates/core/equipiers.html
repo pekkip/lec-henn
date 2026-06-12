@@ -41,7 +41,7 @@
       {% for e in equipiers %}
       <tr {% if not e.actif %}style="opacity:.5"{% endif %}>
         <td style="font-weight:500">{{ e.prenom }} {{ e.nom }}
-          {% if not e.actif %}<span class="badge" style="background:var(--gray-lt);color:var(--gray-md);margin-left:4px">inactif</span>{% endif %}
+          {% if not e.actif %}<span class="badge b-gray" style="margin-left:4px">inactif</span>{% endif %}
         </td>
         <td>{{ e.equipe.nom|default:"—" }}</td>
         <td>{{ e.type_contrat|default:"—" }}</td>

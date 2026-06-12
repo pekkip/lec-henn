@@ -41,7 +41,7 @@
       {% for c in clients %}
       <tr>
         <td style="font-weight:500">{{ c.nom }}
-          {% if c.contacts.all %}<span class="badge" style="background:var(--teal-lt);color:var(--teal-dk);margin-left:4px" title="Contacts / services">{{ c.contacts.all|length }} contact{{ c.contacts.all|length|pluralize }}</span>{% endif %}
+          {% if c.contacts.all %}<span class="badge b-teal" style="margin-left:4px" title="Contacts / services">{{ c.contacts.all|length }} contact{{ c.contacts.all|length|pluralize }}</span>{% endif %}
         </td>
         <td>{{ c.get_type_client_display }}</td>
         <td>{{ c.contact|default:"—" }}</td>
