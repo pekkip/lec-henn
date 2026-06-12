@@ -2347,7 +2347,7 @@ function renderLibPanel() {
 
   let html = '';
   biblio.forEach(n => {
-    if (n.type_ligne === 'TITRE') {
+    if (n.type_ligne === 'TITRE' && !n.groupe) {
       const visible = !q || nodeMatchesQuery(n, q);
       if (!visible) return;
       html += `<div class="lib-cat">
@@ -2372,7 +2372,7 @@ function renderLibPanel() {
 function renderLibChildren(nodes, q) {
   let html = '';
   nodes.forEach(n => {
-    if (n.type_ligne === 'TITRE') {
+    if (n.type_ligne === 'TITRE' && !n.groupe) {
       html += `<div class="lib-cat" style="margin-left:8px">
         <div class="lib-cat-hd" onclick="toggleLibCat(this)">
           <i class="ti ti-chevron-down" style="font-size:11px"></i>
@@ -2395,10 +2395,18 @@ function renderLibItem(n) {
     S:'<span class="lib-tag" style="background:var(--teal-lt);color:var(--teal-dk)">simple</span>',
     C:'<span class="lib-tag" style="background:var(--prune-lt);color:var(--prune-dk)">composite</span>',
     F:'<span class="lib-tag" style="background:#E1F5EE;color:#085041">forfait</span>',
+    TITRE:'<span class="lib-tag" style="background:var(--prune-lt);color:var(--prune-dk)">groupe</span>',
   };
   const badge = badges[n.type_ligne] || '';
   const nom = (n.description||'').replace(/<[^>]+>/g,'').substring(0,40);
-  const cost = n.cout_unitaire != null ? ` · ${n.cout_unitaire} €` : '';
+  let det;
+  if (n.type_ligne === 'TITRE') {
+    const nb = (n.enfants||[]).length;
+    det = `${nb} élément${nb > 1 ? 's' : ''} · ${fmtV(calcTotal(n))} €`;
+  } else {
+    const cost = n.cout_unitaire != null ? ` · ${n.cout_unitaire} €` : '';
+    det = `${n.unite||''}${cost}`;
+  }
   const dataNode = encodeURIComponent(JSON.stringify(n));
   return `<div class="lib-item" draggable="true"
     data-node="${dataNode}"
@@ -2406,7 +2414,7 @@ function renderLibItem(n) {
     ondragend="onLibItemDragEnd()"
     onclick="addFromLibNode(this)">
     ${badge}
-    <div><div class="lib-name">${nom}</div><div class="lib-det">${n.unite||''}${cost}</div></div>
+    <div><div class="lib-name">${nom}</div><div class="lib-det">${det}</div></div>
   </div>`;
 }
 
@@ -2452,6 +2460,7 @@ function insertLibNode(src) {
   function cloneNode(n) {
     const c = {...n};
     delete c._nid;
+    delete c.groupe;  // marqueur biblio, ne pas polluer les lignes du devis
     c._nid = '_' + (_nidCounter++);
     if (c.type_ligne === 'MO') c.cout_unitaire = window._tauxMOCourant || TAUX_MO;
     c.enfants = (n.enfants||[]).map(cloneNode);
@@ -2509,14 +2518,18 @@ async function onBiblioDrop(e) {
   if (!draggingNodeNid) return;
   const src = findNode(tree, draggingNodeNid);
   if (!src) return;
+  if (src._isFINGroup) return;  // zone financement : pas un contenu de bibliothèque
 
   // Cloner sans _nid
   function cloneForBiblio(n) {
-    const c = {...n}; delete c._nid; delete c._num;
+    const c = {...n}; delete c._nid; delete c._num; delete c._isFINGroup;
     c.enfants = (n.enfants||[]).map(cloneForBiblio);
     return c;
   }
   const clone = cloneForBiblio(src);
+  // Un TITRE entier devient un « groupe » réinsérable en bloc (les catégories
+  // de la sidebar, elles, se créent dans la page Bibliothèque)
+  if (clone.type_ligne === 'TITRE') clone.groupe = true;
 
   // Charger la biblio, ajouter le nœud, sauvegarder
   try {

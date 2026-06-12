@@ -232,6 +232,58 @@ class SecurityFixesTests(TestCase):
         self.assertTrue(user.check_password('ancien_mdp'))
 
 
+class BibliothequeTests(TestCase):
+    """Bibliothèque personnelle : round-trip JSON, y compris les groupes
+    d'ouvrages (TITRE avec flag ``groupe`` — sous-arbre réinsérable en bloc)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('biblio_user', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.user, role='technicien')
+
+    GROUPE = {
+        'type_ligne': 'TITRE', 'groupe': True,
+        'description': 'Remplacement tableau électrique',
+        'quantite': 1, 'ouvert': True,
+        'enfants': [
+            {'type_ligne': 'S', 'description': 'Dépose ancien tableau',
+             'quantite': 1, 'unite': 'u', 'cout_unitaire': None,
+             'enfants': [
+                 {'type_ligne': 'MO', 'description': "Main d'œuvre", 'quantite': 4,
+                  'unite': 'h', 'cout_unitaire': 46, 'enfants': []},
+                 {'type_ligne': 'MAT', 'description': 'Petites fournitures', 'quantite': 1,
+                  'unite': 'u', 'cout_unitaire': 25, 'enfants': []},
+             ]},
+            {'type_ligne': 'FMAT', 'description': 'Tableau 13 modules', 'quantite': 1,
+             'unite': 'forfait', 'cout_unitaire': 180, 'enfants': []},
+        ],
+    }
+
+    def test_round_trip_groupe(self):
+        # Le flag `groupe` et le sous-arbre complet survivent à save → get.
+        self.client.login(username='biblio_user', password='pw')
+        lignes = [
+            {'type_ligne': 'TITRE', 'description': 'Électricité', 'quantite': 1,
+             'enfants': [self.GROUPE]},   # groupe rangé dans une catégorie
+            self.GROUPE,                  # groupe à la racine
+        ]
+        resp = self.client.post(
+            reverse('core:biblio-save'),
+            data=json.dumps({'lignes': lignes}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        data = self.client.get(reverse('core:biblio-get')).json()
+        self.assertEqual(data['lignes'], lignes)
+        self.assertTrue(data['lignes'][1]['groupe'])
+        self.assertEqual(len(data['lignes'][1]['enfants']), 2)
+
+    def test_biblio_api_exige_connexion(self):
+        resp = self.client.get(reverse('core:biblio-get'))
+        self.assertNotEqual(resp.status_code, 200)  # redirection login
+
+
 class ClientsTests(TestCase):
     """Recherche, création rapide, filtres de portée et édition des clients."""
 

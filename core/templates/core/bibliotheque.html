@@ -41,6 +41,7 @@
 .nb-FMO{background:var(--amber-lt);color:#8B5E0A}
 .nb-FMAT{background:#EAF3DE;color:#27500A}
 .nb-TITRE{background:var(--prune-lt);color:var(--prune-dk)}
+.nb-GRP{background:var(--teal-lt);color:var(--teal-dk)}
 
 .drop-above{border-top:2px solid var(--teal) !important}
 .tree-node[draggable="true"]{cursor:grab}
@@ -117,6 +118,7 @@
   <div class="editor-body" id="editor-body">
     <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Catégorie</button>
+      <button class="btn btn-sm" onclick="addGroupe()" title="Groupe d'ouvrages réinsérable en bloc dans un devis (ex. remplacement d'un tableau électrique)"><i class="ti ti-packages"></i> Groupe</button>
       <div style="width:1px;background:var(--gray-bd);height:20px"></div>
       <button class="btn btn-sm" onclick="addRootNode('FMO')"><i class="ti ti-plus"></i> Forfait MO</button>
       <button class="btn btn-sm" onclick="addRootNode('FMAT')"><i class="ti ti-plus"></i> Forfait Mat.</button>
@@ -209,12 +211,13 @@ const NBADGE = {
   MAT:   '<span class="nbadge nb-MAT">mat.</span>',
   OUV:   '<span class="nbadge nb-OUV">ouvrage</span>',
   TITRE: '<span class="nbadge nb-TITRE">catégorie</span>',
+  GRP:   '<span class="nbadge nb-GRP">groupe</span>',
 };
 
 const DEFAULT_DESCS = new Set([
   'Forfait main d\'œuvre','Forfait matériaux','Nouvel ouvrage',
   'Nouvel ouvrage composite','Nouveau titre','Main d\'œuvre',
-  'Matériau','Sous-ouvrage','Nouvelle catégorie',
+  'Matériau','Sous-ouvrage','Nouvelle catégorie','Nouveau groupe',
 ]);
 function isDefaultDesc(n) { return !n.description||DEFAULT_DESCS.has(n.description); }
 
@@ -238,7 +241,9 @@ function renderNode(n, depth) {
     +(isTitre?' titre-total':'');
 
   const rowExtra = isTitre
-    ?' style="background:var(--prune-lt);border-color:var(--prune-bd);font-weight:500"':'';
+    ?(n.groupe
+      ?' style="background:var(--teal-lt);border-color:var(--teal-bd);font-weight:500"'
+      :' style="background:var(--prune-lt);border-color:var(--prune-bd);font-weight:500"'):'';
 
   let h = `<div class="tree-node" data-nid="${n._nid}">
     <div class="node-row"${rowExtra}
@@ -250,10 +255,10 @@ function renderNode(n, depth) {
          ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
       <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
       <div class="toggler ${(hasK||isTitre)?'':'leaf'}" onclick="togNode('${n._nid}')">${tog}</div>
-      ${NBADGE[n.type_ligne]||''}
+      ${(isTitre && n.groupe) ? NBADGE.GRP : (NBADGE[n.type_ligne]||'')}
       <div class="nd-desc-ce">
         <div contenteditable="true"
-             data-placeholder="${isTitre?'Catégorie…':'Description…'}"
+             data-placeholder="${isTitre?(n.groupe?'Groupe…':'Catégorie…'):'Description…'}"
              data-nid-desc="${n._nid}"
              class=""
              onfocus="if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}"
@@ -380,6 +385,11 @@ function addRootNode(type) {
 }
 function addTitre() {
   const n={type_ligne:'TITRE',description:'Nouvelle catégorie',enfants:[],ouvert:true,quantite:1};
+  n._nid='_'+(_nidCounter++);
+  tree.push(n); renderTree();
+}
+function addGroupe() {
+  const n={type_ligne:'TITRE',groupe:true,description:'Nouveau groupe',enfants:[],ouvert:true,quantite:1};
   n._nid='_'+(_nidCounter++);
   tree.push(n); renderTree();
 }
