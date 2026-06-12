@@ -5,6 +5,8 @@
 
 {% block extra_css %}
 <style>
+.modal-pret{width:320px}
+.modal-aff-em{width:480px}
 /* ── layout ───────────────────────────────── */
 .plan-layout{display:grid;grid-template-columns:220px 1fr;gap:1rem;flex:1;overflow:hidden;padding:1rem 1.25rem;transition:grid-template-columns .15s}
 .plan-layout.panel-off{grid-template-columns:40px 1fr}
@@ -428,7 +430,7 @@
 {% block modals %}
 {% if peut_modifier %}
 <div id="modal-pret" class="modal-bg hidden">
-  <div class="modal" style="width:320px">
+  <div class="modal modal-pret">
     <div class="modal-title">Prêt d'équipier</div>
     <p style="font-size:12px;color:var(--gray-md);margin:.2rem 0 .6rem">
       Ajouter <strong id="pret-eq-nom"></strong> à <strong>{{ equipe_sel.nom }}</strong>
@@ -469,7 +471,7 @@
 
 {% if peut_modifier %}
 <div id="modal-aff" class="modal-bg hidden">
-  <div class="modal" style="width:480px">
+  <div class="modal modal-aff-em">
     <div class="modal-title">Affecter un chantier à {{ equipe_sel.nom }}</div>
     <div class="field">
       <label>Chantier (devis accepté) *</label>

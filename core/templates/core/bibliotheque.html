@@ -261,7 +261,8 @@ function renderNode(n, depth) {
              data-placeholder="${isTitre?(n.groupe?'Groupe…':'Catégorie…'):'Description…'}"
              data-nid-desc="${n._nid}"
              class=""
-             onfocus="if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r)}"
+             onmousedown="this.closest('.node-row').draggable=false;if(document.activeElement!==this){event.preventDefault();this.focus();if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);window.getSelection().removeAllRanges();window.getSelection().addRange(r);}}"
+             onblur="this.closest('.node-row').draggable=true"
              oninput="syncDescInline(this,'${n._nid}')"
         >${isDefaultDesc(n)?'':(n.description||'')}</div>
       </div>

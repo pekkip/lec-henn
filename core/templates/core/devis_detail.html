@@ -952,7 +952,7 @@
 
 <!-- Panneau « Parcourir » (sélection client en-tête) -->
 <div id="eh-modal-browse" class="modal-bg hidden">
-  <div class="modal" style="width:640px">
+  <div class="modal modal-lg">
     <div class="modal-title">Choisir un client</div>
     <div class="search-wrap" style="margin-bottom:10px">
       <i class="ti ti-search"></i>
@@ -1528,8 +1528,8 @@ function renderNode(n, depth) {
             data-placeholder="${isTitre ? 'Titre…' : 'Description…'}"
             data-nid-desc="${n._nid}"
             class="${isNeg ? 'neg-inp' : ''}"
-            onfocus="if(this.textContent.trim() && !this.dataset.wasFocused){const r=document.createRange();r.selectNodeContents(this);const s=window.getSelection();s.removeAllRanges();s.addRange(r);}this.dataset.wasFocused='1';"
-            onblur="delete this.dataset.wasFocused"
+            onmousedown="this.closest('.node-row').draggable=false;if(document.activeElement!==this){event.preventDefault();this.focus();if(this.textContent.trim()){const r=document.createRange();r.selectNodeContents(this);window.getSelection().removeAllRanges();window.getSelection().addRange(r);}}"
+            onblur="this.closest('.node-row').draggable=true"
             oninput="syncDescInline(this,'${n._nid}')"
         >${isDefaultDesc(n) ? '' : (n.description || '')}</div>
       </div>

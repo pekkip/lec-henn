@@ -200,6 +200,8 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .cal-day.in-range{background:var(--amber-lt,#fef3c7);border-radius:0}
 .cal-busy{background:#fde68a}
 .cal-busy:not(.other-month):not(.sel-start):not(.sel-end):not(.in-range):hover{background:var(--amber,#f59e0b);color:#fff}
+.modal-wizard{width:540px}
+.modal-ev{width:500px}
 </style>
 {% endblock %}
 
@@ -401,7 +403,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 {% block modals %}
 <!-- Modal affectation — 4 étapes -->
 <div id="modal-aff" class="modal-bg hidden">
-  <div class="modal" style="width:540px;max-height:90vh;overflow-y:auto">
+  <div class="modal modal-wizard modal-scroll">
     <div class="modal-title">Affecter un chantier</div>
     <div id="aff-steps" class="aff-steps">
       <span class="aff-step active" data-step="1">Chantier</span>
@@ -486,7 +488,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 
 <!-- Modal événement -->
 <div id="modal-ev" class="modal-bg hidden">
-  <div class="modal" style="width:500px">
+  <div class="modal modal-ev">
     <div class="modal-title" id="ev-modal-title">Événement</div>
     <input type="hidden" id="ev-pk" value="">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
