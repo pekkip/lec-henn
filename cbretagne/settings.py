@@ -167,6 +167,12 @@ if not DEBUG and os.environ.get('DATABASE_URL'):
     CSRF_COOKIE_SECURE = True
     # HSTS différé (post-beta) — effet durable côté navigateur, prudent en beta
 
+# Tests : hacheur de mot de passe rapide (PBKDF2 domine sinon le temps de la
+# suite — des centaines de create_user/login). Sans effet hors `manage.py test`.
+import sys
+if 'test' in sys.argv:
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
 MEDIA_URL = '/media/'
