@@ -85,34 +85,23 @@ def paginer(request, queryset, par_page=50):
     return page_obj, params.urlencode()
 
 
-def gen_reference(prefix):
+def gen_numero_sequence(prefix, model, field, queryset=None):
+    """Génère le prochain numéro libre de la forme {prefix}-{annee}-NNN pour
+    model.field. Par défaut, scanne les valeurs commençant par '{prefix}-{annee}-'
+    et prend max+1. Un `queryset` explicite permet de DÉCOUPLER la séquence de scan
+    du préfixe affiché (cf. NUMEROTATION_FACTURE : compteur partagé entre type_docs).
+
+    Race condition max+1 connue (dette technique, hors scope — proba nulle à
+    l'échelle beta)."""
     year = timezone.localdate().year
-    if prefix == 'DEV':
-        qs = Devis.objects.filter(
-            reference__startswith=f'DEV-{year}-'
-        )
-    elif prefix == 'FAC':
-        # Cherche dans toutes les factures (acomptes inclus) pour éviter
-        # les collisions sur le champ unique `numero`
-        qs = Facture.objects.filter(
-            numero__startswith=f'FAC-{year}-'
-        )
-    else:
-        qs = Facture.objects.filter(
-            type_doc='avoir',
-            numero__startswith=f'AV-{year}-'
-        )
-
-    # Extrait les numéros existants et prend le max
+    if queryset is None:
+        queryset = model.objects.filter(
+            **{f'{field}__startswith': f'{prefix}-{year}-'})
     nums = []
-    for obj in qs:
-        ref = obj.reference if prefix == 'DEV' else obj.numero
-        if ref:
-            try:
-                nums.append(int(ref.split('-')[-1]))
-            except ValueError:
-                pass
-
+    for val in queryset.values_list(field, flat=True):
+        tail = (val or '').split('-')[-1]
+        if tail.isdigit():
+            nums.append(int(tail))
     next_num = max(nums) + 1 if nums else 1
     return f"{prefix}-{year}-{str(next_num).zfill(3)}"
 
@@ -120,6 +109,10 @@ def gen_reference(prefix):
 # Numérotation des factures : découple le préfixe AFFICHÉ de la SÉQUENCE de comptage.
 # Pour basculer les appels sur la séquence FAC (en gardant le préfixe APP), il suffit
 # de passer 'appel' -> {'prefix': 'APP', 'sequence': 'FAC'} (une ligne).
+# ⚠️ Stratégie de numérotation (séquences partagées vs séparées, format) = point
+# d'incertitude : arbitrage légal à venir (direction + conseil de l'association).
+# Voir NOTES_DEV § Dette technique. Tant que ce n'est pas tranché, on conserve le
+# découplage prefix/sequence (gen_numero_facture scanne par groupe de séquence).
 NUMEROTATION_FACTURE = {
     'facture':   {'prefix': 'FAC', 'sequence': 'FAC'},
     'acompte':   {'prefix': 'FAC', 'sequence': 'FAC'},
@@ -130,19 +123,13 @@ NUMEROTATION_FACTURE = {
 
 
 def gen_numero_facture(type_doc):
-    """Génère le prochain numéro de facture selon le type_doc (préfixe + séquence)."""
+    """Génère le prochain numéro de facture selon le type_doc (préfixe + séquence).
+    Le scan porte sur tous les type_docs partageant la séquence (compteur commun),
+    l'affichage utilise le préfixe — préserve le découplage NUMEROTATION_FACTURE."""
     cfg = NUMEROTATION_FACTURE.get(type_doc, NUMEROTATION_FACTURE['facture'])
-    prefix, seq = cfg['prefix'], cfg['sequence']
-    year = timezone.localdate().year
-    group = [td for td, c in NUMEROTATION_FACTURE.items() if c['sequence'] == seq]
+    group = [td for td, c in NUMEROTATION_FACTURE.items() if c['sequence'] == cfg['sequence']]
     qs = Facture.objects.filter(type_doc__in=group, numero__isnull=False)
-    nums = []
-    for f in qs:
-        tail = f.numero.split('-')[-1] if f.numero else ''
-        if tail.isdigit():
-            nums.append(int(tail))
-    next_num = max(nums) + 1 if nums else 1
-    return f"{prefix}-{year}-{str(next_num).zfill(3)}"
+    return gen_numero_sequence(cfg['prefix'], Facture, 'numero', queryset=qs)
 
 
 def add_audit(user, action, devis=None, facture=None, bypass=False):
@@ -204,6 +191,52 @@ def ligne_facture_to_dict(ligne, deja_par_source=None):
         'ligne_devis_source_id': source_id,
         'enfants': [ligne_facture_to_dict(e, deja_par_source) for e in ligne.enfants.all()],
     }
+
+
+def build_lignes_creator(model, fk_kwargs, *, with_ouvert=True, with_aide=False,
+                         with_quantite_originale=False, with_source=False,
+                         recurse_only_titre=False):
+    """Construit le récréateur d'arbre de lignes depuis le JSON du frontend,
+    partagé par les 3 éditeurs (devis / facture / facture compta).
+
+    fk_kwargs : {'devis': devis} ou {'facture': facture}. Les flags activent les
+    champs spécifiques à chaque éditeur (cf. Phase 5, docs/plan_ameliorations.md) :
+    - with_ouvert            : champ `ouvert` (devis + facture ; pas la compta).
+    - with_aide              : résout `aide_id` → BibliothèqueAides (devis seul).
+    - with_quantite_originale: snapshot qty devis avec fallback sur `quantite` (facture).
+    - with_source            : `ligne_devis_source_id` (facture, lien pré-remplissage).
+    - recurse_only_titre     : ne descend dans les enfants que sous un TITRE (compta).
+    """
+    def create_lignes(items, parent=None, ordre=0):
+        for item in items:
+            type_ligne = item.get('type_ligne', 'F')
+            fields = dict(
+                **fk_kwargs, parent=parent, type_ligne=type_ligne,
+                description=item.get('description', ''),
+                quantite=to_decimal(item.get('quantite'), default=Decimal('1')),
+                unite=item.get('unite', ''),
+                cout_unitaire=to_decimal(item.get('cout_unitaire')),
+                ordre=ordre,
+            )
+            if with_ouvert:
+                fields['ouvert'] = item.get('ouvert', True)
+            if with_aide:
+                aide_id = item.get('aide_id')
+                fields['aide'] = (
+                    BibliothèqueAides.objects.filter(pk=aide_id).first()
+                    if aide_id else None
+                )
+            if with_quantite_originale:
+                fields['quantite_originale'] = to_decimal(
+                    item.get('quantite_originale', item.get('quantite')),
+                    default=Decimal('1'))
+            if with_source:
+                fields['ligne_devis_source_id'] = item.get('ligne_devis_source_id')
+            ligne = model.objects.create(**fields)
+            if not recurse_only_titre or type_ligne == 'TITRE':
+                create_lignes(item.get('enfants', []), parent=ligne)
+            ordre += 1
+    return create_lignes
 
 
 # Types dont la quantité reflète le prix unitaire et non le métrage facturé.
@@ -769,7 +802,7 @@ def devis_create(request):
         except (InvalidOperation, TypeError, ValueError):
             taux_mo = profil.taux_mo_defaut
         devis = Devis.objects.create(
-            reference=gen_reference('DEV'),
+            reference=gen_numero_sequence('DEV', Devis, 'reference'),
             client=client,
             chantier=chantier,
             equipe_id=equipe_id,
@@ -862,7 +895,7 @@ def devis_duplicate(request, pk):
         return redirect('core:devis-list')
     profil = get_profil(request.user)
     new_devis = Devis.objects.create(
-        reference=gen_reference('DEV'),
+        reference=gen_numero_sequence('DEV', Devis, 'reference'),
         client=src.client,
         chantier=src.chantier + ' (copie)',
         equipe=src.equipe,
@@ -1476,30 +1509,7 @@ def lignes_save(request, pk):
 
     devis.lignes.all().delete()
 
-    def create_lignes(items, parent=None, ordre=0):
-        for item in items:
-            cout = item.get('cout_unitaire')
-            aide_id = item.get('aide_id')
-            aide = None
-            if aide_id:
-                try:
-                    aide = BibliothèqueAides.objects.get(pk=aide_id)
-                except BibliothèqueAides.DoesNotExist:
-                    pass
-            ligne = LigneDevis.objects.create(
-                devis=devis, parent=parent,
-                type_ligne=item.get('type_ligne', 'F'),
-                description=item.get('description', ''),
-                quantite=to_decimal(item.get('quantite'), default=Decimal('1')),
-                unite=item.get('unite', ''),
-                cout_unitaire=to_decimal(cout),
-                ordre=ordre,
-                ouvert=item.get('ouvert', True),
-                aide=aide,
-            )
-            create_lignes(item.get('enfants', []), parent=ligne)
-            ordre += 1
-
+    create_lignes = build_lignes_creator(LigneDevis, {'devis': devis}, with_aide=True)
     create_lignes(lignes)
     devis.fin_group_title = fin_group_title
     devis.zone_financement = zone_financement
@@ -2058,24 +2068,9 @@ def lignes_facture_save(request, pk):
 
     facture.lignes.all().delete()
 
-    def create_lignes(items, parent=None, ordre=0):
-        for item in items:
-            cout = item.get('cout_unitaire')
-            lf = LigneFacture.objects.create(
-                facture=facture, parent=parent,
-                type_ligne=item.get('type_ligne', 'F'),
-                description=item.get('description', ''),
-                quantite=to_decimal(item.get('quantite'), default=Decimal('1')),
-                quantite_originale=to_decimal(item.get('quantite_originale', item.get('quantite')), default=Decimal('1')),
-                unite=item.get('unite', ''),
-                cout_unitaire=to_decimal(cout),
-                ordre=ordre,
-                ouvert=item.get('ouvert', True),
-                ligne_devis_source_id=item.get('ligne_devis_source_id'),
-            )
-            create_lignes(item.get('enfants', []), parent=lf)
-            ordre += 1
-
+    create_lignes = build_lignes_creator(
+        LigneFacture, {'facture': facture},
+        with_quantite_originale=True, with_source=True)
     create_lignes(lignes)
 
     # Recalculer le montant total de la facture
@@ -2567,22 +2562,9 @@ def lignes_compta_save(request, pk):
 
     facture.lignes.all().delete()
 
-    def create_lignes(items, parent=None, ordre=0):
-        for item in items:
-            type_ligne = item.get('type_ligne', 'F')
-            lf = LigneFacture.objects.create(
-                facture=facture, parent=parent,
-                type_ligne=type_ligne,
-                description=item.get('description', ''),
-                quantite=to_decimal(item.get('quantite'), default=Decimal('1')),
-                unite=item.get('unite', ''),
-                cout_unitaire=to_decimal(item.get('cout_unitaire')),
-                ordre=ordre,
-            )
-            if type_ligne == 'TITRE':
-                create_lignes(item.get('enfants', []), parent=lf)
-            ordre += 1
-
+    create_lignes = build_lignes_creator(
+        LigneFacture, {'facture': facture},
+        with_ouvert=False, recurse_only_titre=True)
     create_lignes(lignes)
 
     total = sum(l.total() for l in facture.lignes.filter(parent=None))
