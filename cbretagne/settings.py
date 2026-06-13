@@ -36,7 +36,9 @@ if not DEBUG and os.environ.get('DATABASE_URL') and SECRET_KEY.startswith('djang
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost 127.0.0.1').split(' ')
 
-CSRF_TRUSTED_ORIGINS = ['https://lec-henn-production.up.railway.app']
+CSRF_TRUSTED_ORIGINS = os.environ.get(
+    'CSRF_TRUSTED_ORIGINS', 'https://lec-henn-production.up.railway.app'
+).split(' ')
 
 
 # Application definition

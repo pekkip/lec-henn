@@ -286,7 +286,7 @@ def logout_view(request):
     return redirect('core:login')
 
 def aide_view(request):
-    return render(request, 'core/aide.html')
+    return render(request, 'core/aide.html', {'site_url': settings.SITE_URL})
 
 DOMAINE_AUTORISE = 'compagnonsbatisseurs.eu'
 
