@@ -17,7 +17,7 @@ from .models import (
     Territoire, Service, Equipe, ProfilUtilisateur,
     Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
     Equipier, TrancheDevis, Affectation, Presence, Pret,
-    Evenement, FicheNote, ClotureMois,
+    Evenement, FicheNote, ClotureMois, BibliothequeAides,
 )
 from .permissions import peut_acceder_planning, est_encadrant
 from .planning_utils import (
@@ -1087,9 +1087,9 @@ class ListesPerfTests(TestCase):
         # Preuve d'absence de N+1 : le nombre de requêtes ne doit PAS croître
         # avec le nombre de devis (prefetch → clauses IN, coût constant).
         from .dashboard_widgets import WIDGETS
-        from .models import BibliothèqueAides
+        from .models import BibliothequeAides
 
-        aide = BibliothèqueAides.objects.create(
+        aide = BibliothequeAides.objects.create(
             description='ANAH', organisme='ANAH', created_by=self.admin)
         # Affiche TOUS les widgets (cas le plus lourd).
         self.admin.profil.dashboard_config = {'widgets': [
@@ -2596,3 +2596,429 @@ class PlanningWizardDataTests(TestCase):
         self.assertEqual(tranches[0]['nom'], 'Complet')
         self.assertEqual(tranches[0]['equipes'], [{'nom': 'WIZ-A'}])
 
+
+class AidesBibliothequeTests(TestCase):
+    """Bibliothèque d'aides/financements partagée : save → get → delete.
+    (Le cas montant invalide est couvert par SecurityFixesTests.)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user('aide_user', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.user, role='technicien')
+
+    def _save(self, **kw):
+        payload = {'description': 'ANAH', 'type_ligne': 'FIN',
+                   'montant_defaut': '1500', 'unite': 'forfait',
+                   'organisme': 'ANAH'}
+        payload.update(kw)
+        return self.client.post(
+            reverse('core:aides-save'),
+            data=json.dumps(payload), content_type='application/json')
+
+    def test_save_cree_aide(self):
+        self.client.login(username='aide_user', password='pw')
+        resp = self._save()
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertTrue(body['ok'])
+        aide = BibliothequeAides.objects.get(pk=body['aide']['id'])
+        self.assertEqual(aide.description, 'ANAH')
+        self.assertEqual(aide.montant_defaut, Decimal('1500'))
+        self.assertEqual(aide.created_by, self.user)
+
+    def test_save_description_vide_refuse(self):
+        self.client.login(username='aide_user', password='pw')
+        resp = self._save(description='   ')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(BibliothequeAides.objects.count(), 0)
+
+    def test_save_type_invalide_refuse(self):
+        self.client.login(username='aide_user', password='pw')
+        resp = self._save(type_ligne='ZZZ')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(BibliothequeAides.objects.count(), 0)
+
+    def test_get_retourne_aides(self):
+        BibliothequeAides.objects.create(
+            description='Région', type_ligne='FINX',
+            organisme='Région Bretagne', created_by=self.user)
+        self.client.login(username='aide_user', password='pw')
+        data = self.client.get(reverse('core:aides-get')).json()
+        self.assertEqual(len(data['aides']), 1)
+        self.assertEqual(data['aides'][0]['organisme'], 'Région Bretagne')
+        self.assertEqual(data['aides'][0]['type_ligne'], 'FINX')
+
+    def test_delete_supprime_aide(self):
+        aide = BibliothequeAides.objects.create(description='Temp', created_by=self.user)
+        self.client.login(username='aide_user', password='pw')
+        resp = self.client.post(reverse('core:aide-delete', args=[aide.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        self.assertFalse(BibliothequeAides.objects.filter(pk=aide.pk).exists())
+
+    def test_delete_inexistant_404(self):
+        self.client.login(username='aide_user', password='pw')
+        resp = self.client.post(reverse('core:aide-delete', args=[999999]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_api_exige_connexion(self):
+        resp = self.client.get(reverse('core:aides-get'))
+        self.assertNotEqual(resp.status_code, 200)  # redirection login
+
+
+class ZoneFinancementTests(TestCase):
+    """Persistance des drapeaux zone_financement / zone_financement_ext via
+    lignes_save, contrôlée par round-trip lignes_get."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = User.objects.create_user('zf_admin', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        client = Client.objects.create(nom='Client ZF')
+        cls.devis = Devis.objects.create(
+            reference='DEV-ZF-01', client=client,
+            status='draft', created_by=cls.admin)
+
+    def _save(self, payload):
+        self.client.login(username='zf_admin', password='pw')
+        return self.client.post(
+            reverse('core:lignes-save', args=[self.devis.pk]),
+            data=json.dumps(payload), content_type='application/json')
+
+    def test_persistance_et_round_trip(self):
+        resp = self._save({
+            'lignes': [], 'zone_financement': True,
+            'zone_financement_ext': True, 'fin_group_title': 'Aides mobilisées',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.devis.refresh_from_db()
+        self.assertTrue(self.devis.zone_financement)
+        self.assertTrue(self.devis.zone_financement_ext)
+        self.assertEqual(self.devis.fin_group_title, 'Aides mobilisées')
+
+        data = self.client.get(
+            reverse('core:lignes-get', args=[self.devis.pk])).json()
+        self.assertTrue(data['zone_financement'])
+        self.assertTrue(data['zone_financement_ext'])
+        self.assertEqual(data['fin_group_title'], 'Aides mobilisées')
+
+    def test_defaut_false_si_absent(self):
+        # Un devis dont la zone a été activée puis le payload ne porte plus
+        # les drapeaux → repassent à False (défaut de lignes_save).
+        self.devis.zone_financement = True
+        self.devis.zone_financement_ext = True
+        self.devis.save()
+        resp = self._save({'lignes': []})
+        self.assertEqual(resp.status_code, 200)
+        self.devis.refresh_from_db()
+        self.assertFalse(self.devis.zone_financement)
+        self.assertFalse(self.devis.zone_financement_ext)
+
+
+class InsertionDashboardTests(TestCase):
+    """Tableau de bord insertion : rendu, totaux MO/matériaux (mo_mat_lignes),
+    filtres équipe et période, gating peut_acceder_planning."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-Dashboard')
+        service = Service.objects.create(
+            territoire=terr, nom='Insertion Dashboard', module_planning=True)
+        cls.eq_a = Equipe.objects.create(service=service, nom='DSH-A', actif=True)
+        cls.eq_b = Equipe.objects.create(service=service, nom='DSH-B', actif=True)
+
+        cls.admin = User.objects.create_user('adm_dsh', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.tech = User.objects.create_user('tech_dsh', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.tech, role='technicien')
+
+        client = Client.objects.create(nom='Client DSH')
+        cls.devis_a = Devis.objects.create(
+            reference='DEV-DSH-A', client=client, chantier='Chantier A',
+            status='accepted', equipe=cls.eq_a, created_by=cls.admin)
+        cls.devis_b = Devis.objects.create(
+            reference='DEV-DSH-B', client=client, chantier='Chantier B',
+            status='accepted', equipe=cls.eq_b, created_by=cls.admin)
+
+        # Facture équipe A : MO 10×46 = 460 €, MAT 1×180 = 180 €
+        cls.fac_a = cls._facture(cls.devis_a, montant=Decimal('640'),
+                                 mo=(Decimal('10'), Decimal('46')),
+                                 mat=(Decimal('1'), Decimal('180')))
+        # Facture équipe B : MO 5×46 = 230 €, MAT 1×100 = 100 €
+        cls.fac_b = cls._facture(cls.devis_b, montant=Decimal('330'),
+                                 mo=(Decimal('5'), Decimal('46')),
+                                 mat=(Decimal('1'), Decimal('100')))
+
+    @classmethod
+    def _facture(cls, devis, montant, mo, mat):
+        f = Facture.objects.create(
+            type_doc='facture', status='validated', devis=devis,
+            destinataire=devis.client.nom, montant=montant, created_by=cls.admin)
+        # date_creation est auto_now_add → forcée en juin 2026 pour les filtres période.
+        Facture.objects.filter(pk=f.pk).update(date_creation=date(2026, 6, 15))
+        LigneFacture.objects.create(
+            facture=f, type_ligne='MO', description='MO',
+            quantite=mo[0], cout_unitaire=mo[1])
+        LigneFacture.objects.create(
+            facture=f, type_ligne='MAT', description='Matériaux',
+            quantite=mat[0], cout_unitaire=mat[1])
+        return f
+
+    PERIODE = {'debut': '2026-06-01', 'fin': '2026-06-30'}
+
+    def test_gating_redirige_sans_acces(self):
+        self.client.login(username='tech_dsh', password='pw')
+        resp = self.client.get(reverse('core:insertion-dashboard'))
+        self.assertEqual(resp.status_code, 302)
+
+    def test_totaux_mo_mat(self):
+        self.client.login(username='adm_dsh', password='pw')
+        resp = self.client.get(reverse('core:insertion-dashboard'), self.PERIODE)
+        self.assertEqual(resp.status_code, 200)
+        # A + B : MO = 460 + 230 = 690 ; MAT = 180 + 100 = 280 ; total = 640 + 330
+        self.assertEqual(resp.context['tot_fac_mo'], Decimal('690'))
+        self.assertEqual(resp.context['tot_fac_mat'], Decimal('280'))
+        self.assertEqual(resp.context['tot_fac_total'], Decimal('970'))
+        self.assertEqual(len(resp.context['factures']), 2)
+
+    def test_filtre_equipe(self):
+        self.client.login(username='adm_dsh', password='pw')
+        resp = self.client.get(
+            reverse('core:insertion-dashboard'),
+            {**self.PERIODE, 'eq': self.eq_a.pk})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['factures']), 1)
+        self.assertEqual(resp.context['tot_fac_mo'], Decimal('460'))
+        self.assertEqual(resp.context['tot_fac_mat'], Decimal('180'))
+
+    def test_filtre_periode_exclut_hors_borne(self):
+        self.client.login(username='adm_dsh', password='pw')
+        resp = self.client.get(
+            reverse('core:insertion-dashboard'),
+            {'debut': '2026-07-01', 'fin': '2026-07-31'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.context['factures']), 0)
+        self.assertEqual(resp.context['tot_fac_mo'], 0)
+
+
+class AffectationMoveTests(TestCase):
+    """affectation_move : resize avec redistribution du MO restant aux autres
+    affectations de la tranche (multi-équipes), changement d'équipe, garde-fous."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-Move')
+        service = Service.objects.create(
+            territoire=terr, nom='Insertion Move', module_planning=True)
+        cls.eq_a = Equipe.objects.create(service=service, nom='MOV-A', actif=True, nb_equipiers=1)
+        cls.eq_b = Equipe.objects.create(service=service, nom='MOV-B', actif=True, nb_equipiers=1)
+        cls.eq_c = Equipe.objects.create(service=service, nom='MOV-C', actif=True, nb_equipiers=1)
+
+        cls.admin = User.objects.create_user('adm_mov', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.enc_a = User.objects.create_user('enc_a_mov', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_a, role='technicien')
+        cls.eq_a.encadrant = cls.enc_a
+        cls.eq_a.save()
+        cls.enc_b = User.objects.create_user('enc_b_mov', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_b, role='technicien')
+        cls.eq_b.encadrant = cls.enc_b
+        cls.eq_b.save()
+
+        client = Client.objects.create(nom='Client Move')
+        cls.devis = Devis.objects.create(
+            reference='DEV-MOV-01', client=client, chantier='Réhab Move',
+            status='accepted', created_by=cls.admin)
+        # Budget MO = 30 j × 82,50 € (à 1 équipier) → marge de redistribution large.
+        LigneDevis.objects.create(
+            devis=cls.devis, type_ligne='FMO', description='MO',
+            quantite=Decimal('30'), cout_unitaire=Decimal('82.50'))
+
+        cls.tranche = TrancheDevis.objects.create(devis=cls.devis, nom='Complet', ordre=0)
+        cls.aff_a = Affectation.objects.create(
+            equipe=cls.eq_a, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 5), created_by=cls.admin)
+        cls.aff_b = Affectation.objects.create(
+            equipe=cls.eq_b, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 5), created_by=cls.admin)
+
+    def _move(self, aff, debut, fin, username='adm_mov', **extra):
+        self.client.login(username=username, password='pw')
+        payload = {'aff_id': aff.pk, 'date_debut': debut, 'date_fin': fin}
+        payload.update(extra)
+        return self.client.post(
+            reverse('core:affectation-move'),
+            data=json.dumps(payload), content_type='application/json')
+
+    def test_resize_redistribue_aux_autres(self):
+        # aff_a courte → MO restant élevé → aff_b s'allonge ;
+        # aff_a longue → MO restant faible → aff_b se raccourcit.
+        self._move(self.aff_a, '2026-06-01', '2026-06-02')   # 2 j ouvrés
+        self.aff_b.refresh_from_db()
+        fin_courte_a = self.aff_b.date_fin
+
+        resp = self._move(self.aff_a, '2026-06-01', '2026-06-26')  # ~18 j ouvrés
+        self.aff_b.refresh_from_db()
+        fin_longue_a = self.aff_b.date_fin
+
+        self.assertGreater(fin_courte_a, fin_longue_a)
+        # La réponse renvoie l'affectation déplacée + celle recalculée.
+        updated_ids = {u['aff_id'] for u in resp.json()['updated']}
+        self.assertIn(self.aff_a.pk, updated_ids)
+        self.assertIn(self.aff_b.pk, updated_ids)
+
+    def test_changement_equipe(self):
+        resp = self._move(self.aff_a, '2026-06-01', '2026-06-05',
+                          equipe_id=self.eq_c.pk)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['ok'])
+        self.aff_a.refresh_from_db()
+        self.assertEqual(self.aff_a.equipe_id, self.eq_c.pk)
+
+    def test_changement_equipe_doublon_refuse(self):
+        # eq_b porte déjà cette tranche (aff_b) → conflit.
+        resp = self._move(self.aff_a, '2026-06-01', '2026-06-05',
+                          equipe_id=self.eq_b.pk)
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertFalse(body['ok'])
+        self.assertIn('déjà assigné', body['error'])
+
+    def test_non_encadrant_refuse(self):
+        resp = self._move(self.aff_a, '2026-06-01', '2026-06-05', username='enc_b_mov')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_affectation_introuvable_404(self):
+        self.client.login(username='adm_mov', password='pw')
+        resp = self.client.post(
+            reverse('core:affectation-move'),
+            data=json.dumps({'aff_id': 999999, 'date_debut': '2026-06-01',
+                             'date_fin': '2026-06-05'}),
+            content_type='application/json')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_dates_invalides_400(self):
+        resp = self._move(self.aff_a, 'pas-une-date', '2026-06-05')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_fin_avant_debut_400(self):
+        resp = self._move(self.aff_a, '2026-06-10', '2026-06-01')
+        self.assertEqual(resp.status_code, 400)
+
+
+class VendrediToggleTests(TestCase):
+    """vendredi_toggle : bascule le drapeau vendredi_actif (encadrant requis)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-Vendredi')
+        service = Service.objects.create(
+            territoire=terr, nom='Insertion Vendredi', module_planning=True)
+        cls.eq_a = Equipe.objects.create(service=service, nom='VEN-A', actif=True)
+        cls.eq_b = Equipe.objects.create(service=service, nom='VEN-B', actif=True)
+        cls.enc_a = User.objects.create_user('enc_a_ven', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_a, role='technicien')
+        cls.eq_a.encadrant = cls.enc_a
+        cls.eq_a.save()
+        cls.enc_b = User.objects.create_user('enc_b_ven', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_b, role='technicien')
+        cls.eq_b.encadrant = cls.enc_b
+        cls.eq_b.save()
+
+        client = Client.objects.create(nom='Client Vendredi')
+        cls.devis = Devis.objects.create(
+            reference='DEV-VEN-01', client=client, status='accepted', created_by=cls.enc_a)
+        LigneDevis.objects.create(
+            devis=cls.devis, type_ligne='FMO', description='MO',
+            quantite=Decimal('10'), cout_unitaire=Decimal('82.50'))
+        cls.tranche = TrancheDevis.objects.create(devis=cls.devis, nom='Complet', ordre=0)
+        cls.aff = Affectation.objects.create(
+            equipe=cls.eq_a, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 5), created_by=cls.enc_a)
+
+    def _toggle(self, aff_id, username='enc_a_ven'):
+        self.client.login(username=username, password='pw')
+        return self.client.post(
+            reverse('core:vendredi-toggle'),
+            data=json.dumps({'aff_id': aff_id}), content_type='application/json')
+
+    def test_toggle_bascule(self):
+        self.assertFalse(self.aff.vendredi_actif)
+        resp = self._toggle(self.aff.pk)
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()['actif'])
+        self.aff.refresh_from_db()
+        self.assertTrue(self.aff.vendredi_actif)
+        # Re-bascule → False.
+        resp = self._toggle(self.aff.pk)
+        self.assertFalse(resp.json()['actif'])
+        self.aff.refresh_from_db()
+        self.assertFalse(self.aff.vendredi_actif)
+
+    def test_non_encadrant_refuse(self):
+        resp = self._toggle(self.aff.pk, username='enc_b_ven')
+        self.assertEqual(resp.status_code, 403)
+        self.aff.refresh_from_db()
+        self.assertFalse(self.aff.vendredi_actif)
+
+    def test_affectation_introuvable_404(self):
+        resp = self._toggle(999999)
+        self.assertEqual(resp.status_code, 404)
+
+
+class TrancheCreerTests(TestCase):
+    """tranche_creer : création d'une tranche sur un devis accepté, ordre
+    incrémental, nom par défaut, garde-fous statut/permission."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr    = Territoire.objects.create(nom='35-Tranche')
+        service = Service.objects.create(
+            territoire=terr, nom='Insertion Tranche', module_planning=True)
+        cls.eq_a = Equipe.objects.create(service=service, nom='TRA-A', actif=True)
+        cls.enc_a = User.objects.create_user('enc_a_tra', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.enc_a, role='technicien')
+        cls.eq_a.encadrant = cls.enc_a
+        cls.eq_a.save()
+        # Technicien sans équipe → pas d'accès planning.
+        cls.sans_acces = User.objects.create_user('tech_tra', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.sans_acces, role='technicien')
+
+        client = Client.objects.create(nom='Client Tranche')
+        cls.devis = Devis.objects.create(
+            reference='DEV-TRA-01', client=client, status='accepted', created_by=cls.enc_a)
+        cls.devis_brouillon = Devis.objects.create(
+            reference='DEV-TRA-02', client=client, status='draft', created_by=cls.enc_a)
+
+    def _creer(self, devis_id, nom=None, username='enc_a_tra'):
+        self.client.login(username=username, password='pw')
+        payload = {'devis_id': devis_id}
+        if nom is not None:
+            payload['nom'] = nom
+        return self.client.post(
+            reverse('core:tranche-creer'),
+            data=json.dumps(payload), content_type='application/json')
+
+    def test_creation_ordre_incremental(self):
+        r1 = self._creer(self.devis.pk, nom='Phase 1')
+        self.assertEqual(r1.status_code, 200)
+        self.assertEqual(r1.json()['nom'], 'Phase 1')
+        t1 = TrancheDevis.objects.get(pk=r1.json()['id'])
+        self.assertEqual(t1.ordre, 1)
+
+        r2 = self._creer(self.devis.pk, nom='Phase 2')
+        t2 = TrancheDevis.objects.get(pk=r2.json()['id'])
+        self.assertEqual(t2.ordre, 2)
+
+    def test_nom_par_defaut(self):
+        resp = self._creer(self.devis.pk, nom='   ')
+        self.assertEqual(resp.json()['nom'], 'Nouvelle tranche')
+
+    def test_devis_non_accepte_404(self):
+        resp = self._creer(self.devis_brouillon.pk, nom='X')
+        self.assertEqual(resp.status_code, 404)
+
+    def test_sans_acces_planning_refuse(self):
+        resp = self._creer(self.devis.pk, nom='X', username='tech_tra')
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(TrancheDevis.objects.filter(devis=self.devis).exists())

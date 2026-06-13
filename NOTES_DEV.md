@@ -1502,7 +1502,11 @@ Pour supprimer proprement :
   (encore en évolution fonctionnelle, attendre ~septembre 2026).
 - **URLs à homogénéiser** — mélange français/anglais (statut/status, supprimer/delete). Choisir une convention et corriger partout.
 - ✅ **Context processor `profil`** — réglé session 43 (Phase 1) : `profil_utilisateur(request)` ajouté dans `core/context_processors.py` et enregistré dans `settings.py` → `profil` injecté dans tous les templates, passage manuel retiré de 14 `render()` de `views.py`. Les `get_profil(request.user)` **utilisés dans la logique** des vues sont conservés (le context processor ne couvre que le template).
-- **Modèle `BibliothèqueAides`** — nom de classe avec accent (non-ASCII), fragile pour imports/outils. Renommer en ASCII (`BibliothequeAides`) si on retouche le modèle.
+- ✅ **Modèle `BibliothèqueAides` → `BibliothequeAides`** — réglé : nom de classe renommé en
+  ASCII (accent retiré, fragile pour imports/outils/introspection). Migration `RenameModel`
+  `0026_rename_bibliothequeaides` (table `core_bibliothèqueaides` → `core_bibliothequeaides`,
+  données de test uniquement, sans risque). Références mises à jour : `models.py` (classe + FK
+  string), `views.py`, `tests.py`, `seed_demo.py`. 158 tests OK.
 - ✅ **Auditer les templates** — vérifié session 36 (11/06/2026) : aucun `{{ f.reference }}` parasite restant dans `core/templates/`.
 - **Calcul des totaux dupliqué (côté Python)** — le parcours d'arbre du total existe à
   **deux endroits** : `core/totaux.py` (version **en mémoire**, anti N+1, utilisée par les
@@ -1532,7 +1536,8 @@ Pour supprimer proprement :
   **Pas d'autosave** (décision actée — sauvegarde explicite, moins risqué sur l'éditeur de prix).
 
 ### Tests
-- **Couverture session 14 manquante** — zone_financement (persistance), `aide_delete`.
+- ✅ **Couverture session 14 manquante** — réglée : zone_financement (persistance) et
+  `aide_delete` désormais couverts (`ZoneFinancementTests`, `AidesBibliothequeTests`).
   `aides_api_save` montant invalide : ✅ couvert session 17 (test `test_aides_api_save_montant_invalide_retourne_400`).
   Compta (factures structure/appel, avoirs, type_client) : ✅ couvert session 19 (`FactureComptaTests`).
   Tableau de bord (rendu, gating compta, config, portée) : ✅ couvert session 21 (`DashboardTests`).
@@ -1543,9 +1548,12 @@ Pour supprimer proprement :
   `EvenementSetsTests`, `EvenementEndpointTests`, `FeuillesPresenceTests` — 41 tests :
   fériés/Pâques, grille fiche mensuelle (régressions session 31, chevauchement d'année),
   jours ouvrés Lun–Jeu, recalcul en cascade `decale_chantier`/`travaille`,
-  `fiche_presence_save`/`fiche_note_save`, permissions). **136 tests** au total.
-  Reste non couvert : resize multi-équipes (`affectation_move`), tableau de bord
-  insertion (`mo_mat_lignes`, filtres), `vendredi_toggle`, `tranche_creer`.
+  `fiche_presence_save`/`fiche_note_save`, permissions).
+  ✅ **Endpoints planning/insertion restants** — couverts : resize multi-équipes avec
+  redistribution du MO (`AffectationMoveTests`), tableau de bord insertion — totaux MO/mat
+  via `mo_mat_lignes` + filtres équipe/période + gating (`InsertionDashboardTests`),
+  `vendredi_toggle` (`VendrediToggleTests`), `tranche_creer` (`TrancheCreerTests`).
+  **185 tests** au total.
 
 ### Performance
 - ✅ **Listes (devis/factures/compta/avoirs)** — réglé session 23 : N+1 du calcul des

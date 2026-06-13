@@ -26,7 +26,7 @@ from .models import (
     Client, ContactClient, Devis, LigneDevis,
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
-    BibliothèqueAides,
+    BibliothequeAides,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -202,7 +202,7 @@ def build_lignes_creator(model, fk_kwargs, *, with_ouvert=True, with_aide=False,
     fk_kwargs : {'devis': devis} ou {'facture': facture}. Les flags activent les
     champs spécifiques à chaque éditeur (cf. Phase 5, docs/plan_ameliorations.md) :
     - with_ouvert            : champ `ouvert` (devis + facture ; pas la compta).
-    - with_aide              : résout `aide_id` → BibliothèqueAides (devis seul).
+    - with_aide              : résout `aide_id` → BibliothequeAides (devis seul).
     - with_quantite_originale: snapshot qty devis avec fallback sur `quantite` (facture).
     - with_source            : `ligne_devis_source_id` (facture, lien pré-remplissage).
     - recurse_only_titre     : ne descend dans les enfants que sous un TITRE (compta).
@@ -223,7 +223,7 @@ def build_lignes_creator(model, fk_kwargs, *, with_ouvert=True, with_aide=False,
             if with_aide:
                 aide_id = item.get('aide_id')
                 fields['aide'] = (
-                    BibliothèqueAides.objects.filter(pk=aide_id).first()
+                    BibliothequeAides.objects.filter(pk=aide_id).first()
                     if aide_id else None
                 )
             if with_quantite_originale:
@@ -665,7 +665,7 @@ def aides_page(request):
 
 @login_required
 def aides_api_get(request):
-    aides = BibliothèqueAides.objects.select_related('created_by').all()
+    aides = BibliothequeAides.objects.select_related('created_by').all()
     return JsonResponse({
         'aides': [
             {
@@ -695,7 +695,7 @@ def aides_api_save(request):
         return json_error('Type invalide')
     montant_raw = data.get('montant_defaut')
     montant = to_decimal(montant_raw)
-    aide = BibliothèqueAides.objects.create(
+    aide = BibliothequeAides.objects.create(
         description=description,
         type_ligne=type_ligne,
         montant_defaut=montant,
@@ -719,7 +719,7 @@ def aides_api_save(request):
 @login_required
 @require_POST
 def aide_delete(request, pk):
-    aide = get_object_or_404(BibliothèqueAides, pk=pk)
+    aide = get_object_or_404(BibliothequeAides, pk=pk)
     aide.delete()
     return JsonResponse({'ok': True})
 

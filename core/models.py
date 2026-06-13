@@ -215,7 +215,7 @@ class Bibliotheque(models.Model):
 #  BIBLIOTHÈQUE AIDES (partagée)
 # ══════════════════════════════════════════
 
-class BibliothèqueAides(models.Model):
+class BibliothequeAides(models.Model):
     TYPE_CHOICES = [
         ('FMO',  "Forfait main d'œuvre"),
         ('FMAT', 'Forfait matériaux'),
@@ -555,7 +555,7 @@ class LigneDevis(models.Model):
     ordre = models.IntegerField(default=0)
     ouvert = models.BooleanField(default=True)
     aide = models.ForeignKey(
-        'BibliothèqueAides', on_delete=models.SET_NULL,
+        'BibliothequeAides', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='utilisations'
     )
 

@@ -37,7 +37,7 @@ from django.utils import timezone
 
 from core.models import (
     Client, Territoire, Service, Equipe, Devis, LigneDevis, Facture,
-    ProfilUtilisateur, AuditLog, BibliothèqueAides, Equipier,
+    ProfilUtilisateur, AuditLog, BibliothequeAides, Equipier,
 )
 
 MARKER = 'SEED_DEMO'
@@ -557,7 +557,7 @@ class Command(BaseCommand):
         les crée s'ils manquent (utile en dev). Non supprimées par --clear."""
         out = {}
         for key, (desc, org, typ, montant) in AIDE_DEFS.items():
-            aide, _ = BibliothèqueAides.objects.get_or_create(
+            aide, _ = BibliothequeAides.objects.get_or_create(
                 description=desc, organisme=org,
                 defaults={'type_ligne': typ, 'montant_defaut': montant,
                           'unite': 'forfait', 'created_by': user})
