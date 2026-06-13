@@ -34,8 +34,7 @@
 .obj-box{margin-bottom:1rem}
 .obj-box textarea{width:100%;padding:8px 10px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;resize:vertical}
 .status-bar{display:flex;gap:8px;align-items:center;padding:9px 1.25rem;border-bottom:1px solid var(--gray-bd);background:var(--white)}
-.toast{position:fixed;bottom:20px;right:20px;background:var(--prune);color:#fff;padding:10px 16px;border-radius:var(--r);font-size:12px;opacity:0;transition:opacity .2s;z-index:999;pointer-events:none}
-.toast.show{opacity:1}
+/* .toast : style unifié dans app.css, showToast() dans app.js */
 .paste-zone{margin:4px 10px 8px;padding:10px 12px;background:var(--teal-lt);border:1px dashed var(--teal);border-radius:var(--r)}
 .paste-zone label{display:block;font-size:11px;color:var(--gray-md);margin-bottom:4px}
 .paste-zone textarea{width:100%;padding:8px;font-size:12px;font-family:monospace;border:1px solid var(--teal);border-radius:4px;resize:vertical;outline:none;background:#fff}
@@ -139,6 +138,8 @@ const GET_URL = `/compta/factures/${FACT_PK}/lignes/`;
 const SAVE_URL = `/compta/factures/${FACT_PK}/lignes/sauvegarder/`;
 
 let tree = [];   // [{type_ligne, description, quantite, unite, cout_unitaire, enfants?}]
+let dirty = false;   // modifications non sauvegardées (cf. installUnloadGuard)
+let _ready = false;  // passe à true après le premier chargement (évite de marquer dirty au load)
 
 // Sauvegarder avant d'ouvrir l'aperçu (évite la perte de données non enregistrées)
 if (MODIFIABLE) {
@@ -229,6 +230,8 @@ function render(){
     box.appendChild(rdz);
   }
   document.getElementById('total').textContent = euros(grandTotal());
+  // Tout re-rendu hors chargement initial vient d'une mutation structurelle.
+  if (_ready) dirty = true;
 }
 
 function rowEl(l, isTitre, parentTitre){
@@ -684,11 +687,7 @@ function closeTutoratZone(){
   tutoratRows=[];
 }
 
-function showToast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 1800);
-}
+// showToast() est fourni par app.js (toast unifié, cf. app.css).
 
 async function save(){
   const payload = { notes: document.getElementById('objet').value, lignes: tree };
@@ -699,15 +698,25 @@ async function save(){
       body: JSON.stringify(payload),
     });
     const data = await resp.json();
-    if (!resp.ok){ showToast(data.error || 'Erreur'); return; }
+    if (!resp.ok){ showToast(data.error || 'Erreur', 'err'); return; }
+    dirty = false;
     document.getElementById('total').textContent = euros(data.montant);
-    showToast('Enregistré');
-  } catch(e){ showToast('Erreur réseau'); }
+    showToast('Enregistré', 'ok');
+  } catch(e){ showToast('Erreur réseau', 'err'); }
 }
 
 document.addEventListener('keydown', e => {
   if (MODIFIABLE && (e.ctrlKey||e.metaKey) && e.key==='s'){ e.preventDefault(); save(); }
 });
+
+// Marque dirty dès qu'un champ de ligne est édité (les mutations structurelles
+// passent par render()). Délégué sur le conteneur, survit aux re-rendus.
+if (MODIFIABLE) {
+  document.getElementById('lines').addEventListener('input', () => { dirty = true; });
+}
+
+// Avertissement si on quitte sans sauvegarder (onglet, rechargement, Alt+←)
+installUnloadGuard(() => dirty && MODIFIABLE);
 
 // Restaure le flag _pasted sur les lignes rechargées depuis la base
 // (détecte le motif "texte  jj/mm/aaaa" produit par buildAlignedDescriptions)
@@ -725,7 +734,8 @@ async function load(){
     tree = data.lignes || [];
     restorePastedFlags(tree);
     render();
-  } catch(e){ showToast('Erreur de chargement'); }
+    _ready = true;   // les re-rendus suivants viennent de modifications utilisateur
+  } catch(e){ showToast('Erreur de chargement', 'err'); }
 }
 load();
 </script>

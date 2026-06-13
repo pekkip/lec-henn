@@ -184,3 +184,9 @@ tbody tr:hover td{background:#FAFAF8}
 
 /* FORM HINT — note sous un champ de formulaire */
 .form-hint{font-size:11px;color:var(--gray-md);margin-top:2px}
+
+/* TOAST — feedback de sauvegarde unifié (cf. showToast() dans app.js) */
+.toast{position:fixed;bottom:18px;right:18px;background:var(--gray);color:#fff;padding:8px 14px;border-radius:var(--r);font-size:12px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.ok{background:var(--teal-dk)}
+.toast.err{background:var(--red)}
+.toast.show{opacity:1}

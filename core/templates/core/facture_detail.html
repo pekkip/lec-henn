@@ -112,11 +112,7 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 .ft-grand{font-size:20px;font-weight:600;color:var(--prune);font-variant-numeric:tabular-nums}
 .ft-sep{width:1px;height:16px;background:var(--gray-bd)}
 
-/* ── TOAST ── */
-.toast{position:fixed;bottom:18px;right:18px;background:var(--gray);color:#fff;padding:8px 14px;border-radius:var(--r);font-size:12px;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
-.toast.ok{background:var(--teal-dk)}
-.toast.err{background:var(--red)}
-.toast.show{opacity:1}
+/* ── TOAST : style unifié dans app.css, showToast() dans app.js ── */
 
 /* ── LECTURE SEULE ── */
 .readonly-banner{background:var(--amber-lt);border-bottom:1px solid #D4A030;padding:6px 14px;font-size:11px;color:#7A4F00;flex-shrink:0;display:flex;align-items:center;gap:6px}
@@ -555,18 +551,7 @@ async function saveFacture() {
   }
 }
 
-// ═══════════════════════════════════════════════════════
-//  TOAST
-// ═══════════════════════════════════════════════════════
-
-let toastTimer;
-function showToast(msg, type='ok') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
-}
+// showToast() est fourni par app.js (toast unifié, cf. app.css).
 
 // ═══════════════════════════════════════════════════════
 //  RACCOURCIS CLAVIER
@@ -579,13 +564,8 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Avertissement si on quitte sans sauvegarder
-window.addEventListener('beforeunload', e => {
-  if (dirty && MODIFIABLE) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
+// Avertissement si on quitte sans sauvegarder (onglet, rechargement, Alt+←)
+installUnloadGuard(() => dirty && MODIFIABLE);
 
 
 // ═══════════════════════════════════════════════════════

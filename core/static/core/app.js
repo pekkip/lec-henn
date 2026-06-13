@@ -113,3 +113,34 @@ function debounce(fn, delay) {
     timer = setTimeout(() => fn.apply(this, args), delay);
   };
 }
+
+/* ── FEEDBACK DE SAUVEGARDE UNIFIÉ ─────────────────────────────────────────
+ * Un seul style de toast pour toute l'app (bandeau flottant bas-droite ;
+ * `ok` = vert, `err` = rouge ; cf. règles `.toast` dans app.css). Le div est
+ * créé paresseusement → aucune page n'a besoin de déclarer `<div id="toast">`. */
+let _toastTimer;
+function showToast(msg, type = 'ok') {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+/* Garde-fou de sortie de page : avertit (boîte native du navigateur) si des
+ * modifications ne sont pas sauvegardées. Couvre fermeture d'onglet,
+ * rechargement ET navigation arrière/avant (Alt+←). `isDirty` est rappelé à
+ * chaque tentative de sortie pour lire l'état courant. */
+function installUnloadGuard(isDirty) {
+  window.addEventListener('beforeunload', e => {
+    if (isDirty()) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+}

@@ -101,7 +101,6 @@
       <span style="font-size:12px;color:var(--gray-md)">€/h</span>
       <button class="btn btn-sm" onclick="applyTauxMO()"><i class="ti ti-refresh"></i> Appliquer</button>
     </div>
-    <div style="margin-left:auto;font-size:11px;color:var(--gray-md)" id="bib-status"></div>
   </div>
 
   <!-- BARRE FORMATAGE -->
@@ -162,6 +161,8 @@
 <script>
 const TAUX_MO = {{ taux_mo_js }};
 let tree = [];
+let dirty = false;   // modifications non sauvegardées (cf. installUnloadGuard)
+let _ready = false;  // passe à true après le premier chargement (évite de marquer dirty au load)
 let _pctTargetNid = null;
 let _fmtTarget = null;
 let draggingNodeNid = null;
@@ -308,6 +309,9 @@ function titreBtns(nid) {
 function renderTree() {
   const t = document.getElementById('tree');
   t.innerHTML = tree.map(n=>renderNode(n,0)).join('');
+  // Tout re-rendu hors chargement initial vient d'une mutation (sauf repli/dépli,
+  // qui restaure dirty lui-même dans togNode).
+  if (_ready) dirty = true;
 }
 
 function updateTotalsDisplay() {
@@ -329,16 +333,19 @@ function updateTotalsDisplay() {
 function updNode(nid,field,val) {
   const n=findNode(tree,nid);if(!n)return;
   n[field]=val;
+  dirty=true;
   updateTotalsDisplay();
 }
 function togNode(nid) {
   const n=findNode(tree,nid);if(!n)return;
   n.ouvert=n.ouvert===false;
+  const wasDirty=dirty;
   renderTree();
+  dirty=wasDirty;   // un simple repli/dépli n'est pas une modification à sauvegarder
 }
 function delNode(nid) { delFromTree(tree,nid); renderTree(); }
 function syncDescInline(ce,nid) {
-  const n=findNode(tree,nid);if(n)n.description=ce.innerHTML;
+  const n=findNode(tree,nid);if(n){n.description=ce.innerHTML;dirty=true;}
 }
 
 function addRootNode(type) {
@@ -420,7 +427,7 @@ function applyTauxMO() {
   }
   update(tree);
   renderTree();
-  setStatus('Taux MO mis à jour');
+  showToast('Taux MO mis à jour', 'ok');
 }
 
 // ── % MAT ──
@@ -446,7 +453,7 @@ function applyPctMAT() {
   update(titre.enfants||[]);
   document.getElementById('modal-pct').classList.add('hidden');
   renderTree();
-  setStatus(`+${pct}% appliqué sur les matériaux`);
+  showToast(`+${pct}% appliqué sur les matériaux`, 'ok');
 }
 
 // ── DRAG & DROP ──
@@ -507,28 +514,29 @@ function fmtCmd(event,cmd) {
 }
 function syncDesc(ce) {
   const nid=ce.closest('.tree-node')?.dataset.nid;if(!nid)return;
-  const n=findNode(tree,nid);if(n)n.description=ce.innerHTML;
+  const n=findNode(tree,nid);if(n){n.description=ce.innerHTML;dirty=true;}
 }
 
 // ── SAUVEGARDE ──
 function stripNids(nodes) {
   return nodes.map(n=>{const c={...n};delete c._nid;c.enfants=stripNids(c.enfants||[]);return c;});
 }
-function setStatus(msg) {
-  const el=document.getElementById('bib-status');
-  el.textContent=msg;setTimeout(()=>el.textContent='',3000);
-}
+// showToast() est fourni par app.js (toast unifié, cf. app.css).
 async function saveBiblio() {
   const btn=document.querySelector('button[onclick="saveBiblio()"]');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2"></i> Sauvegarde…';}
   try {
     const data=await apiPost('/bibliotheque/api/sauvegarder/',{lignes:stripNids(tree)});
-    if(data.ok)setStatus('✓ Sauvegardé');
-  } catch(err){setStatus('Erreur de sauvegarde');}
+    if(data.ok){dirty=false;showToast('Sauvegardé','ok');}
+    else showToast(data.error||'Erreur de sauvegarde','err');
+  } catch(err){showToast('Erreur de sauvegarde','err');}
   finally{
     if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-device-floppy"></i> Sauvegarder';}
   }
 }
+
+// Avertissement si on quitte sans sauvegarder (onglet, rechargement, Alt+←)
+installUnloadGuard(() => dirty);
 
 // ── CHARGEMENT ──
 fetch('/bibliotheque/api/')
@@ -538,6 +546,7 @@ fetch('/bibliotheque/api/')
     document.getElementById('bib-taux-mo').value=data.taux_mo||TAUX_MO;
     assignNids(tree);
     renderTree();
+    _ready=true;   // les re-rendus suivants viennent de modifications utilisateur
   });
 </script>
 {% endblock %}
