@@ -9,6 +9,12 @@ chargées (prefetch ou fetch groupé), donc en un nombre de requêtes borné.
 
 Source unique de la logique de totaux pour `views.py` ET `dashboard_widgets.py`
 (placée ici pour éviter un import circulaire entre les deux).
+
+⚠️ PARITÉ CLIENT — NE PAS DIVERGER SANS SYNCHRONISER :
+`core/static/core/app.js` (`TreeHelpers.calcTotal / calcMO / calcMat`) réplique
+cette logique côté navigateur (affichage des totaux dans les éditeurs). Le test
+`test_totaux_identiques_aux_methodes_modele` garde ce module vis-à-vis du modèle.
+Toute modification du calcul ici DOIT être reportée dans app.js (et inversement).
 """
 from decimal import Decimal
 

@@ -161,45 +161,13 @@
 {% block extra_js %}
 <script>
 const TAUX_MO = {{ taux_mo_js }};
-const CSRF = '{{ csrf_token }}';
 let tree = [];
-let _nidCounter = 0;
 let _pctTargetNid = null;
 let _fmtTarget = null;
 let draggingNodeNid = null;
 
-// ── CALCULS ──
-function calcTotal(n) {
-  if (n.type_ligne === 'TITRE') return (n.quantite||1) * (n.enfants||[]).reduce((s,c)=>s+calcTotal(c),0);
-  if (!n.enfants||!n.enfants.length) return (n.quantite||0)*(n.cout_unitaire||0);
-  return (n.quantite||1)*n.enfants.reduce((s,c)=>s+calcTotal(c),0);
-}
-function calcMO(n) {
-  if (n.type_ligne==='TITRE') return (n.quantite||1)*(n.enfants||[]).reduce((s,c)=>s+calcMO(c),0);
-  if (!n.enfants||!n.enfants.length) return ['MO','FMO'].includes(n.type_ligne)?(n.quantite||0)*(n.cout_unitaire||0):0;
-  return (n.quantite||1)*n.enfants.reduce((s,c)=>s+calcMO(c),0);
-}
-function calcMat(n) {
-  if (n.type_ligne==='TITRE') return (n.quantite||1)*(n.enfants||[]).reduce((s,c)=>s+calcMat(c),0);
-  if (!n.enfants||!n.enfants.length) return ['MAT','FMAT'].includes(n.type_ligne)?(n.quantite||0)*(n.cout_unitaire||0):0;
-  return (n.quantite||1)*n.enfants.reduce((s,c)=>s+calcMat(c),0);
-}
-function fmtV(v) {
-  if (v===null||v===undefined) return '—';
-  return Number(v).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2});
-}
-
-// ── NIDS ──
-function assignNids(nodes) {
-  nodes.forEach(n => { n._nid='_'+(_nidCounter++); if(n.enfants) assignNids(n.enfants); });
-}
-function findNode(nodes,nid) {
-  for(const n of nodes){if(n._nid===nid)return n;if(n.enfants){const f=findNode(n.enfants,nid);if(f)return f;}}return null;
-}
-function delFromTree(nodes,nid) {
-  const i=nodes.findIndex(n=>n._nid===nid);if(i>=0){nodes.splice(i,1);return true;}
-  for(const n of nodes){if(n.enfants&&delFromTree(n.enfants,nid))return true;}return false;
-}
+// Helpers d'arbre + nid mutualisés (core/static/core/app.js).
+const { calcTotal, calcMO, calcMat, fmtV, assignNids, findNode, delFromTree, nextNid } = TreeHelpers;
 
 // ── BADGES ──
 const NBADGE = {
@@ -381,17 +349,17 @@ function addRootNode(type) {
     C:   {description:'Nouvel ouvrage composite',quantite:1,unite:'u',    cout_unitaire:null},
   };
   const n={type_ligne:type,enfants:[],ouvert:true,...def[type]};
-  n._nid='_'+(_nidCounter++);
+  n._nid=nextNid();
   tree.push(n); renderTree();
 }
 function addTitre() {
   const n={type_ligne:'TITRE',description:'Nouvelle catégorie',enfants:[],ouvert:true,quantite:1};
-  n._nid='_'+(_nidCounter++);
+  n._nid=nextNid();
   tree.push(n); renderTree();
 }
 function addGroupe() {
   const n={type_ligne:'TITRE',groupe:true,description:'Nouveau groupe',enfants:[],ouvert:true,quantite:1};
-  n._nid='_'+(_nidCounter++);
+  n._nid=nextNid();
   tree.push(n); renderTree();
 }
 function addOuvrageEnfant(parentNid,type) {
@@ -404,7 +372,7 @@ function addOuvrageEnfant(parentNid,type) {
     C:   {description:'Nouvel ouvrage composite',quantite:1,unite:'u',    cout_unitaire:null},
   };
   const n={type_ligne:type,enfants:[],ouvert:true,...def[type]};
-  n._nid='_'+(_nidCounter++);
+  n._nid=nextNid();
   p.enfants.push(n); p.ouvert=true; renderTree();
 }
 function addChild(pnid,type) {
@@ -417,17 +385,17 @@ function addChild(pnid,type) {
     OUV:{description:'Sous-ouvrage', quantite:1,unite:'u',  cout_unitaire:null},
   };
   const n={type_ligne:type,enfants:[],ouvert:true,...def[type]};
-  n._nid='_'+(_nidCounter++);
+  n._nid=nextNid();
   p.enfants.push(n); p.ouvert=true; renderTree();
 }
 
 function deepCloneNode(n) {
-  const clone={...n};clone._nid='_'+(_nidCounter++);
+  const clone={...n};clone._nid=nextNid();
   clone.description=n.description+' (copie)';
   clone.enfants=(n.enfants||[]).map(e=>deepCloneNodeSilent(e));return clone;
 }
 function deepCloneNodeSilent(n) {
-  const clone={...n};clone._nid='_'+(_nidCounter++);
+  const clone={...n};clone._nid=nextNid();
   clone.enfants=(n.enfants||[]).map(e=>deepCloneNodeSilent(e));return clone;
 }
 function copyNode(nid) {
@@ -554,12 +522,7 @@ async function saveBiblio() {
   const btn=document.querySelector('button[onclick="saveBiblio()"]');
   if(btn){btn.disabled=true;btn.innerHTML='<i class="ti ti-loader-2"></i> Sauvegarde…';}
   try {
-    const resp=await fetch('/bibliotheque/api/sauvegarder/',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-      body:JSON.stringify({lignes:stripNids(tree)}),
-    });
-    const data=await resp.json();
+    const data=await apiPost('/bibliotheque/api/sauvegarder/',{lignes:stripNids(tree)});
     if(data.ok)setStatus('✓ Sauvegardé');
   } catch(err){setStatus('Erreur de sauvegarde');}
   finally{

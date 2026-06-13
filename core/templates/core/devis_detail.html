@@ -1000,6 +1000,9 @@ const SAISIE_HT = {{ saisie_ht|yesno:"true,false" }};
 const CAN_EDIT = {{ peut_modifier|yesno:"true,false" }};  // false = consultation seule (hors équipe)
 const CSRF = '{{ csrf_token }}';
 
+// Helpers d'arbre + nid mutualisés (core/static/core/app.js).
+const { calcTotal, calcMO, calcMat, fmtV, assignNids, findNode, delFromTree, nextNid } = TreeHelpers;
+
 // ── AUTOCOMPLÉTION CLIENT (en-tête) ──
 const ehSearchInp = document.getElementById('eh-client-search');
 const ehHiddenId  = document.getElementById('eh-client');
@@ -1146,7 +1149,6 @@ let draggingLib = null;
 let draggingAide = null;
 let draggingNodeNid = null;
 let bypassFactId = null;
-let _nidCounter = 0;
 
 // ── HISTORIQUE CTRL+Z / CTRL+Y ──
 const HISTORY_MAX = 20;
@@ -1316,12 +1318,7 @@ async function saveEntete() {
   };
 
   try {
-    const resp = await fetch(`/devis/${DEVIS_ID}/entete/sauvegarder/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify(payload),
-    });
-    const data = await resp.json();
+    const data = await apiPost(`/devis/${DEVIS_ID}/entete/sauvegarder/`, payload);
     if (data.ok) {
       // Mettre à jour le taux courant en mémoire
       window._tauxMOCourant = nouveauTauxMO;
@@ -1369,38 +1366,7 @@ async function saveEntete() {
   }
 }
 
-// ── CALCULS ──
-function calcTotal(n) {
-  if (n.type_ligne === 'TITRE') {
-    const sousTot = (n.enfants || []).reduce((s, c) => s + calcTotal(c), 0);
-    return (n.quantite || 1) * sousTot;
-  }
-  if (!n.enfants || !n.enfants.length) return (n.quantite || 0) * (n.cout_unitaire || 0);
-  return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcTotal(c), 0);
-}
-
-function calcMO(n) {
-  if (n.type_ligne === 'TITRE') {
-    return (n.quantite || 1) * (n.enfants || []).reduce((s, c) => s + calcMO(c), 0);
-  }
-  if (!n.enfants || !n.enfants.length)
-    return ['MO', 'FMO'].includes(n.type_ligne) ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
-  return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcMO(c), 0);
-}
-
-function calcMat(n) {
-  if (n.type_ligne === 'TITRE') {
-    return (n.quantite || 1) * (n.enfants || []).reduce((s, c) => s + calcMat(c), 0);
-  }
-  if (!n.enfants || !n.enfants.length)
-    return ['MAT', 'FMAT'].includes(n.type_ligne) ? (n.quantite || 0) * (n.cout_unitaire || 0) : 0;
-  return (n.quantite || 1) * n.enfants.reduce((s, c) => s + calcMat(c), 0);
-}
-
-function fmtV(v) {
-  if (v === null || v === undefined) return '—';
-  return Number(v).toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-}
+// ── CALCULS & fmtV : voir TreeHelpers (core/static/core/app.js) ──
 
 // ── NUMÉROTATION ──
 function assignNumbers(nodes, prefix, parentType) {
@@ -1610,12 +1576,7 @@ function titreBtns(nid) {
   </div>`;
 }
 
-function assignNids(nodes) {
-  nodes.forEach(n => {
-    n._nid = '_' + (_nidCounter++);
-    if (n.enfants) assignNids(n.enfants);
-  });
-}
+// assignNids : voir TreeHelpers (core/static/core/app.js)
 
 function renderTree() {
   const posLines = tree.filter(n => n.type_ligne !== 'FIN' && n.type_ligne !== 'FINX');
@@ -1746,20 +1707,7 @@ function updateTotalsDisplay() {
 }
 
 // ── MANIPULATION ARBRE ──
-function findNode(nodes, nid) {
-  for (const n of nodes) {
-    if (n._nid === nid) return n;
-    if (n.enfants) { const f = findNode(n.enfants, nid); if (f) return f; }
-  }
-  return null;
-}
-
-function delFromTree(nodes, nid) {
-  const i = nodes.findIndex(n => n._nid === nid);
-  if (i >= 0) { nodes.splice(i, 1); return true; }
-  for (const n of nodes) { if (n.enfants && delFromTree(n.enfants, nid)) return true; }
-  return false;
-}
+// findNode / delFromTree : voir TreeHelpers (core/static/core/app.js)
 
 function updNode(nid, field, val) {
   historySnapshot();
@@ -1796,7 +1744,7 @@ function addRootNode(type) {
     C: {description:'Nouvel ouvrage composite', quantite:1, unite:'u',       cout_unitaire:null},
   };
   const n = {type_ligne:type, enfants:[], ouvert:true, ...def[type]};
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   tree.push(n);
   renderTree();
 }
@@ -1804,7 +1752,7 @@ function addRootNode(type) {
 function addTitre() {
   historySnapshot();
   const n = {type_ligne:'TITRE', description:'Nouveau titre', enfants:[], ouvert:true};
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   tree.push(n);
   renderTree();
 }
@@ -1814,7 +1762,7 @@ function addTitreEnfant(parentNid) {
   const p = findNode(tree, parentNid); if (!p) return;
   if (!p.enfants) p.enfants = [];
   const n = {type_ligne:'TITRE', description:'Nouveau titre', enfants:[], ouvert:true};
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   p.enfants.push(n);
   p.ouvert = true;
   renderTree();
@@ -1830,7 +1778,7 @@ function addOuvrageEnfant(parentNid, type) {
     C: {description:'Nouvel ouvrage composite', quantite:1, unite:'u',       cout_unitaire:null},
   };
   const n = {type_ligne:type, enfants:[], ouvert:true, ...def[type]};
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   p.enfants.push(n);
   p.ouvert = true;
   renderTree();
@@ -1860,7 +1808,7 @@ function addFinancementLibre() {
   if (!CAN_EDIT) return;
   historySnapshot();
   const n = {type_ligne:'FIN', description:'Subvention / financement', quantite:1, unite:'forfait', cout_unitaire:0, enfants:[], ouvert:true};
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   tree.push(n);
   renderTree();
 }
@@ -1879,7 +1827,7 @@ function addFinancementFromAide(aide) {
     enfants: [],
     ouvert: true
   };
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   tree.push(n);
   renderTree();
 }
@@ -1980,7 +1928,7 @@ function addFinancementExtLibre() {
   if (!CAN_EDIT) return;
   historySnapshot();
   const n = {type_ligne:'FINX', description:'Financement organisme', quantite:1, unite:'forfait', cout_unitaire:0, enfants:[], ouvert:true};
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   tree.push(n);
   renderTree();
 }
@@ -2078,12 +2026,7 @@ async function saveNewAide() {
   const montantRaw = document.getElementById('new-aide-montant')?.value;
   const montant_defaut = montantRaw ? parseFloat(montantRaw) : null;
   try {
-    const resp = await fetch('/aides/sauvegarder/', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({description: desc, type_ligne, organisme, montant_defaut}),
-    });
-    const data = await resp.json();
+    const data = await apiPost('/aides/sauvegarder/', {description: desc, type_ligne, organisme, montant_defaut});
     if (data.ok) {
       aides.push(data.aide);
       renderAidesPanel();
@@ -2189,7 +2132,7 @@ function addChild(pnid, type) {
     OUV: {description:'Sous-ouvrage', quantite:1, unite:'u', cout_unitaire:null},
   };
   const n = {type_ligne:type, enfants:[], ouvert:true, ...def[type]};
-  n._nid = '_' + (_nidCounter++);
+  n._nid = nextNid();
   p.enfants.push(n);
   p.ouvert = true;
   renderTree();
@@ -2198,14 +2141,14 @@ function addChild(pnid, type) {
 // ── COPY ──
 function deepCloneNode(n) {
   const clone = {...n};
-  clone._nid = '_' + (_nidCounter++);
+  clone._nid = nextNid();
   clone.description = n.description + ' (copie)';
   clone.enfants = (n.enfants || []).map(e => deepCloneNodeSilent(e));
   return clone;
 }
 function deepCloneNodeSilent(n) {
   const clone = {...n};
-  clone._nid = '_' + (_nidCounter++);
+  clone._nid = nextNid();
   clone.enfants = (n.enfants || []).map(e => deepCloneNodeSilent(e));
   return clone;
 }
@@ -2307,7 +2250,7 @@ function onEmptyZoneDrop(e, parentNid) {
     const src = JSON.parse(decodeURIComponent(draggingLib.dataset.node));
     function cloneNode(n) {
       const c = {...n}; delete c._nid;
-      c._nid = '_' + (_nidCounter++);
+      c._nid = nextNid();
       if (c.type_ligne === 'MO') c.cout_unitaire = window._tauxMOCourant || TAUX_MO;
       c.enfants = (n.enfants||[]).map(cloneNode);
       return c;
@@ -2464,7 +2407,7 @@ function insertLibNode(src) {
     const c = {...n};
     delete c._nid;
     delete c.groupe;  // marqueur biblio, ne pas polluer les lignes du devis
-    c._nid = '_' + (_nidCounter++);
+    c._nid = nextNid();
     if (c.type_ligne === 'MO') c.cout_unitaire = window._tauxMOCourant || TAUX_MO;
     c.enfants = (n.enfants||[]).map(cloneNode);
     return c;
@@ -2540,11 +2483,7 @@ async function onBiblioDrop(e) {
     const data = await r.json();
     const lignes = data.lignes || [];
     lignes.push(clone);
-    await fetch('/bibliotheque/api/sauvegarder/', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
-      body: JSON.stringify({lignes}),
-    });
+    await apiPost('/bibliotheque/api/sauvegarder/', {lignes});
     // Recharger le panneau
     biblio = lignes;
     renderLibPanel();
@@ -2573,17 +2512,12 @@ async function saveTree() {
   const finTitleInput = document.getElementById('fin-group-title');
   if (finTitleInput) window._finGroupTitle = finTitleInput.value;
   try {
-    const resp = await fetch(`/devis/${DEVIS_ID}/lignes/sauvegarder/`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-CSRFToken':CSRF},
-      body: JSON.stringify({
-        lignes: stripNids(tree),
-        fin_group_title: window._finGroupTitle || 'Financements',
-        zone_financement: zoneFinancement,
-        zone_financement_ext: zoneFinancementExt,
-      }),
+    const data = await apiPost(`/devis/${DEVIS_ID}/lignes/sauvegarder/`, {
+      lignes: stripNids(tree),
+      fin_group_title: window._finGroupTitle || 'Financements',
+      zone_financement: zoneFinancement,
+      zone_financement_ext: zoneFinancementExt,
     });
-    const data = await resp.json();
     if (data.ok) {
       btn.textContent = '✓ Sauvegardé';
       setTimeout(() => { btn.innerHTML = '<i class="ti ti-device-floppy"></i> Sauvegarder'; btn.disabled = false; }, 1500);

@@ -223,7 +223,6 @@ const FACTURE_PK    = {{ facture.pk }};
 const MODIFIABLE    = {{ modifiable|yesno:"true,false" }};
 const URL_LIGNES    = "{% url 'core:lignes-facture-get' facture.pk %}";
 const URL_SAVE      = "{% url 'core:lignes-facture-save' facture.pk %}";
-const CSRF_TOKEN    = "{{ csrf_token }}";
 
 // ═══════════════════════════════════════════════════════
 //  ÉTAT GLOBAL
@@ -240,6 +239,9 @@ let dirty = false;         // modifications non sauvegardées
 //  UTILITAIRES
 // ═══════════════════════════════════════════════════════
 
+// fmtV / findNode locaux : sémantique propre à la facture (fmtV suffixe ' €' et
+// gère NaN ; findNode indexe sur l'id réel, pas sur _nid) → pas TreeHelpers.
+// Les POST passent par apiPost() (core/static/core/app.js).
 function fmtV(v) {
   if (v === null || v === undefined || isNaN(v)) return '—';
   return Number(v).toLocaleString('fr-FR', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €';
@@ -499,11 +501,7 @@ async function saveLibelle(el, pk) {
   if (fp) fp.libelle = libelle;
   // Envoi serveur
   try {
-    await fetch(`/factures/${pk}/libelle/`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
-      body: JSON.stringify({libelle}),
-    });
+    await apiPost(`/factures/${pk}/libelle/`, {libelle});
   } catch(e) { console.warn('Erreur sauvegarde libellé', e); }
 }
 
@@ -541,12 +539,7 @@ async function saveFacture() {
   };
 
   try {
-    const resp = await fetch(URL_SAVE, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
-      body: JSON.stringify(payload),
-    });
-    const data = await resp.json();
+    const data = await apiPost(URL_SAVE, payload);
     if (data.ok) {
       dirty = false;
       showToast('Sauvegardé', 'ok');
@@ -629,11 +622,7 @@ function renderAcomptes() {
 async function saveDateVersement(el, pk) {
   const date_versement = el.textContent.trim();
   try {
-    await fetch(`/factures/${pk}/date-versement/`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
-      body: JSON.stringify({date_versement}),
-    });
+    await apiPost(`/factures/${pk}/date-versement/`, {date_versement});
   } catch(e) { console.warn('Erreur sauvegarde date versement', e); }
 }
 

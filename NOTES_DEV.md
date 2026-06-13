@@ -10,6 +10,8 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
+**État du projet (13/06/2026 — session 45) :** **Phase 3 — Socle JS partagé (plan d'améliorations).** Nouveau fichier **`core/static/core/app.js`** chargé dans `base.html` (via `{% static %}`, avant le `{% block extra_js %}` des pages). Contenu : (1) **`TreeHelpers`** (IIFE) — `calcTotal/calcMO/calcMat` (parité `core/totaux.py`), `fmtV` (format FR sans €), `assignNids/findNode/delFromTree`, et `nextNid()` (allocateur de `_nid` unique par page, partagé entre assignNids et la création/duplication de nœuds). (2) **`apiPost(url, payload)`** — wrapper `fetch` POST JSON + `X-CSRFToken` (token lu depuis le `{% csrf_token %}` de la topbar via `getCsrfToken()`), renvoie le JSON parsé. (3) **`debounce(fn, delay)`** (pour la Phase 4). **Branchements** : `devis_detail.html` et `bibliotheque.html` — copies locales **supprimées**, remplacées par un shim de destructuring `const { … } = TreeHelpers;` ; inline `'_'+(_nidCounter++)` → `nextNid()` ; saves JSON (lignes, en-tête devis, aides, drop biblio, saveBiblio) → `apiPost`. `facture_detail.html` — `findNode` (indexé sur `id` réel) et `fmtV` (suffixe ` €`, gère NaN) **conservés localement** (sémantique différente, commentés) ; ses 3 POST JSON (saveFacture, libellé, date versement) → `apiPost`. `facture_compta_detail.html` — helpers **entièrement locaux** (arbre 2 niveaux, `_nid` entiers réattribués au rendu, `save()` lit `resp.ok`) ; commentaire explicatif ajouté. Commentaire de **synchronisation** ajouté en tête d'app.js ET de `totaux.py`. **156 tests OK** (`test_totaux_identiques_aux_methodes_modele` inclus). Calcul JS identique avant/après (code déplacé verbatim). Reste : **test manuel des 4 éditeurs** (total inchangé après save, drag&drop, round-trip biblio). Commit à faire après feu vert.
+
 **État du projet (13/06/2026 — session 44) :** **Phase 2 — Cohérence UI/CSS (plan d'améliorations).** Ajouts dans `core/static/core/app.css` : (1) **`.empty-state`** (centrage + padding + gris) — remplace les 4 variantes locales (`.dash-empty` dans `dashboard.html`, `.empty-msg` dans `aides.html`, `.empty-state` locale dans `feuilles_liste.html`, états inline dans toutes les listes). (2) **`.grid-2`/`.grid-3`/`.grid-2-1`** (helpers grille 2-col, 3-col, 2fr/1fr) — remplace les `style="display:grid;grid-template-columns:…"` répétés dans les modales et formulaires. (3) **`.sel-narrow`** (max-width:140px) — remplace les `style="max-width:…"` sur les filtres. (4) **`.breadcrumb`/`.breadcrumb-sep`/`.breadcrumb-anc`/`.breadcrumb-cur`/`.breadcrumb-sub`** — remplace les spans inline dans les `topbar_title` de `devis_detail.html`, `facture_detail.html`, `aides.html`. (5) **`.form-hint`** (note sous un champ) — remplace la définition locale de `utilisateur_form.html`. Modifications templates : `utilisateurs_list.html` harmonisé `page-hd` + `scroll-y` (était `page-body` + `card`) ; `clients.html` et `equipiers.html` : filtres `onchange="this.form.submit()"` sur les selects, `.modal-scroll` ajouté aux modales longues, grilles `.grid-2`/`.grid-2-1`/`.grid-3` dans les modales ; planning.html et emargement.html : grilles `.grid-2` dans les modales événement et affectation, état vide harmonisé ; `profil.html` : grille `.grid-2` ; `facture_compta_list.html` : état vide harmonisé. Styles locaux redondants supprimés dans `feuilles_liste.html`, `utilisateur_form.html`, `aides.html`, `dashboard.html`. **156 tests OK** (inchangé — CSS/HTML, pas de logique). Commit à faire après feu vert.
 
 **État du projet (13/06/2026 — session 43) :** **Phase 1 — Socle backend (plan d'améliorations).** (1) **`parse_json_request(request)`** → `(data, None)` ou `(None, JsonResponse 400)` : remplace les 22 blocs `try: json.loads(request.body)` répartis dans `views.py` (10) et `views_planning.py` (12). (2) **`json_error(message, status=400)`** + **`json_error_permission()`** (403) : uniformise toutes les réponses `JsonResponse({'error':…})` / `{'ok':False,'error':…}` vers le format `{'ok':False,'error':…}` (cohérent avec `views_planning.py` qui utilisait déjà ce format). (3) **Context processor `profil_utilisateur`** : ajouté dans `core/context_processors.py` et enregistré dans `settings.py` — injecte `profil` dans tous les templates, évite le passage manuel. Retiré de 14 `render()` dans `views.py` (dont 2 `get_profil()` inline) ; les `get_profil(request.user)` **utilisés dans la logique** (profil_view, dashboard, bibliotheque, devis_create, devis_detail, utilisateurs_list, utilisateur_create/edit, facture_compta_create) sont conservés. **156 tests OK** (inchangé). Commit à faire après feu vert.
@@ -119,6 +121,9 @@ cb-bretagne/
     ├── admin.py
     ├── tests.py               — 151 tests (accès, clients, biblio, compta, dashboard, perf, planning, feuilles, événements)
     ├── migrations/
+    ├── static/core/
+    │   ├── app.css            — composants partagés (badges/boutons/tableaux/modales/charte)
+    │   └── app.js             — socle JS partagé : TreeHelpers (calc/nids/fmtV), apiPost, debounce
     └── templates/core/
         ├── base.html
         ├── _pagination.html        — contrôles de pagination réutilisables (page_obj + base_qs)
@@ -1483,16 +1488,25 @@ Pour supprimer proprement :
 - **Context processor** — injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue).
 - **Modèle `BibliothèqueAides`** — nom de classe avec accent (non-ASCII), fragile pour imports/outils. Renommer en ASCII (`BibliothequeAides`) si on retouche le modèle.
 - ✅ **Auditer les templates** — vérifié session 36 (11/06/2026) : aucun `{{ f.reference }}` parasite restant dans `core/templates/`.
-- **Calcul des totaux dupliqué (2 implémentations)** — le parcours d'arbre du total existe à
+- **Calcul des totaux dupliqué (côté Python)** — le parcours d'arbre du total existe à
   **deux endroits** : `core/totaux.py` (version **en mémoire**, anti N+1, utilisée par les
   **listes ET le dashboard** via un import partagé) et `models.py` `LigneDevis.total()` /
   `Devis.total_brut()` (version **une requête par nœud**, conservée pour l'affichage d'**un
   seul** devis : `devis_detail`, réponse `lignes_save`, PDF…). C'est **volontaire** (inutile
   de précharger pour un objet unique), mais les deux doivent rester **sémantiquement
   identiques** — garde-fou : `test_totaux_identiques_aux_methodes_modele` (égalité stricte).
-  Consolidation possible (Phase 3, propreté seulement) : faire déléguer `models.py` à
+  Consolidation Python possible (propreté seulement) : faire déléguer `models.py` à
   `totaux.py` en préchargeant l'arbre du devis courant → une seule implémentation. Non requis
   pour la perf.
+- ✅ **Calcul des totaux dupliqué (côté JS)** — réglé session 45 (Phase 3) : `calcTotal/calcMO/
+  calcMat` + `fmtV/assignNids/findNode/delFromTree` étaient copiés à l'identique dans
+  `devis_detail.html` ET `bibliotheque.html`. Consolidés dans **`core/static/core/app.js`**
+  (`TreeHelpers`), chargé par `base.html`. Commentaire de **parité** ajouté en tête d'app.js ET
+  de `totaux.py` (le garde-fou serveur reste `test_totaux_identiques_aux_methodes_modele`).
+  `facture_detail` (findNode sur `id`, fmtV avec ` €`) et `facture_compta_detail` (arbre 2
+  niveaux, `_nid` entiers) gardent **volontairement** leurs helpers locaux (sémantique
+  différente). `apiPost(url,payload)` (POST JSON + CSRF) + `debounce` aussi dans app.js ;
+  les saves JSON des 4 éditeurs (sauf compta, qui lit `resp.ok`) passent par `apiPost`.
 
 ### Tests
 - **Couverture session 14 manquante** — zone_financement (persistance), `aide_delete`.

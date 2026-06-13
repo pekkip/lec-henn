@@ -150,6 +150,10 @@ if (MODIFIABLE) {
   });
 }
 
+// Helpers d'arbre locaux (PAS TreeHelpers d'app.js) : la facture compta a un
+// arbre à 2 niveaux (titres + forfaits), des _nid entiers réattribués à chaque
+// rendu et une numérotation propre — sémantique trop différente pour fusionner
+// (cf. plan d'améliorations, Phase 3). save() inspecte resp.ok → fetch direct.
 function euros(n){ return (n||0).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
 
 function lineTotal(l){
