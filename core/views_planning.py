@@ -35,7 +35,7 @@ from .planning_utils import (
     _jours_feries, _build_grille,
 )
 from .totaux import total_mo_devis, mo_mat_lignes
-from .views import get_profil, to_decimal, _build_period_presets
+from .views import get_profil, to_decimal, _build_period_presets, parse_json_request, json_error, json_error_permission
 
 
 def aide_insertion_view(request):
@@ -811,11 +811,10 @@ def planning_wizard_data(request):
 @require_POST
 def tranche_creer(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
     devis = get_object_or_404(Devis, pk=data.get('devis_id'), status='accepted')
     nom = (data.get('nom') or '').strip() or 'Nouvelle tranche'
     ordre = TrancheDevis.objects.filter(devis=devis).count() + 1
@@ -827,11 +826,10 @@ def tranche_creer(request):
 @require_POST
 def evenement_save(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     pk           = data.get('pk')
     type_ev      = data.get('type', 'autre')
@@ -899,11 +897,10 @@ def evenement_save(request):
 @require_POST
 def evenement_delete(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     pk = data.get('pk')
     try:
@@ -943,11 +940,10 @@ def evenement_delete(request):
 @require_POST
 def vendredi_toggle(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     aff_id = data.get('aff_id')
     try:
@@ -971,11 +967,10 @@ def vendredi_toggle(request):
 @require_POST
 def affectation_save(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     devis_id   = data.get('devis_id')
     equipe_id  = data.get('equipe_id')
@@ -1048,11 +1043,10 @@ def _aff_update_dict(aff):
 @require_POST
 def affectation_move(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     aff_id    = data.get('aff_id')
     debut_s   = (data.get('date_debut') or '').strip()
@@ -1141,11 +1135,10 @@ def affectation_move(request):
 @require_POST
 def affectation_delete(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     aff_id = data.get('aff_id')
     try:
@@ -1203,11 +1196,10 @@ MSG_MOIS_CLOTURE = 'Mois clôturé (fiche remise à la RH) — saisie verrouill�
 @require_POST
 def presence_save(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     saved = deleted = verrouille = 0
     clotures_cache = {}
@@ -1287,13 +1279,12 @@ def presence_save(request):
 @login_required
 def pret_save(request):
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+        return json_error_permission()
     if request.method != 'POST':
-        return JsonResponse({'ok': False, 'error': 'POST requis'}, status=405)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error('POST requis', status=405)
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     action = data.get('action', 'create')
     if action == 'delete':
@@ -1621,25 +1612,24 @@ def fiche_presence_save(request):
     Lookup affectation automatique — null autorisé depuis migration 0024.
     """
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     try:
         equipier_id = int(data.get('equipier_id', 0))
         d           = datetime.strptime(data.get('date', ''), '%Y-%m-%d').date()
         creneau     = data.get('creneau', '')
     except (ValueError, TypeError):
-        return JsonResponse({'ok': False, 'error': 'Paramètres invalides'}, status=400)
+        return json_error('Paramètres invalides')
 
     if creneau not in ('matin', 'aprem'):
-        return JsonResponse({'ok': False, 'error': 'Créneau invalide'}, status=400)
+        return json_error('Créneau invalide')
 
     equipier = Equipier.objects.select_related('equipe').filter(pk=equipier_id, actif=True).first()
     if not equipier or not equipier.equipe:
-        return JsonResponse({'ok': False, 'error': 'Équipier introuvable'}, status=404)
+        return json_error('Équipier introuvable', status=404)
 
     if not est_encadrant(request.user, equipier.equipe):
         return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
@@ -1689,11 +1679,10 @@ def fiche_note_save(request):
     Endpoint partagé entre émargement hebdo et fiche mensuelle.
     """
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     try:
         equipier_id = int(data.get('equipier_id', 0))
@@ -1701,11 +1690,11 @@ def fiche_note_save(request):
         mois        = int(data.get('mois', 0))
         num_semaine = int(data.get('num_semaine', 0))
     except (ValueError, TypeError):
-        return JsonResponse({'ok': False, 'error': 'Paramètres invalides'}, status=400)
+        return json_error('Paramètres invalides')
 
     equipier = Equipier.objects.select_related('equipe').filter(pk=equipier_id, actif=True).first()
     if not equipier or not equipier.equipe:
-        return JsonResponse({'ok': False, 'error': 'Équipier introuvable'}, status=404)
+        return json_error('Équipier introuvable', status=404)
 
     if not est_encadrant(request.user, equipier.equipe):
         return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
@@ -1735,22 +1724,24 @@ def cloture_toggle(request):
     restent modifiables — choix acté session 36.
     """
     if not peut_acceder_planning(request.user):
-        return JsonResponse({'ok': False, 'error': 'Accès refusé'}, status=403)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
     try:
-        data      = json.loads(request.body)
         equipe_id = int(data.get('equipe_id', 0))
         annee     = int(data.get('annee', 0))
         mois      = int(data.get('mois', 0))
-    except (json.JSONDecodeError, ValueError, TypeError):
-        return JsonResponse({'ok': False, 'error': 'Paramètres invalides'}, status=400)
+    except (ValueError, TypeError):
+        return json_error('Paramètres invalides')
     if not (1 <= mois <= 12 and 2020 <= annee <= 2100):
-        return JsonResponse({'ok': False, 'error': 'Mois invalide'}, status=400)
+        return json_error('Mois invalide')
 
     equipe = Equipe.objects.filter(pk=equipe_id, actif=True, service__module_planning=True).first()
     if not equipe:
-        return JsonResponse({'ok': False, 'error': 'Équipe introuvable'}, status=404)
+        return json_error('Équipe introuvable', status=404)
     if not est_encadrant(request.user, equipe):
-        return JsonResponse({'ok': False, 'error': 'Non autorisé sur cette équipe'}, status=403)
+        return json_error('Non autorisé sur cette équipe', status=403)
 
     existing = ClotureMois.objects.filter(equipe=equipe, annee=annee, mois=mois).first()
     if existing:

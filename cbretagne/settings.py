@@ -79,6 +79,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.params_association',
                 'core.context_processors.planning_access',
+                'core.context_processors.profil_utilisateur',
             ],
         },
     },

@@ -48,6 +48,22 @@ def get_profil(user):
     return profil
 
 
+def parse_json_request(request):
+    """Décode request.body en JSON. Retourne (data, None) ou (None, JsonResponse 400)."""
+    try:
+        return json.loads(request.body), None
+    except (json.JSONDecodeError, ValueError, TypeError):
+        return None, JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+
+
+def json_error(message, status=400):
+    return JsonResponse({'ok': False, 'error': message}, status=status)
+
+
+def json_error_permission():
+    return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
+
+
 def to_decimal(val, default=None):
     if val is None or val == '':
         return default
@@ -358,7 +374,7 @@ def profil_view(request):
         profil.save()
         messages.success(request, 'Profil mis à jour.')
         return redirect('core:profil')
-    return render(request, 'core/profil.html', {'profil': profil})
+    return render(request, 'core/profil.html', {})
 
     
 # ══════════════════════════════════════════
@@ -400,7 +416,6 @@ def dashboard(request):
     return render(request, 'core/dashboard.html', {
         'widgets': visibles,
         'widgets_disponibles': disponibles,
-        'profil': profil,
     })
 
 
@@ -413,10 +428,9 @@ def dashboard_save(request):
     droit (cf. sanitize_config). Renvoie du JSON.
     """
     profil = get_profil(request.user)
-    try:
-        payload = json.loads(request.body)
-    except (ValueError, TypeError):
-        return JsonResponse({'ok': False, 'error': 'JSON invalide'}, status=400)
+    payload, err = parse_json_request(request)
+    if err:
+        return err
 
     widgets = sanitize_config(payload.get('widgets'), request.user)
     profil.dashboard_config = {'widgets': widgets}
@@ -491,7 +505,7 @@ def client_quick_create(request):
     """Création rapide depuis l'écran de devis. Renvoie le client créé en JSON."""
     nom = request.POST.get('nom', '').strip()
     if not nom:
-        return JsonResponse({'error': 'Le nom est obligatoire.'}, status=400)
+        return json_error('Le nom est obligatoire.')
     client = Client.objects.create(
         nom=nom,
         contact=request.POST.get('contact', ''),
@@ -571,7 +585,6 @@ def client_delete(request, pk):
 def bibliotheque(request):
     profil = get_profil(request.user)
     return render(request, 'core/bibliotheque.html', {
-        'profil': profil,
         'taux_mo_js': str(profil.taux_mo_defaut).replace(',', '.'),
     })
 
@@ -588,13 +601,12 @@ def biblio_api_get(request):
 @require_POST
 def biblio_api_save(request):
     biblio, _ = Bibliotheque.objects.get_or_create(user=request.user)
-    try:
-        data = json.loads(request.body)
-        biblio.lignes = data.get('lignes', [])
-        biblio.save()
-        return JsonResponse({'ok': True})
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    biblio.lignes = data.get('lignes', [])
+    biblio.save()
+    return JsonResponse({'ok': True})
 
 
 # ══════════════════════════════════════════
@@ -603,8 +615,7 @@ def biblio_api_save(request):
 
 @login_required
 def aides_page(request):
-    profil = get_profil(request.user)
-    return render(request, 'core/aides.html', {'profil': profil})
+    return render(request, 'core/aides.html', {})
 
 
 @login_required
@@ -628,16 +639,15 @@ def aides_api_get(request):
 @login_required
 @require_POST
 def aides_api_save(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    data, err = parse_json_request(request)
+    if err:
+        return err
     description = data.get('description', '').strip()
     if not description:
-        return JsonResponse({'error': 'Description requise'}, status=400)
+        return json_error('Description requise')
     type_ligne = data.get('type_ligne', 'FIN')
     if type_ligne not in ('FMO', 'FMAT', 'FIN', 'FINX'):
-        return JsonResponse({'error': 'Type invalide'}, status=400)
+        return json_error('Type invalide')
     montant_raw = data.get('montant_defaut')
     montant = to_decimal(montant_raw)
     aide = BibliothèqueAides.objects.create(
@@ -675,7 +685,6 @@ def aide_delete(request, pk):
 
 @login_required
 def devis_list(request):
-    profil = get_profil(request.user)
     qs = Devis.objects.select_related(
         'client', 'equipe__service__territoire', 'created_by'
     )
@@ -725,7 +734,6 @@ def devis_list(request):
         'services': Service.objects.select_related('territoire').all(),
         'territoires': Territoire.objects.all(),
         'auteurs': User.objects.filter(devis_crees__isnull=False).distinct().order_by('first_name', 'username'),
-        'profil': profil,
         'status_filter': status,
         'client_filter': client_id,
         'equipe_filter': equipe_id,
@@ -789,7 +797,6 @@ def devis_create(request):
     return render(request, 'core/devis_form.html', {
         'clients': Client.objects.all(),
         'equipes': equipes,
-        'profil': profil,
     })
 
 
@@ -821,7 +828,6 @@ def devis_detail(request, pk):
         'audit_logs': audit_logs,
         'articles_biblio': articles_biblio,
         'circuit_steps': circuit_steps,
-        'profil': profil,
         'taux_mo_js': taux_mo_js,
         'saisie_ht': profil.saisie_ht,  # ← ajouté
         'peut_modifier': peut_modifier_devis(request.user, devis),  # éditeur verrouillé si hors équipe
@@ -1368,11 +1374,10 @@ def devis_export_excel(request, pk):
 def devis_entete_save(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
     if not peut_modifier_devis(request.user, devis):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     # Client
     client_id = data.get('client_id')
@@ -1443,7 +1448,7 @@ def devis_entete_save(request, pk):
 def lignes_get(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
     if not peut_voir_devis(request.user, devis):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
     racines = devis.lignes.filter(parent=None)
     data = [ligne_to_dict(l) for l in racines]
     return JsonResponse({
@@ -1460,15 +1465,14 @@ def lignes_get(request, pk):
 def lignes_save(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
     if not peut_modifier_devis(request.user, devis):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
-    try:
-        data = json.loads(request.body)
-        lignes = data.get('lignes', [])
-        fin_group_title = data.get('fin_group_title', 'Financements')
-        zone_financement = data.get('zone_financement', False)
-        zone_financement_ext = data.get('zone_financement_ext', False)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    lignes = data.get('lignes', [])
+    fin_group_title = data.get('fin_group_title', 'Financements')
+    zone_financement = data.get('zone_financement', False)
+    zone_financement_ext = data.get('zone_financement_ext', False)
 
     devis.lignes.all().delete()
 
@@ -1631,18 +1635,17 @@ def facture_create(request, devis_pk):
 def facture_date_versement(request, pk):
     facture = get_object_or_404(Facture, pk=pk, type_doc='acompte')
     if not peut_modifier_facture(request.user, facture):
-        return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    date_str = data.get('date_versement', '').strip()
     try:
-        data = json.loads(request.body)
-        date_str = data.get('date_versement', '').strip()
-        if date_str:
-            facture.date_versement = dt.strptime(date_str, '%d/%m/%Y').date()
-        else:
-            facture.date_versement = None
-        facture.save(update_fields=['date_versement'])
-        return JsonResponse({'ok': True})
-    except (ValueError, KeyError):
-        return JsonResponse({'ok': False, 'error': 'Format invalide (jj/mm/aaaa)'})
+        facture.date_versement = dt.strptime(date_str, '%d/%m/%Y').date() if date_str else None
+    except ValueError:
+        return json_error('Format invalide (jj/mm/aaaa)')
+    facture.save(update_fields=['date_versement'])
+    return JsonResponse({'ok': True})
 
 @login_required
 @require_POST
@@ -1672,7 +1675,7 @@ def facture_status(request, pk):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json'
     if not peut_modifier_facture(request.user, facture):
         if is_ajax:
-            return JsonResponse({'error': 'Permission refusée'}, status=403)
+            return json_error_permission()
         messages.error(request, 'Vous ne pouvez pas modifier cette facture.')
         return redirect('core:devis-detail', pk=facture.devis.pk)
     old = facture.status
@@ -1696,11 +1699,11 @@ def facture_status(request, pk):
 def facture_bypass(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_modifier_facture(request.user, facture):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
     code = request.POST.get('code', '')
     stored = request.session.get(f'bypass_code_{pk}')
     if not stored or code != stored:
-        return JsonResponse({'error': 'Code incorrect'}, status=400)
+        return json_error('Code incorrect')
     if not facture.numero:
         facture.numero = gen_numero_facture(facture.type_doc)
     facture.status = 'validated'
@@ -1737,11 +1740,11 @@ def facture_delete(request, pk):
 @login_required
 def facture_bypass_send_code(request, pk):
     if not request.user.email:
-        return JsonResponse({'ok': False, 'error': 'Aucune adresse email sur votre compte. Contactez un administrateur.'})
+        return json_error('Aucune adresse email sur votre compte. Contactez un administrateur.')
 
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_modifier_facture(request.user, facture):
-        return JsonResponse({'ok': False, 'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
 
     code = ''.join(random.choices(string.digits, k=6))
 
@@ -1763,7 +1766,7 @@ def facture_bypass_send_code(request, pk):
         return JsonResponse({'ok': True})
     except Exception as e:
         logger.error('Bypass email error (facture %s): %s', pk, e)
-        return JsonResponse({'ok': False, 'error': "Impossible d'envoyer le code par email. Contactez un administrateur."})
+        return json_error("Impossible d'envoyer le code par email. Contactez un administrateur.")
 
 
 def calc_deja_par_source_detail(devis, facture_courante):
@@ -1815,7 +1818,6 @@ def facture_detail(request, pk):
     """
     facture = get_object_or_404(Facture, pk=pk)
     devis = facture.devis
-    profil = get_profil(request.user)
 
     # Vérification accès — lecture (comptable inclus pour la validation)
     if not peut_voir_facture(request.user, facture):
@@ -1837,7 +1839,6 @@ def facture_detail(request, pk):
     return render(request, 'core/facture_detail.html', {
         'facture': facture,
         'devis': devis,
-        'profil': profil,
         'factures_prec': factures_prec,
         'total_devis': total_devis,
         'total_deja': total_deja,
@@ -1966,15 +1967,14 @@ def facture_libelle_save(request, pk):
     """
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_modifier_facture(request.user, facture):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
-    try:
-        data = json.loads(request.body)
-        libelle = data.get('libelle', '').strip()[:200]
-        facture.libelle = libelle
-        facture.save(update_fields=['libelle'])
-        return JsonResponse({'ok': True, 'libelle': libelle})
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    libelle = data.get('libelle', '').strip()[:200]
+    facture.libelle = libelle
+    facture.save(update_fields=['libelle'])
+    return JsonResponse({'ok': True, 'libelle': libelle})
 
 # ══════════════════════════════════════════
 #  LIGNES FACTURE (API JSON)
@@ -1990,7 +1990,7 @@ def lignes_facture_get(request, pk):
     """
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_voir_facture(request.user, facture):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
     deja_par_source = calc_deja_par_source_detail(facture.devis, facture)
     racines = facture.lignes.filter(parent=None)
     data = [ligne_facture_to_dict(l, deja_par_source) for l in racines]
@@ -2045,17 +2045,16 @@ def lignes_facture_get(request, pk):
 def lignes_facture_save(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_modifier_facture(request.user, facture):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
     if facture.status != 'draft':
-        return JsonResponse({'error': 'Facture non modifiable'}, status=400)
-    try:
-        data = json.loads(request.body)
-        notes = data.get('notes', None)
-        if notes is not None:
-            facture.notes = notes
-        lignes = data.get('lignes', [])
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+        return json_error('Facture non modifiable')
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    notes = data.get('notes', None)
+    if notes is not None:
+        facture.notes = notes
+    lignes = data.get('lignes', [])
 
     facture.lignes.all().delete()
 
@@ -2121,7 +2120,6 @@ def utilisateurs_list(request):
 
     return render(request, 'core/utilisateurs_list.html', {
         'profils': profils,
-        'profil': profil,
     })
 
 
@@ -2281,7 +2279,6 @@ def utilisateur_create(request):
         ]
 
     return render(request, 'core/utilisateur_form.html', {
-        'profil': profil_courant,
         'equipes': equipes_disponibles,
         'roles': roles_disponibles,
         'services': Service.objects.select_related('territoire').all(),
@@ -2310,7 +2307,6 @@ def utilisateur_create_succes(request):
 
     return render(request, 'core/utilisateur_succes.html', {
         'infos': infos,
-        'profil': get_profil(request.user),
     })
 
 
@@ -2367,7 +2363,6 @@ def utilisateur_edit(request, pk):
         ]
 
     return render(request, 'core/utilisateur_form.html', {
-        'profil': profil_courant,
         'cible': cible_profil,
         'equipes': equipes_disponibles,
         'roles': roles_disponibles,
@@ -2515,7 +2510,6 @@ def facture_compta_create(request, type_doc):
     return render(request, 'core/facture_compta_form.html', {
         'type_doc': type_doc,
         'meta': meta,
-        'profil': profil,
     })
 
 
@@ -2536,7 +2530,6 @@ def facture_compta_detail(request, pk):
         'facture': facture,
         'meta': meta,
         'modifiable': facture.status == 'draft' and peut_modifier_facture(request.user, facture),
-        'profil': get_profil(request.user),
     })
 
 
@@ -2545,7 +2538,7 @@ def lignes_compta_get(request, pk):
     """Retourne les lignes (titres + forfaits) + montant de la facture compta."""
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_voir_facture(request.user, facture):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
     racines = facture.lignes.filter(parent=None).order_by('ordre')
     return JsonResponse({
         'lignes': [_compta_lignes_to_dict(l) for l in racines],
@@ -2560,13 +2553,12 @@ def lignes_compta_save(request, pk):
     """Remplace les lignes (titres + forfaits) ; recalcule le montant (± pour les avoirs)."""
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_modifier_facture(request.user, facture):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
     if facture.status != 'draft':
-        return JsonResponse({'error': 'Facture non modifiable'}, status=400)
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+        return json_error('Facture non modifiable')
+    data, err = parse_json_request(request)
+    if err:
+        return err
 
     notes = data.get('notes', None)
     if notes is not None:
@@ -2625,7 +2617,7 @@ def facture_compta_status(request, pk):
     is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/json'
     if not peut_modifier_facture(request.user, facture):
         if is_ajax:
-            return JsonResponse({'error': 'Permission refusée'}, status=403)
+            return json_error_permission()
         messages.error(request, 'Vous ne pouvez pas modifier cette facture.')
         return redirect('core:compta-facture-detail', pk=pk)
     old = facture.status
@@ -2765,7 +2757,7 @@ def avoir_create(request, facture_pk):
 def client_contacts_get(request, client_pk):
     """Liste JSON des contacts d'un client (pour le select du formulaire compta)."""
     if not peut_acceder_compta(request.user):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
+        return json_error_permission()
     client = get_object_or_404(Client, pk=client_pk)
     contacts = [
         {'id': c.pk, 'label': str(c), 'service': c.service, 'nom': c.nom,
@@ -2780,16 +2772,15 @@ def client_contacts_get(request, client_pk):
 def contact_client_create(request):
     """Ajout rapide d'un contact à un client → {id, label}."""
     if not peut_acceder_compta(request.user):
-        return JsonResponse({'error': 'Permission refusée'}, status=403)
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
     client = get_object_or_404(Client, pk=data.get('client'))
     service = (data.get('service') or '').strip()
     nom = (data.get('nom') or '').strip()
     if not service and not nom:
-        return JsonResponse({'error': 'Service ou nom requis'}, status=400)
+        return json_error('Service ou nom requis')
     contact = ContactClient.objects.create(
         client=client,
         service=service,
@@ -2806,7 +2797,7 @@ def contact_client_create(request):
 def contact_client_delete(request, pk):
     """Suppression d'un contact (admin uniquement, comme l'édition client)."""
     if not is_admin(request.user):
-        return JsonResponse({'error': 'Réservé à l\'administrateur'}, status=403)
+        return json_error("Réservé à l'administrateur", status=403)
     contact = get_object_or_404(ContactClient, pk=pk)
     contact.delete()
     return JsonResponse({'ok': True})
