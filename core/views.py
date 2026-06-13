@@ -245,7 +245,7 @@ _TYPES_STRUCTURELS = frozenset({'OUV', 'MO', 'MAT'})
 
 
 def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None, ordre=0,
-                                      deja_par_source=None):
+                                      deja_par_source=None, keep_qty=False):
     """
     Copie récursivement les lignes du devis vers la facture.
 
@@ -253,8 +253,15 @@ def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None,
     - TITRE : démarre à qty devis ; se replie à 0 si et seulement si
       il était inclus dans une facture précédente ET que son total() == 0
       (tous les enfants « métrage » sont épuisés).
-    - _TYPES_STRUCTURELS (OUV, MO, MAT) : toujours à qty devis (prix unitaire).
-    - Autres (C, S, F, FMO, FMAT, FIN, FINX…) : max(0, qty_devis - qty_deja).
+    - Seuls les **postes facturables de premier niveau** (enfants directs d'un TITRE,
+      ou racines sans TITRE — C, S, F, FMO, FMAT, FIN, FINX…) sont réduits :
+      max(0, qty_devis - qty_deja). Tout ce qui est **sous** un tel poste (la recette
+      unitaire de la composite/section : OUV, MO, MAT, mais aussi une éventuelle
+      sous-section S/C) conserve sa qty devis → drapeau `keep_qty=True` propagé en
+      descendant. Sans ça, une section facturée une fois tombait à 0 et annulait le
+      total de sa composite parente (et donc du TITRE).
+    - _TYPES_STRUCTURELS (OUV, MO, MAT) : jamais réduits non plus (prix unitaire),
+      garde-fou conservé même au premier niveau.
     quantite_originale garde la qty devis figée comme référence (snapshot).
     """
     for ligne in lignes_devis:
@@ -275,14 +282,17 @@ def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None,
                 ouvert=ligne.ouvert,
                 ligne_devis_source=ligne,
             )
+            # Les enfants d'un TITRE sont des postes facturables → keep_qty inchangé.
             copier_lignes_devis_vers_facture(
-                ligne.enfants.all(), facture, lf, 0, deja_par_source
+                ligne.enfants.all(), facture, lf, 0, deja_par_source, keep_qty=keep_qty
             )
             if was_billed and lf.total() == Decimal('0'):
                 lf.quantite = Decimal('0')
                 lf.save(update_fields=['quantite'])
         else:
-            if deja_par_source is not None and ligne.type_ligne not in _TYPES_STRUCTURELS:
+            reductible = (deja_par_source is not None and not keep_qty
+                          and ligne.type_ligne not in _TYPES_STRUCTURELS)
+            if reductible:
                 entry = deja_par_source.get(ligne.pk)
                 qty_deja = entry['qty'] if entry else Decimal('0')
             else:
@@ -303,8 +313,10 @@ def copier_lignes_devis_vers_facture(lignes_devis, facture, parent_facture=None,
                 ligne_devis_source=ligne,
             )
             if ligne.enfants.exists():
+                # On est entré dans un poste facturable : tout en dessous est la
+                # recette unitaire → conserver la qty devis (keep_qty=True).
                 copier_lignes_devis_vers_facture(
-                    ligne.enfants.all(), facture, lf, 0, deja_par_source
+                    ligne.enfants.all(), facture, lf, 0, deja_par_source, keep_qty=True
                 )
         ordre += 1
 

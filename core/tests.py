@@ -291,6 +291,70 @@ class AccesDevisFactureTests(TestCase):
         self.assertEqual(float(titre_f2.quantite), 1.0,
                          "TITRE non facturé (qty=0 dans f1) doit rester à 1 dans f2")
 
+    def test_nouvelle_facture_composite_partielle_garde_recette(self):
+        # TITRE → composite C (métrage partiellement facturé) → section S (recette).
+        # La S, facturée une fois, ne doit PAS tomber à 0 dans la facture suivante :
+        # elle fait partie de la recette unitaire de la composite, pas du métrage.
+        # Régression : sinon C.total()=0 → TITRE replié → montant facture = 0.
+        titre_ld = LigneDevis.objects.create(
+            devis=self.devis, type_ligne='TITRE', description='Lot E',
+            quantite=Decimal('1'), ordre=5,
+        )
+        c_ld = LigneDevis.objects.create(
+            devis=self.devis, parent=titre_ld, type_ligne='C', description='Peinture',
+            quantite=Decimal('10'), ordre=0,
+        )
+        s_ld = LigneDevis.objects.create(
+            devis=self.devis, parent=c_ld, type_ligne='S', description='Finition',
+            quantite=Decimal('1'), ordre=0,
+        )
+        LigneDevis.objects.create(
+            devis=self.devis, parent=s_ld, type_ligne='MAT', description='Peinture mat',
+            quantite=Decimal('1'), cout_unitaire=Decimal('20'), ordre=0,
+        )
+        # Facture 1 validée : composite facturée partiellement (5/10), recette intacte.
+        f1 = Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='C', status='validated',
+            montant=Decimal('100'), created_by=self.user_a,
+        )
+        titre_lf = LigneFacture.objects.create(
+            facture=f1, type_ligne='TITRE', description='Lot E',
+            quantite=Decimal('1'), quantite_originale=Decimal('1'), ordre=0,
+            ligne_devis_source=titre_ld,
+        )
+        c_lf = LigneFacture.objects.create(
+            facture=f1, parent=titre_lf, type_ligne='C', description='Peinture',
+            quantite=Decimal('5'), quantite_originale=Decimal('10'), ordre=0,
+            ligne_devis_source=c_ld,
+        )
+        s_lf = LigneFacture.objects.create(
+            facture=f1, parent=c_lf, type_ligne='S', description='Finition',
+            quantite=Decimal('1'), quantite_originale=Decimal('1'), ordre=0,
+            ligne_devis_source=s_ld,
+        )
+        LigneFacture.objects.create(
+            facture=f1, parent=s_lf, type_ligne='MAT', description='Peinture mat',
+            quantite=Decimal('1'), quantite_originale=Decimal('1'),
+            cout_unitaire=Decimal('20'), ordre=0,
+        )
+        self.client.login(username='alice', password='pw')
+        self.client.post(
+            reverse('core:facture-create', args=[self.devis.pk]),
+            {'type_doc': 'facture', 'destinataire': 'C', 'echeance_jours': '30'},
+        )
+        f2 = Facture.objects.filter(type_doc='facture', status='draft').last()
+        c_f2 = f2.lignes.get(ligne_devis_source=c_ld)
+        self.assertEqual(float(c_f2.quantite), 5.0,
+                         "Composite partiellement facturée (5/10) → reste 5")
+        s_f2 = f2.lignes.get(ligne_devis_source=s_ld)
+        self.assertEqual(float(s_f2.quantite), 1.0,
+                         "Section sous la composite = recette → garde sa qty devis (pas 0)")
+        titre_f2 = f2.lignes.get(ligne_devis_source=titre_ld)
+        self.assertEqual(float(titre_f2.quantite), 1.0,
+                         "TITRE pas replié tant que la composite a du restant")
+        self.assertGreater(float(c_f2.total()), 0.0,
+                           "Le total de la composite restante ne doit pas être 0")
+
     # ── Critiques ────────────────────────────────────────────────────
 
     def test_facture_create_exige_login(self):
