@@ -1501,7 +1501,7 @@ Pour supprimer proprement :
   étaient en blanc 12px depuis). **Uniformisation CSS terminée** sauf planning/émargement
   (encore en évolution fonctionnelle, attendre ~septembre 2026).
 - **URLs à homogénéiser** — mélange français/anglais (statut/status, supprimer/delete). Choisir une convention et corriger partout.
-- **Context processor** — injecter `profil` automatiquement dans tous les templates (évite `get_profil(request.user)` dans chaque vue).
+- ✅ **Context processor `profil`** — réglé session 43 (Phase 1) : `profil_utilisateur(request)` ajouté dans `core/context_processors.py` et enregistré dans `settings.py` → `profil` injecté dans tous les templates, passage manuel retiré de 14 `render()` de `views.py`. Les `get_profil(request.user)` **utilisés dans la logique** des vues sont conservés (le context processor ne couvre que le template).
 - **Modèle `BibliothèqueAides`** — nom de classe avec accent (non-ASCII), fragile pour imports/outils. Renommer en ASCII (`BibliothequeAides`) si on retouche le modèle.
 - ✅ **Auditer les templates** — vérifié session 36 (11/06/2026) : aucun `{{ f.reference }}` parasite restant dans `core/templates/`.
 - **Calcul des totaux dupliqué (côté Python)** — le parcours d'arbre du total existe à
