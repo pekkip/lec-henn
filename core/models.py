@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 
 # ══════════════════════════════════════════
@@ -508,7 +508,14 @@ class Devis(models.Model):
         )
 
     def reste_a_facturer(self):
-        return self.total_brut() - self.total_facture()
+        # Arrondi au centime des deux côtés AVANT la soustraction : total_brut() est
+        # en pleine précision, alors que total_facture() somme des montants de factures
+        # déjà arrondis au centime. Sans cet arrondi, un devis entièrement facturé
+        # affichait un reste fantôme de ±0,01 € (ex. 8222,525 − 8222,53 = −0,005).
+        cents = Decimal('0.01')
+        brut = Decimal(self.total_brut()).quantize(cents, rounding=ROUND_HALF_UP)
+        facture = Decimal(self.total_facture()).quantize(cents, rounding=ROUND_HALF_UP)
+        return brut - facture
 
 
 # ══════════════════════════════════════════

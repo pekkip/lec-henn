@@ -114,6 +114,24 @@ class AccesDevisFactureTests(TestCase):
         self.assertIn('btn-prune" onclick="saveTree()"', html)
         self.assertNotIn("ne faites pas partie de l'équipe", html)
 
+    # ── Reste à facturer (arrondi) ───────────────────────────────────
+
+    def test_reste_a_facturer_pas_de_centime_fantome(self):
+        # total_brut() en pleine précision (100,005) vs montant facture arrondi
+        # (100,01) → l'ancien calcul brut donnait -0,005 affiché -0,01. Le reste doit
+        # désormais être exactement 0 (les deux côtés arrondis au centime d'abord).
+        LigneDevis.objects.create(
+            devis=self.devis, type_ligne='F', description='Lot arrondi',
+            quantite=Decimal('1.5'), cout_unitaire=Decimal('66.67'), ordre=9,
+        )
+        self.assertEqual(self.devis.total_brut(), Decimal('100.005'))
+        Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='C', status='validated',
+            montant=Decimal('100.01'), created_by=self.user_a,
+        )
+        self.assertEqual(self.devis.reste_a_facturer(), Decimal('0.00'),
+                         "Reste fantôme ±0,01 € quand brut et facturé arrondis sont égaux")
+
     # ── Modification facture (statut) ────────────────────────────────
 
     def test_facture_status_refuse_autre_equipe(self):

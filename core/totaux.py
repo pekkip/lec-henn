@@ -16,9 +16,11 @@ cette logique côté navigateur (affichage des totaux dans les éditeurs). Le te
 `test_totaux_identiques_aux_methodes_modele` garde ce module vis-à-vis du modèle.
 Toute modification du calcul ici DOIT être reportée dans app.js (et inversement).
 """
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from .models import LigneDevis
+
+_CENTS = Decimal('0.01')
 
 
 def _total_depuis_map(ligne, enfants):
@@ -73,7 +75,11 @@ def attacher_totaux_devis(devis_iterable):
     for d in devis_iterable:
         brut = total_brut_devis(d)
         d.brut = brut
-        d.rtf = brut - total_facture_devis(d)
+        # Arrondi au centime des deux côtés avant la soustraction (cf.
+        # Devis.reste_a_facturer) : évite un reste fantôme de ±0,01 € quand le brut
+        # (pleine précision) et le facturé (montants déjà arrondis) sont égaux à l'écran.
+        d.rtf = (brut.quantize(_CENTS, rounding=ROUND_HALF_UP)
+                 - total_facture_devis(d).quantize(_CENTS, rounding=ROUND_HALF_UP))
 
 
 def total_mo_devis(devis):
