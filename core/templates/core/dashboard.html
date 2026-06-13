@@ -21,7 +21,7 @@
 .dash-w-edit .ico-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--gray-bd);background:var(--white);border-radius:var(--r);color:var(--gray-md);cursor:pointer}
 .dash-w-edit .ico-btn:hover{color:var(--prune);border-color:var(--prune)}
 .dash-w-edit .handle{cursor:grab}
-.dash-empty{padding:1.5rem;text-align:center;color:var(--gray-md);font-size:12px}
+/* .empty-state → défini dans app.css */
 .dash-add-panel{margin-top:1rem}
 .dash-add-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .dash-add-item{display:flex;align-items:center;gap:6px;padding:7px 11px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);background:var(--white);color:var(--gray);cursor:pointer}
@@ -95,7 +95,7 @@
               <td><span class="badge b-{{ d.status }}"><span class="dot dot-{{ d.status }}"></span>{{ d.get_status_display }}</span></td>
               <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% else %}var(--teal-dk){% endif %}">{{ d.rtf|floatformat:2 }} €</td>
             </tr>
-            {% empty %}<tr><td colspan="6" class="dash-empty">Aucun devis</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="6" class="empty-state">Aucun devis</td></tr>{% endfor %}
           </tbody>
         </table>
 
@@ -110,7 +110,7 @@
               <td>{{ f.get_type_doc_display }}</td>
               <td class="num">{{ f.montant|floatformat:2 }} €</td>
             </tr>
-            {% empty %}<tr><td colspan="4" class="dash-empty">Aucune facture à valider</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="4" class="empty-state">Aucune facture à valider</td></tr>{% endfor %}
           </tbody>
         </table>
 
@@ -125,7 +125,7 @@
               <td style="{% if f.en_retard %}color:var(--red);font-weight:500{% endif %}">{{ f.date_echeance|date:"d/m/Y"|default:"—" }}{% if f.en_retard %} ⚠{% endif %}</td>
               <td class="num">{{ f.montant|floatformat:2 }} €</td>
             </tr>
-            {% empty %}<tr><td colspan="4" class="dash-empty">Aucune facture impayée</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="4" class="empty-state">Aucune facture impayée</td></tr>{% endfor %}
           </tbody>
         </table>
 
@@ -141,7 +141,7 @@
               <td class="num">{{ f.montant|floatformat:2 }} €</td>
               <td><span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span></td>
             </tr>
-            {% empty %}<tr><td colspan="5" class="dash-empty">Aucune facture</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="5" class="empty-state">Aucune facture</td></tr>{% endfor %}
           </tbody>
         </table>
 
@@ -156,7 +156,7 @@
               <td>{% if f.facture_origine %}<span class="mono">{{ f.facture_origine.get_reference }}</span>{% else %}—{% endif %}</td>
               <td class="num">{{ f.montant|floatformat:2 }} €</td>
             </tr>
-            {% empty %}<tr><td colspan="4" class="dash-empty">Aucun avoir</td></tr>{% endfor %}
+            {% empty %}<tr><td colspan="4" class="empty-state">Aucun avoir</td></tr>{% endfor %}
           </tbody>
         </table>
 
@@ -176,14 +176,14 @@
               <div class="dash-act-meta">{{ e.created_at|date:"d/m/Y H:i" }}{% if e.user %} · {{ e.user.get_full_name|default:e.user.username }}{% endif %}</div>
             </div>
           </li>
-          {% empty %}<li class="dash-empty">Aucune activité récente</li>{% endfor %}
+          {% empty %}<li class="empty-state">Aucune activité récente</li>{% endfor %}
         </ul>
         {% endif %}
       </div>
       {% endif %}
     </div>
     {% empty %}
-    <div class="span-full dash-empty card" style="padding:2rem">
+    <div class="span-full empty-state card">
       Aucun widget affiché. Cliquez sur <strong>Personnaliser</strong> pour en ajouter.
     </div>
     {% endfor %}
@@ -199,7 +199,7 @@
           <i class="ti {{ w.icon }}"></i>{{ w.title }}
         </button>
         {% empty %}
-        <div class="dash-empty">Tous les widgets disponibles sont déjà affichés.</div>
+        <div class="empty-state">Tous les widgets disponibles sont déjà affichés.</div>
         {% endfor %}
       </div>
     </div>
@@ -301,7 +301,7 @@ function dashHide(btn){
   const d = widget.dataset;
   widget.remove();
   const grid = document.getElementById('dash-add-grid');
-  const empty = grid.querySelector('.dash-empty'); if (empty) empty.remove();
+  const empty = grid.querySelector('.empty-state'); if (empty) empty.remove();
   const item = document.createElement('button');
   item.type = 'button'; item.className = 'dash-add-item';
   item.dataset.id = d.id; item.dataset.title = d.title;

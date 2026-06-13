@@ -3,12 +3,12 @@
 {% block nav_factures %}active{% endblock %}
 
 {% block topbar_title %}
-  <span style="color:rgba(255,255,255,.4);font-size:11px">
-    <a href="{% url 'core:devis-detail' devis.pk %}" style="color:rgba(255,255,255,.55);text-decoration:none">{{ devis.reference }}</a>
-    /
+  <span class="breadcrumb">
+    <a href="{% url 'core:devis-detail' devis.pk %}" class="breadcrumb-anc">{{ devis.reference }}</a>
+    <span class="breadcrumb-sep">/</span>
+    <span class="breadcrumb-cur">{{ facture.get_reference }}</span>
+    <span class="breadcrumb-sub">— {{ devis.client }}</span>
   </span>
-  <span style="color:#fff;font-weight:500">{{ facture.get_reference }}</span>
-  <span style="color:rgba(255,255,255,.45)">— {{ devis.client }}</span>
   <span class="badge b-{{ facture.status }}" style="font-size:11px">{{ facture.get_status_display }}</span>
 {% endblock %}
 

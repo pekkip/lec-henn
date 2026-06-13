@@ -85,7 +85,7 @@
       </td>
     </tr>
     {% empty %}
-    <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--gray-md)">
+    <tr><td colspan="10" class="empty-state">
       Aucun devis. <a href="{% url 'core:devis-create' %}" class="btn btn-sm btn-prune" style="margin-left:8px">Créer le premier</a>
     </td></tr>
     {% endfor %}

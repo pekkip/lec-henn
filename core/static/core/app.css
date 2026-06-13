@@ -161,3 +161,26 @@ tbody tr:hover td{background:#FAFAF8}
 .ib{padding:9px 12px;border-radius:var(--r);font-size:12px;display:flex;align-items:flex-start;gap:8px;line-height:1.5;margin-bottom:.75rem}
 .ib-teal{background:var(--teal-lt);color:var(--teal-dk);border-left:3px solid var(--teal)}
 .ib-amber{background:var(--amber-lt);color:#8B5E0A;border-left:3px solid var(--amber)}
+
+/* GRID HELPERS — remplace les style="display:grid;grid-template-columns:…" répétés */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.grid-2-1{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+
+/* NARROW FILTER INPUTS */
+.sel-narrow{max-width:140px}
+
+/* BREADCRUMB — utilisé dans topbar_title (fond prune) */
+.breadcrumb{display:flex;align-items:center;gap:5px;font-size:11px}
+.breadcrumb-sep{color:rgba(255,255,255,.3)}
+.breadcrumb-anc{color:rgba(255,255,255,.5);text-decoration:none}
+.breadcrumb-anc:hover{color:rgba(255,255,255,.8)}
+.breadcrumb-cur{color:#fff;font-weight:500}
+.breadcrumb-sub{color:rgba(255,255,255,.45)}
+
+/* EMPTY STATE — centré, grisé, pour tableaux/listes vides */
+.empty-state{text-align:center;padding:2rem;color:var(--gray-md);font-size:12px}
+.empty-state i{font-size:2.5rem;display:block;margin-bottom:.5rem;opacity:.5}
+
+/* FORM HINT — note sous un champ de formulaire */
+.form-hint{font-size:11px;color:var(--gray-md);margin-top:2px}

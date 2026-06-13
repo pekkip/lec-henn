@@ -191,9 +191,9 @@
 </div>
 
 {% if not equipe_sel %}
-<div class="page-body" style="display:flex;align-items:center;justify-content:center">
-  <div style="text-align:center;color:var(--gray-md)">
-    <i class="ti ti-calendar-off" style="font-size:48px;display:block;margin-bottom:1rem"></i>
+<div class="scroll-y" style="display:flex;align-items:center;justify-content:center">
+  <div class="empty-state">
+    <i class="ti ti-calendar-off"></i>
     Aucune équipe disponible.
   </div>
 </div>
@@ -444,7 +444,7 @@
       <div id="cal-grid"></div>
     </div>
     <div id="pret-range-lbl" style="font-size:11px;color:var(--gray);text-align:center;min-height:16px;margin-bottom:.35rem"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:.5rem">
+    <div class="grid-2" style="margin-bottom:.5rem">
       <div>
         <div style="font-size:10px;color:var(--gray-md);text-align:center;margin-bottom:2px">Début</div>
         <div class="cren-grp" id="cren-debut-grp">
@@ -480,7 +480,7 @@
         <option disabled>Chargement des chantiers…</option>
       </select>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <div class="grid-2">
       <div class="field">
         <label>Du *</label>
         <input class="input" type="date" id="aff-debut" value="{{ lundi|date:'Y-m-d' }}" onchange="calcDateFin()">

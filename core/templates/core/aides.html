@@ -3,8 +3,11 @@
 {% block nav_aides %}active{% endblock %}
 
 {% block topbar_title %}
-  <span style="color:rgba(255,255,255,.4);font-size:11px">Configuration /</span>
-  <span style="color:#fff;font-weight:500">Bibliothèque Aides</span>
+  <span class="breadcrumb">
+    <span class="breadcrumb-anc">Configuration</span>
+    <span class="breadcrumb-sep">/</span>
+    <span class="breadcrumb-cur">Bibliothèque Aides</span>
+  </span>
 {% endblock %}
 
 {% block extra_css %}
@@ -25,7 +28,7 @@
 .aide-add-form label{font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
 .aide-add-form input,.aide-add-form select{padding:6px 8px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;background:#fff}
 .aide-add-form input:focus,.aide-add-form select:focus{border-color:var(--teal)}
-.empty-msg{padding:24px 16px;font-size:12px;color:var(--gray-md);text-align:center}
+/* .empty-state → défini dans app.css */
 </style>
 {% endblock %}
 
@@ -54,7 +57,7 @@
     </div>
 
     <div id="aides-list">
-      <div class="empty-msg">Chargement…</div>
+      <div class="empty-state">Chargement…</div>
     </div>
 
     <!-- FORMULAIRE AJOUT -->
@@ -105,7 +108,7 @@ function renderAides() {
   const cnt  = document.getElementById('count-badge');
   if (cnt) cnt.textContent = aides.length ? `— ${aides.length} article${aides.length > 1 ? 's' : ''}` : '';
   if (!aides.length) {
-    list.innerHTML = '<div class="empty-msg">Aucune aide — ajoutez-en une via le formulaire ci-dessous.</div>';
+    list.innerHTML = '<div class="empty-state">Aucune aide — ajoutez-en une via le formulaire ci-dessous.</div>';
     return;
   }
   list.innerHTML = aides.map(a => `
