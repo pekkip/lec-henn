@@ -1994,6 +1994,10 @@ function renderAidesPanel() {
     html += `<div class="aides-cat-hd"><i class="ti ti-gift" style="font-size:10px"></i> Aide travaux CBB</div>`;
     html += `<div style="padding:6px 10px;font-size:11px;color:var(--gray-md)">Aucune aide CBB</div>`;
   }
+  if (otherAides.length) {
+    html += `<div class="aides-cat-hd"><i class="ti ti-package" style="font-size:10px"></i> Forfaits MO / matériaux</div>`;
+    html += otherAides.map(renderAideItem).join('');
+  }
   if (zoneFinancementExt && finxAides.length) {
     html += `<div class="aides-cat-hd"><i class="ti ti-building-bank" style="font-size:10px"></i> Financements organismes</div>`;
     html += finxAides.map(renderAideItem).join('');
@@ -2001,7 +2005,6 @@ function renderAidesPanel() {
     html += `<div class="aides-cat-hd"><i class="ti ti-building-bank" style="font-size:10px"></i> Financements organismes</div>`;
     html += `<div style="padding:6px 10px;font-size:11px;color:var(--gray-md)">Aucun financement organisme</div>`;
   }
-  if (otherAides.length) html += otherAides.map(renderAideItem).join('');
   list.innerHTML = html || `<div style="padding:8px;font-size:11px;color:var(--gray-md);text-align:center">Aucune aide</div>`;
 }
 

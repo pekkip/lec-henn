@@ -69,7 +69,8 @@
       <div class="field">
         <label>Type</label>
         <select id="ab-type">
-          <option value="FIN">Financement</option>
+          <option value="FIN">Aide travaux CBB</option>
+          <option value="FINX">Financement organisme</option>
           <option value="FMO">Forfait MO</option>
           <option value="FMAT">Forfait matériaux</option>
         </select>
@@ -100,7 +101,8 @@ let aides = [];
 const BADGES = {
   FMO:  '<span class="aide-badge" style="background:var(--amber-lt);color:#8B5E0A">forfait MO</span>',
   FMAT: '<span class="aide-badge" style="background:#EAF3DE;color:#27500A">forfait mat.</span>',
-  FIN:  '<span class="aide-badge" style="background:var(--red-lt);color:var(--red)">financement</span>',
+  FIN:  '<span class="aide-badge" style="background:var(--red-lt);color:var(--red)">CBB</span>',
+  FINX: '<span class="aide-badge" style="background:#EDE9F8;color:#5B3EA5">organisme</span>',
 };
 
 function renderAides() {
