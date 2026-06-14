@@ -10,6 +10,8 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
+**État du projet (14/06/2026 — session 48) :** **Import du suivi de production 2026 (xlsx historique → app).** Objectif : rapatrier les données du classeur **`Planning 2026 - Suivi de Production ARA-IAE.xlsx`** (outil tableur actuel, illisible) dans le module Insertion pour qu'il devienne la source unique. Nouvelle **commande de gestion `core/management/commands/import_planning_xlsx.py`** (gabarit = `seed_production_demo.py`), args `--file` / `--dry-run` / `--clear`, **idempotente**, marqueur `notes='IMPORT_XLSX_2026'`. **Parsing onglet « Planning »** : 6 blocs d'équipe **détectés dynamiquement** (préfixe en col A + n° semaine), map **colonne→date** (report bande mois + n° de jour, aucune borne de mois en dur), lignes « Cumul » ignorées, **identité chantier = (équipe, Maître d'ouvrage, Adresse)** dédupliquée (union des jours sur plusieurs mois). Crée **Client / Devis** (`IMP-2026-<EQUIPE>-<n>`, accepté, + 2 lignes **FMO=Ct Inter / FMAT=Ct Matx** pour contenu réel) / **TrancheDevis / Affectation** (date_debut→fin = 1er→dernier jour émargé) / **Presence / Facture** (vrai N° CHORUS comme `numero`, FMO+FMAT). **Émargement** : la fraction journalière du tableur = **effectif d'équipe présent** → `personne-jours = fraction × N` ; partie entière = équipiers présents matin+aprem, reste 0,5 = un équipier sur un créneau ; **répartition coordonnée par (équipe, jour)** (pas de double-réservation) + rotation quotidienne du roster. **Encours 2025** (lignes négatives des onglets équipe, détectées par N° de facture) = chantiers commencés en 2025, en cours et non facturés au 01/01/2026 → **pas une facture**, ne pas soustraire ; le devis est noté « repris 2025 », la facture importée garde sa **valeur faciale**. **Mapping** : AQRS→55-AQRM A, AQRN→55-AQRM B, AQSM→58-AQSM, SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM. **GOSM vide = normal** (encadrant absent, chantiers réalisés par AQSM, **refacturation inter-équipes** → un même N° figure sous 2 équipes, ex. **FA02926** → une seule facture conservée, l'autre équipe garde son émargement). **Import local validé** après **purge démo** (DEMO35 **et** seed_demo + factures de test sur les 6 équipes insertion) : **49 chantiers, 10 factures, 2109 présences, 43 affectations** ; recoupe OK (Crèche Andorre = FA02914 / 3781,80 € = 1701 MO + 2080,80 Matx ; totaux AQRS = Cumul Janvier du tableur). **185 tests OK.** **EN PAUSE — barre planning « % consommé »** : les devis importés étant des coquilles, `total_mo_devis=0` → barre à **0 %**. Passée **provisoirement** en jours (réalisé / plage d'affectation) dans `views_planning.py` + `planning.html` (corrige le 0 %, **non commité**) — mais ne montre **pas les dépassements** (la plage = les jours émargés) et ne colle pas au tableur (jours-équipe **fractionnaires**, pas dates distinctes). Cible = réalisé team-days ÷ **jours/MO facturables prévus**, **en attente que l'utilisateur restructure le fichier** pour y intégrer les données de factures (MO & Matx prévus) — voir § Dette. **Rien n'est commité** (commande + intérim barre). **Reprise prod plus tard** : purger d'abord les devis/factures `created_by ∈ {admin, pekkip}`.
+
 **État du projet (13/06/2026 — session 47) :** **Phase 5 — Propreté backend approfondie (plan d'améliorations).** **Fusion des 3 `create_lignes`** (`lignes_save` devis / `lignes_facture_save` / `lignes_compta_save`, qui supprimaient puis recréaient récursivement l'arbre de lignes depuis le JSON frontend) en une factory **`build_lignes_creator(model, fk_kwargs, *, with_ouvert, with_aide, with_quantite_originale, with_source, recurse_only_titre)`** (module-level, renvoie un builder récursif). Chaque comportement préservé via flags : **devis** = `with_aide` (résout `aide_id`→BibliothèqueAides, `.filter(...).first()` équivalent à l'ancien try/except) ; **facture** = `with_quantite_originale` (fallback sur `quantite`) + `with_source` (`ligne_devis_source_id`, donc le pré-remplissage des refs précédentes) ; **compta** = `with_ouvert=False` (pas de champ `ouvert`) + `recurse_only_titre` (ne descend dans les enfants que sous un TITRE). `to_decimal(..., default=1)`, `ordre` par niveau, `parent`, `cout_unitaire` inchangés. `copier_lignes_devis_vers_facture` (pré-remplissage session 41) et `copier_negatif` (avoir) **non touchés** (hors scope). **Fusion `gen_reference`/`gen_numero_facture`** en **`gen_numero_sequence(prefix, model, field, queryset=None)`** : `gen_reference` supprimée (branches FAC/AV mortes — seul 'DEV' était appelé) → devis appelle `gen_numero_sequence('DEV', Devis, 'reference')` ; `gen_numero_facture` conserve `NUMEROTATION_FACTURE` + **découplage prefix/sequence à 100 %** (scan par groupe de séquence via `queryset`, affichage par préfixe — comportement strictement identique). **Race max+1 toujours en dette** + **arbitrage légal numérotation à venir** (direction + conseil — voir § Dette). Modif **`core/views.py` uniquement**, aucune migration. **156 tests OK** (dont `FactureComptaTests`, facturation session 41, `test_avoir_numero_av`) + `check` propre. **Fix régression Phase 4 (commit 2f34190) sur `facture_detail.html`** : son `<script>` était dans `{% block content %}` (rendu **avant** `app.js`, ligne 169 de base.html), alors que les 3 autres éditeurs le mettent dans `{% block extra_js %}` (rendu **après**). L'appel top-level `installUnloadGuard(() => dirty && MODIFIABLE)` levait donc une `ReferenceError` (fonction d'app.js pas encore chargée) → tout le script s'arrêtait → `init()` jamais appelé → éditeur facture bloqué sur « Chargement… ». Corrigé : `<script>` déplacé dans `{% block extra_js %}` (cohérent avec devis_detail/bibliotheque/facture_compta_detail). **Fix bug pré-remplissage (session 41) — composite partiellement facturée** : `copier_lignes_devis_vers_facture` réduisait **toute** ligne non-structurelle par son « déjà facturé », y compris une **section `S` (ou autre enfant non-OUV/MO/MAT) imbriquée dans une composite `C`**. Une telle section, facturée une fois (deja_qty ≥ qty devis), tombait à **0** dans la facture suivante — alors qu'elle fait partie de la *recette unitaire* de la composite, pas du métrage facturable. Résultat : `C.total()=0` → TITRE replié → **montant de la facture à 0 à la sauvegarde** (signalé sur DEV-2026-035 / Railway ; reproduit en local avec C→S→MAT). Cause : `_TYPES_STRUCTURELS` ne protégeait que OUV/MO/MAT *par type*, pas les enfants non-structurels d'une composite. Fix : drapeau **`keep_qty`** propagé en descendant — seuls les **postes facturables de premier niveau** (enfants directs d'un TITRE / racines) sont réduits ; tout ce qui est **sous** un poste facturable conserve sa qty devis. **+1 test** (`test_nouvelle_facture_composite_partielle_garde_recette`) → **157 tests OK**. **Fix centime fantôme « Reste à facturer »** : l'onglet factures du devis affichait « Total brut 8222,53 · Facturé 8222,53 · Reste **−0,01** » sur un devis entièrement facturé. Cause : `total_brut()` somme les lignes en **pleine précision** (8222,525…) tandis que `total_facture()` somme des **montants de factures déjà arrondis au centime** → `reste = −0,005` affiché −0,01. Fix : `Devis.reste_a_facturer()` (models.py) **et** `attacher_totaux_devis()` (totaux.py, version en mémoire listes/dashboard) arrondissent désormais les **deux** côtés au centime (`quantize 0.01 ROUND_HALF_UP`) avant la soustraction. **+1 test** (`test_reste_a_facturer_pas_de_centime_fantome`) → **158 tests OK**. Reste : **test manuel de save sur les 3 types** (devis avec aide / facture brouillon / compta). Commit à faire après feu vert.
 
 **État du projet (13/06/2026 — session 46) :** **Phase 4 — Fluidité & sécurité d'usage (plan d'améliorations).** **Décision actée** (arbitrage début de session) : **pas d'autosave** — on garde la sauvegarde explicite (bouton / Ctrl+S) + avertissement, le plus sûr sur l'éditeur de prix (`beforeunload` protège dans tous les cas, y compris **Alt+←** / navigation arrière). **Socle (`app.js`)** : (1) **`showToast(msg, type='ok')`** — toast unifié (bandeau bas-droite, `ok` vert / `err` rouge, 2,5 s) ; crée paresseusement `<div id="toast">` (aucune page n'a besoin de le déclarer). (2) **`installUnloadGuard(isDirty)`** — enregistre un `beforeunload` qui avertit quand `isDirty()` est vrai ; factorise les 4 copies du garde-fou. CSS `.toast` déplacé dans **`app.css`** (style unique ; l'ancien toast prune de compta est abandonné). **Suivi `dirty` + `beforeunload` ajoutés** à `devis_detail`, `facture_compta_detail`, `bibliotheque` (`facture_detail` les avait déjà → bascule sur le socle). **Marquage `dirty`** : devis → via `historySnapshot()` (funnel de toutes les mutations + undo/redo) + `syncDescInline` ; compta & biblio → re-rendu structurel marqué dans `render()/renderTree()` (drapeau `_ready` pour ignorer le chargement initial ; `togNode` de la biblio restaure `dirty` car replier/déplier n'est pas une modif) + champs marqués dans `updNode`/`syncDesc(Inline)`. **Feedback unifié** : `eh-status` (devis en-tête), `bib-status` (biblio) et la mutation du texte du bouton (devis `saveTree`) remplacés par `showToast` ; spans + CSS locaux supprimés. **Ctrl+S** ajouté sur `devis_detail` (sauvegarde l'arbre). **Reste** : test manuel des 4 éditeurs (éditer → Alt+←/fermer → avertissement ; save → toast vert ; réseau coupé → toast rouge) + proposition MAJ manuel `/aide/`. **156 tests OK** (JS/CSS/templates, aucune logique serveur). Commit à faire après feu vert.
@@ -1577,6 +1579,23 @@ Pour supprimer proprement :
   Railway tourne en UTC : entre minuit et 2 h (heure de Paris), « aujourd'hui » pointait
   sur la veille. `tests.py` et `seed_demo.py` conservent `date.today()` (setup de données
   et commande manuelle — sans enjeu).
+- **🔶 Import suivi prod 2026 — barre planning & finalisation** (session 48, EN PAUSE) :
+  la commande `import_planning_xlsx` est livrée et validée en local (49 chantiers,
+  10 factures, 2109 présences), **non commitée**. Deux chantiers ouverts :
+  1. **Barre planning « % consommé »** : intérim en place (jours réalisés / plage
+     d'affectation) dans `views_planning.py` + `planning.html` → corrige le 0 % mais ne
+     montre **pas les dépassements** (la plage = les jours émargés) et compte en **dates
+     distinctes** alors que le tableur compte en **jours-équipe fractionnaires**. Cible
+     visée : `réalisé team-days (créneaux/(2N)) ÷ jours facturables prévus` (col G du
+     tableur → `Affectation.duree_jours`), **sans plafond** (dépassement affiché tel quel,
+     ex. 115 % ; `pct_bar=min(pct,120)` + classe `over`). **Décision à prendre** : garder
+     l'intérim ou revenir au calcul d'origine `heures_conso/heures_budget`.
+  2. **Données source insuffisantes** : le xlsx actuel ne permet pas de dériver le budget
+     prévu (MO/Matx & jours facturables) de façon fiable. **L'utilisateur restructure le
+     fichier** pour y intégrer, par chantier, la facture correspondante (MO & Matx prévus).
+     Reprendre l'import + la barre une fois le fichier finalisé (même structure, rempli
+     jusqu'à fin juin). Rappel : pour la **prod**, purger d'abord devis/factures
+     `created_by ∈ {admin, pekkip}` avant d'importer.
 - **Audit des présences** — aucun `add_audit` dans `views_planning.py` alors que les
   présences alimentent la paie (contrôles FSE possibles). Tracer au minimum les
   modifications rétroactives. À coupler avec le chantier `ClotureMois` ci-dessous.
@@ -1659,8 +1678,8 @@ Pour supprimer proprement :
   passe temporaire à l'écran (communication manuelle), l'email reste best-effort.
   **Mise à jour 13/06/2026** : la demande DNS Brevo devient caduque si la demande Graph
   ci-dessous aboutit (`Mail.Send` remplace Brevo) — ne pas faire les deux demandes.
-- **🔴 Demande IT nationale unique — app Entra ID / Microsoft Graph** (actée 13/06/2026,
-  **à envoyer une fois l'OVH en place** — une seule demande, couvre SharePoint + emails) :
+- **🔴 Demande IT nationale unique — app Entra ID / Microsoft Graph + DNS** (actée 13/06/2026,
+  **à envoyer une fois l'OVH en place** — une seule demande, couvre SharePoint + emails + URL) :
   1. App registration « CB Bretagne — outil devis/facturation » dans Entra ID
      (récupérer `tenant_id` + `client_id`).
   2. Permission Graph **`Sites.Selected`** (type Application) + **grant en écriture sur le
@@ -1672,6 +1691,18 @@ Pour supprimer proprement :
   4. De préférence authentification par **certificat** (clé publique fournie par nous) ;
      à défaut secret client de durée maximale — **noter la date d'expiration** (≤ 24 mois,
      panne silencieuse classique au renouvellement).
+  5. **(DNS — concern distinct, mais même interlocuteur)** Enregistrement DNS **A**
+     `deviscbb` dans la zone `compagnonsbatisseurs.eu` → **51.178.24.126** (+ **AAAA** →
+     **2001:41d0:367:4d7::1**), pour servir l'appli sur `https://deviscbb.compagnonsbatisseurs.eu`.
+     (VPS OVH `vps-28c76530.vps.ovh.net`.) C'est
+     l'**hébergeur de la zone DNS** (registrar ou autre prestataire — l'IT nationale sait)
+     qui pose l'enregistrement ; nous ne fournissons que le sous-domaine + l'IP. Le **certificat
+     HTTPS** est géré de notre côté (Let's Encrypt / `certbot` sur le VPS, automatique dès que
+     le A résout — aucune action registrar). Ne pas confondre avec l'adresse d'envoi des
+     emails `noreply@…` (point 3, boîte M365 indépendante du sous-domaine web). **Découplé de
+     la création du VPS** : peut se faire après (il faut l'IP du VPS d'abord) — monter le
+     serveur sur l'IP nue, ajouter le domaine ensuite sans interruption. Mettre à jour
+     `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` / `SITE_URL` côté Django à ce moment-là.
 
   Brouillon prêt à envoyer :
   > Objet : Enregistrement d'une application Entra ID pour l'outil de gestion CB Bretagne
@@ -1686,7 +1717,16 @@ Pour supprimer proprement :
   > publique), sinon un secret client avec sa date d'expiration. Cette demande remplace
   > notre demande précédente d'authentification du domaine dans Brevo (SPF/DKIM), qui
   > devient sans objet.
-- **Migration Railway → OVH (Phase 4)** — volume persistent pour les fichiers uploadés
+  >
+  > Par ailleurs (volet DNS), nous aurions besoin d'un enregistrement DNS de type A pour le
+  > sous-domaine deviscbb.compagnonsbatisseurs.eu pointant vers l'adresse IP de notre VPS
+  > OVH : A → 51.178.24.126 et AAAA → 2001:41d0:367:4d7::1. Cela nous
+  > permettra de servir l'application sur https://deviscbb.compagnonsbatisseurs.eu ; le
+  > certificat TLS sera géré de notre côté (Let's Encrypt). Merci d'avance.
+- **Migration Railway → OVH (Phase 4)** — **runbook pas-à-pas : `DEPLOY_OVH.md`** (Ubuntu
+  24.04, VPS 4 vCore/8 Go/75 Go Gravelines, PostgreSQL local + import dump Railway, gunicorn
+  systemd, nginx + Let's Encrypt, sous-domaine `deviscbb`, backups OVH + pg_dump mensuel).
+  Volume persistent pour les fichiers uploadés
   (logo, etc.). **Mise en place prévue semaine du 15/06/2026** (info 11/06). Conditionne :
   export PDF (WeasyPrint + snapshots), restriction email à décommenter, authentification
   domaine Brevo (IT nationale), HSTS, mise à jour `CSRF_TRUSTED_ORIGINS`/`SITE_URL`.

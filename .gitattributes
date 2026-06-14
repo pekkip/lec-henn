@@ -1,0 +1,3 @@
+# Scripts shell : toujours en fins de ligne LF, même édités sous Windows.
+# Sinon CRLF → erreur "bad interpreter: /usr/bin/env bash^M" sur le VPS Linux.
+*.sh text eol=lf
