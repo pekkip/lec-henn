@@ -175,12 +175,14 @@ ANYMAIL = {
 }
 SITE_URL = os.environ.get('SITE_URL', 'https://lec-henn-production.up.railway.app')
 
-# Sécurité prod — activée uniquement sur Railway (DATABASE_URL présente)
+# Sécurité prod — activée uniquement si DATABASE_URL présente et DEBUG=False.
+# HTTPS_ONLY=False permet de tourner en HTTP sur IP nue (OVH avant domaine).
 if not DEBUG and os.environ.get('DATABASE_URL'):
+    _https_only = os.environ.get('HTTPS_ONLY', 'True') == 'True'
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = _https_only
+    SESSION_COOKIE_SECURE = _https_only
+    CSRF_COOKIE_SECURE = _https_only
     # HSTS différé (post-beta) — effet durable côté navigateur, prudent en beta
 
 # Tests : hacheur de mot de passe rapide (PBKDF2 domine sinon le temps de la
