@@ -5,6 +5,30 @@
 > PostgreSQL local sur le VPS, gunicorn en service systemd.
 > Remplace l'hébergement Railway (cf. NOTES_DEV § Infra — migration Phase 4).
 
+## État actuel (15/06/2026 — session 48)
+
+✅ **§1 à §7 terminés** — VPS opérationnel en HTTP sur IP nue :
+- ufw actif (OpenSSH + Nginx Full)
+- PostgreSQL local, base `cbbretagne`, user `cbb`
+- Code cloné dans `/srv/cbbretagne/app/`, venv + dépendances installés
+- `.env` en place (SECRET_KEY, DATABASE_URL, ALLOWED_HOSTS, `HTTPS_ONLY=False`)
+- `migrate` + `collectstatic` OK (132 fichiers statiques)
+- gunicorn en service systemd (`cbbretagne.service`), enabled, running
+- nginx configuré et actif, proxy vers gunicorn
+- Login fonctionnel sur `http://51.178.24.126` (superuser créé)
+
+**⏳ En attente :**
+1. **Mail IT national** → demande DNS A/AAAA + Entra ID (brouillon complet dans NOTES_DEV
+   § Infra). À envoyer dès que possible pour lancer le délai humain.
+2. **DNS résolu** → certbot (§8) : 2 commandes, 5 minutes.
+3. **Après HTTPS** → dans le `.env` du VPS :
+   - Supprimer la ligne `HTTPS_ONLY=False`
+   - Mettre `CSRF_TRUSTED_ORIGINS=https://deviscbb.compagnonsbatisseurs.eu`
+   - Mettre `SITE_URL=https://deviscbb.compagnonsbatisseurs.eu`
+   - `sudo systemctl restart cbbretagne`
+4. **Bascule finale** (§10) : dump Railway → restore VPS, nouvelle URL aux testeurs,
+   couper Railway.
+
 ## 0. Contexte / décisions actées
 - **VPS** : 4 vCore / 8 Go / 75 Go NVMe, Gravelines (FR), Ubuntu 24.04, engagement 12 mois.
   - Hostname : `vps-28c76530.vps.ovh.net`

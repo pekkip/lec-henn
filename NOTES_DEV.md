@@ -1723,11 +1723,13 @@ Pour supprimer proprement :
   > OVH : A → 51.178.24.126 et AAAA → 2001:41d0:367:4d7::1. Cela nous
   > permettra de servir l'application sur https://deviscbb.compagnonsbatisseurs.eu ; le
   > certificat TLS sera géré de notre côté (Let's Encrypt). Merci d'avance.
-- **Migration Railway → OVH (Phase 4)** — **runbook pas-à-pas : `DEPLOY_OVH.md`** (Ubuntu
-  24.04, VPS 4 vCore/8 Go/75 Go Gravelines, PostgreSQL local + import dump Railway, gunicorn
-  systemd, nginx + Let's Encrypt, sous-domaine `deviscbb`, backups OVH + pg_dump mensuel).
-  Volume persistent pour les fichiers uploadés
-  (logo, etc.). **Mise en place prévue semaine du 15/06/2026** (info 11/06). Conditionne :
-  export PDF (WeasyPrint + snapshots), restriction email à décommenter, authentification
-  domaine Brevo (IT nationale), HSTS, mise à jour `CSRF_TRUSTED_ORIGINS`/`SITE_URL`.
+- **Migration Railway → OVH (Phase 4)** — **runbook pas-à-pas : `DEPLOY_OVH.md`**.
+  ✅ **VPS opérationnel (15/06/2026)** : Ubuntu 24.04, nginx, PostgreSQL local, gunicorn
+  systemd, appli accessible sur `http://51.178.24.126` (login OK, base vierge + superuser).
+  `HTTPS_ONLY=False` dans le `.env` le temps d'avoir le domaine + cert.
+  **En attente** : (1) mail IT → DNS A/AAAA + Entra ID ; (2) certbot dès DNS résolu ;
+  (3) après HTTPS : supprimer `HTTPS_ONLY=False`, mettre `CSRF_TRUSTED_ORIGINS` +
+  `SITE_URL` en `https://deviscbb.…`, restart ; (4) bascule finale : dump Railway →
+  restore VPS, nouvelle URL aux testeurs, couper Railway. Conditionne aussi : export PDF
+  (WeasyPrint), restriction email à décommenter, HSTS.
 - ✅ **Renommage équipes sur Railway (prod)** — fait session 27 : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM, AQSM→58-AQSM, AQRM→AQRM A + AQRM B.
