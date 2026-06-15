@@ -1693,7 +1693,7 @@ Pour supprimer proprement :
      panne silencieuse classique au renouvellement).
   5. **(DNS — concern distinct, mais même interlocuteur)** Enregistrement DNS **A**
      `deviscbb` dans la zone `compagnonsbatisseurs.eu` → **51.178.24.126** (+ **AAAA** →
-     **2001:41d0:367:4d7::1**), pour servir l'appli sur `https://deviscbb.compagnonsbatisseurs.eu`.
+     **2001:41d0:367:4d7::1**), pour servir l'appli sur `https://gestioncbb.compagnonsbatisseurs.eu`.
      (VPS OVH `vps-28c76530.vps.ovh.net`.) C'est
      l'**hébergeur de la zone DNS** (registrar ou autre prestataire — l'IT nationale sait)
      qui pose l'enregistrement ; nous ne fournissons que le sous-domaine + l'IP. Le **certificat
@@ -1714,14 +1714,12 @@ Pour supprimer proprement :
   > écriture sur notre site SharePoint : [URL du site] ; (3) permission Mail.Send
   > (Application) restreinte par ApplicationAccessPolicy à noreply@compagnonsbatisseurs.eu ;
   > (4) de préférence une authentification par certificat (nous fournissons la clé
-  > publique), sinon un secret client avec sa date d'expiration. Cette demande remplace
-  > notre demande précédente d'authentification du domaine dans Brevo (SPF/DKIM), qui
-  > devient sans objet.
+  > publique), sinon un secret client avec sa date d'expiration.
   >
   > Par ailleurs (volet DNS), nous aurions besoin d'un enregistrement DNS de type A pour le
-  > sous-domaine deviscbb.compagnonsbatisseurs.eu pointant vers l'adresse IP de notre VPS
+  > sous-domaine gestioncbb.compagnonsbatisseurs.eu pointant vers l'adresse IP de notre VPS
   > OVH : A → 51.178.24.126 et AAAA → 2001:41d0:367:4d7::1. Cela nous
-  > permettra de servir l'application sur https://deviscbb.compagnonsbatisseurs.eu ; le
+  > permettra de servir l'application sur https://gestioncbb.compagnonsbatisseurs.eu ; le
   > certificat TLS sera géré de notre côté (Let's Encrypt). Merci d'avance.
 - **Migration Railway → OVH (Phase 4)** — **runbook pas-à-pas : `DEPLOY_OVH.md`**.
   ✅ **VPS opérationnel (15/06/2026)** : Ubuntu 24.04, nginx, PostgreSQL local, gunicorn

@@ -1,7 +1,7 @@
 # Déploiement OVH — CB Bretagne (outil devis/facturation)
 
 > Runbook pas-à-pas pour héberger l'appli Django sur un **VPS OVH Ubuntu 24.04**.
-> Cible : `https://deviscbb.compagnonsbatisseurs.eu` derrière nginx + Let's Encrypt,
+> Cible : `https://gestioncbb.compagnonsbatisseurs.eu` derrière nginx + Let's Encrypt,
 > PostgreSQL local sur le VPS, gunicorn en service systemd.
 > Remplace l'hébergement Railway (cf. NOTES_DEV § Infra — migration Phase 4).
 
@@ -23,8 +23,8 @@
 2. **DNS résolu** → certbot (§8) : 2 commandes, 5 minutes.
 3. **Après HTTPS** → dans le `.env` du VPS :
    - Supprimer la ligne `HTTPS_ONLY=False`
-   - Mettre `CSRF_TRUSTED_ORIGINS=https://deviscbb.compagnonsbatisseurs.eu`
-   - Mettre `SITE_URL=https://deviscbb.compagnonsbatisseurs.eu`
+   - Mettre `CSRF_TRUSTED_ORIGINS=https://gestioncbb.compagnonsbatisseurs.eu`
+   - Mettre `SITE_URL=https://gestioncbb.compagnonsbatisseurs.eu`
    - `sudo systemctl restart cbbretagne`
 4. **Bascule finale** (§10) : dump Railway → restore VPS, nouvelle URL aux testeurs,
    couper Railway.
@@ -128,10 +128,10 @@ Créer `/srv/cbbretagne/app/.env` (lu par python-dotenv ; **chmod 600**, **jamai
 ```ini
 SECRET_KEY=<générer une clé longue aléatoire>
 DEBUG=False
-ALLOWED_HOSTS=deviscbb.compagnonsbatisseurs.eu 127.0.0.1
+ALLOWED_HOSTS=gestioncbb.compagnonsbatisseurs.eu 127.0.0.1
 DATABASE_URL=postgres://cbb:CHANGER_CE_MOT_DE_PASSE@127.0.0.1:5432/cbbretagne
-CSRF_TRUSTED_ORIGINS=https://deviscbb.compagnonsbatisseurs.eu
-SITE_URL=https://deviscbb.compagnonsbatisseurs.eu
+CSRF_TRUSTED_ORIGINS=https://gestioncbb.compagnonsbatisseurs.eu
+SITE_URL=https://gestioncbb.compagnonsbatisseurs.eu
 DEFAULT_FROM_EMAIL=noreply@compagnonsbatisseurs.eu
 BREVO_API_KEY=<clé Brevo actuelle — remplacée par Graph Mail.Send plus tard>
 ```
@@ -199,7 +199,7 @@ sudo systemctl status cbbretagne
 ```nginx
 server {
     listen 80;
-    server_name deviscbb.compagnonsbatisseurs.eu;
+    server_name gestioncbb.compagnonsbatisseurs.eu;
 
     client_max_body_size 25M;   # uploads (logo, annexes PDF)
 
@@ -225,21 +225,21 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ## 8. DNS + HTTPS (Let's Encrypt)
 1. **Demande DNS** (IT nationale, cf. NOTES_DEV § Infra point 5) : enregistrement **A**
-   `deviscbb` → **51.178.24.126** + **AAAA** → **2001:41d0:367:4d7::1**.
+   `gestioncbb` → **51.178.24.126** + **AAAA** → **2001:41d0:367:4d7::1**.
 2. Vérifier la résolution :
    ```bash
-   dig +short deviscbb.compagnonsbatisseurs.eu     # doit renvoyer l'IP du VPS
+   dig +short gestioncbb.compagnonsbatisseurs.eu     # doit renvoyer l'IP du VPS
    ```
 3. Certificat (certbot configure nginx en HTTPS + redirection 80→443 automatiquement) :
    ```bash
    sudo apt -y install certbot python3-certbot-nginx
-   sudo certbot --nginx -d deviscbb.compagnonsbatisseurs.eu
+   sudo certbot --nginx -d gestioncbb.compagnonsbatisseurs.eu
    ```
    Le renouvellement auto est posé par le paquet (timer systemd). Vérifier :
    ```bash
    sudo certbot renew --dry-run
    ```
-4. Tester `https://deviscbb.compagnonsbatisseurs.eu` → login OK, cadenas vert.
+4. Tester `https://gestioncbb.compagnonsbatisseurs.eu` → login OK, cadenas vert.
 
 ---
 
