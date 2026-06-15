@@ -979,6 +979,17 @@ def assign_numbers_python(lignes, prefix=''):
     return flat
 
 
+def _render_pdf(request, template_name, context, filename):
+    from weasyprint import HTML
+    from django.template.loader import render_to_string
+    html = render_to_string(template_name, context, request=request)
+    pdf = HTML(string=html, base_url=request.build_absolute_uri('/')).write_pdf()
+    response = HttpResponse(pdf, content_type='application/pdf')
+    safe_name = re.sub(r'[^\w\-.]', '_', filename)
+    response['Content-Disposition'] = f'attachment; filename="{safe_name}"'
+    return response
+
+
 @login_required
 def devis_pdf(request, pk):
     devis = get_object_or_404(Devis, pk=pk)
@@ -988,22 +999,17 @@ def devis_pdf(request, pk):
     factures = devis.factures.exclude(status='cancelled')
     params = ParametresAssociation.get()
 
-    # Lignes racines (parent=None), séparées FIN / reste
     racines_pos = list(
         devis.lignes.filter(parent=None).exclude(type_ligne='FIN').prefetch_related('enfants')
     )
     racines_fin = list(
         devis.lignes.filter(parent=None, type_ligne='FIN').prefetch_related('enfants')
     )
-
-    # Arbre aplati avec numérotation
     lignes_pos = assign_numbers_python(racines_pos)
     lignes_fin = assign_numbers_python(racines_fin)
-
-    # Date d'expiry (utilisée dans le template)
     expiry = devis.date_validite
 
-    return render(request, 'core/devis_pdf.html', {
+    ctx = {
         'devis': devis,
         'factures': factures,
         'lignes_pos': lignes_pos,
@@ -1011,7 +1017,10 @@ def devis_pdf(request, pk):
         'params': params,
         'expiry': expiry,
         'coordonnees_cb': devis.coordonnees_cb,
-    })
+    }
+    if request.GET.get('download') == '1':
+        return _render_pdf(request, 'core/devis_pdf.html', ctx, f'{devis.reference}.pdf')
+    return render(request, 'core/devis_pdf.html', ctx)
 
 @login_required
 def devis_export_excel(request, pk):
@@ -1956,7 +1965,7 @@ def facture_apercu(request, pk):
 
     solde = facture.montant - total_acomptes
 
-    return render(request, 'core/facture_apercu.html', {
+    ctx = {
         'facture': facture,
         'devis': devis,
         'client': facture.get_client(),
@@ -1969,7 +1978,10 @@ def facture_apercu(request, pk):
         'total_acomptes': total_acomptes,
         'solde': solde,
         'has_acomptes': total_acomptes > 0,
-    })
+    }
+    if request.GET.get('download') == '1':
+        return _render_pdf(request, 'core/facture_apercu.html', ctx, f'{facture.get_reference()}.pdf')
+    return render(request, 'core/facture_apercu.html', ctx)
 
 
 # ──────────────────────────────────────────

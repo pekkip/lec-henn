@@ -325,7 +325,8 @@ table.lignes .td-total {
 {# ── Barre impression ── #}
 <div class="no-print">
   <a href="{% url 'core:devis-detail' devis.pk %}">← Retour</a>
-  <button onclick="window.print()">🖨 Imprimer / PDF</button>
+  <button onclick="window.print()">🖨 Imprimer</button>
+  <a href="?download=1">⬇ Télécharger PDF</a>
   <span class="bar-title">{{ devis.reference }} — Vue client</span>
 </div>
 
