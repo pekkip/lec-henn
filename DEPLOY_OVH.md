@@ -7,26 +7,27 @@
 
 ## État actuel (15/06/2026 — session 48)
 
-✅ **§1 à §7 terminés** — VPS opérationnel en HTTP sur IP nue :
+✅ **§1 à §8a terminés** — VPS opérationnel en HTTPS :
 - ufw actif (OpenSSH + Nginx Full)
 - PostgreSQL local, base `cbbretagne`, user `cbb`
 - Code cloné dans `/srv/cbbretagne/app/`, venv + dépendances installés
-- `.env` en place (SECRET_KEY, DATABASE_URL, ALLOWED_HOSTS, `HTTPS_ONLY=False`)
+- `.env` en place (SECRET_KEY, DATABASE_URL, ALLOWED_HOSTS, CSRF, SITE_URL)
 - `migrate` + `collectstatic` OK (132 fichiers statiques)
 - gunicorn en service systemd (`cbbretagne.service`), enabled, running
-- nginx configuré et actif, proxy vers gunicorn
-- Login fonctionnel sur `http://51.178.24.126` (superuser créé)
+- nginx configuré : redirection 80→443 + SSL Let's Encrypt
+- Login fonctionnel sur `https://vps-28c76530.vps.ovh.net` (superuser créé)
+- Renouvellement certbot auto OK (`--dry-run` passé)
+
+**Stratégie domaine : 2 étapes**
+- ✅ **§8a** : HTTPS sur `vps-28c76530.vps.ovh.net` (hostname OVH, DNS déjà résolu).
+- **§8b — quand DNS prêt** : certbot ajoute `gestioncbb.compagnonsbatisseurs.eu`,
+  `.env` mis à jour, Railway coupé.
 
 **⏳ En attente :**
 1. **Mail IT national** → demande DNS A/AAAA + Entra ID (brouillon complet dans NOTES_DEV
    § Infra). À envoyer dès que possible pour lancer le délai humain.
-2. **DNS résolu** → certbot (§8) : 2 commandes, 5 minutes.
-3. **Après HTTPS** → dans le `.env` du VPS :
-   - Supprimer la ligne `HTTPS_ONLY=False`
-   - Mettre `CSRF_TRUSTED_ORIGINS=https://gestioncbb.compagnonsbatisseurs.eu`
-   - Mettre `SITE_URL=https://gestioncbb.compagnonsbatisseurs.eu`
-   - `sudo systemctl restart cbbretagne`
-4. **Bascule finale** (§10) : dump Railway → restore VPS, nouvelle URL aux testeurs,
+2. **§8b** : DNS résolu → certbot ajoute le domaine définitif, `.env` basculé.
+3. **Bascule finale** (§10) : dump Railway → restore VPS, nouvelle URL aux testeurs,
    couper Railway.
 
 ## 0. Contexte / décisions actées
@@ -128,10 +129,10 @@ Créer `/srv/cbbretagne/app/.env` (lu par python-dotenv ; **chmod 600**, **jamai
 ```ini
 SECRET_KEY=<générer une clé longue aléatoire>
 DEBUG=False
-ALLOWED_HOSTS=gestioncbb.compagnonsbatisseurs.eu 127.0.0.1
+ALLOWED_HOSTS=gestioncbb.compagnonsbatisseurs.eu vps-28c76530.vps.ovh.net 127.0.0.1
 DATABASE_URL=postgres://cbb:CHANGER_CE_MOT_DE_PASSE@127.0.0.1:5432/cbbretagne
-CSRF_TRUSTED_ORIGINS=https://gestioncbb.compagnonsbatisseurs.eu
-SITE_URL=https://gestioncbb.compagnonsbatisseurs.eu
+CSRF_TRUSTED_ORIGINS=https://vps-28c76530.vps.ovh.net   # remplacer par le domaine définitif en §8b
+SITE_URL=https://vps-28c76530.vps.ovh.net               # idem
 DEFAULT_FROM_EMAIL=noreply@compagnonsbatisseurs.eu
 BREVO_API_KEY=<clé Brevo actuelle — remplacée par Graph Mail.Send plus tard>
 ```
@@ -199,7 +200,7 @@ sudo systemctl status cbbretagne
 ```nginx
 server {
     listen 80;
-    server_name gestioncbb.compagnonsbatisseurs.eu;
+    server_name gestioncbb.compagnonsbatisseurs.eu vps-28c76530.vps.ovh.net;
 
     client_max_body_size 25M;   # uploads (logo, annexes PDF)
 
@@ -223,23 +224,54 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
-## 8. DNS + HTTPS (Let's Encrypt)
+## 8a. HTTPS sur hostname OVH (temporaire — faisable maintenant)
+
+Le hostname `vps-28c76530.vps.ovh.net` est déjà résolu dans le DNS OVH, pas d'attente.
+
+1. Installer certbot et émettre le certificat :
+   ```bash
+   sudo apt -y install certbot python3-certbot-nginx
+   sudo certbot --nginx -d vps-28c76530.vps.ovh.net
+   ```
+   Certbot configure nginx en HTTPS + redirection 80→443 automatiquement.
+
+2. Mettre à jour le `.env` sur le VPS :
+   ```bash
+   # Supprimer HTTPS_ONLY=False (maintenant on est bien en HTTPS)
+   sed -i '/^HTTPS_ONLY/d' /srv/cbbretagne/app/.env
+   # Mettre à jour CSRF et SITE_URL
+   sed -i 's|^CSRF_TRUSTED_ORIGINS=.*|CSRF_TRUSTED_ORIGINS=https://vps-28c76530.vps.ovh.net|' /srv/cbbretagne/app/.env
+   sed -i 's|^SITE_URL=.*|SITE_URL=https://vps-28c76530.vps.ovh.net|' /srv/cbbretagne/app/.env
+   sudo systemctl restart cbbretagne
+   ```
+
+3. Vérifier le renouvellement auto :
+   ```bash
+   sudo certbot renew --dry-run
+   ```
+
+4. Tester `https://vps-28c76530.vps.ovh.net` → login OK, cadenas vert.
+
+---
+
+## 8b. Bascule domaine définitif (quand DNS IT national prêt)
+
 1. **Demande DNS** (IT nationale, cf. NOTES_DEV § Infra point 5) : enregistrement **A**
    `gestioncbb` → **51.178.24.126** + **AAAA** → **2001:41d0:367:4d7::1**.
 2. Vérifier la résolution :
    ```bash
-   dig +short gestioncbb.compagnonsbatisseurs.eu     # doit renvoyer l'IP du VPS
+   dig +short gestioncbb.compagnonsbatisseurs.eu     # doit renvoyer 51.178.24.126
    ```
-3. Certificat (certbot configure nginx en HTTPS + redirection 80→443 automatiquement) :
+3. Étendre le certificat existant au domaine définitif :
    ```bash
-   sudo apt -y install certbot python3-certbot-nginx
-   sudo certbot --nginx -d gestioncbb.compagnonsbatisseurs.eu
+   sudo certbot --nginx -d vps-28c76530.vps.ovh.net -d gestioncbb.compagnonsbatisseurs.eu
    ```
-   Le renouvellement auto est posé par le paquet (timer systemd). Vérifier :
+4. Mettre à jour le `.env` sur le VPS :
    ```bash
-   sudo certbot renew --dry-run
+   sed -i 's/vps-28c76530\.vps\.ovh\.net/gestioncbb.compagnonsbatisseurs.eu/g' /srv/cbbretagne/app/.env
+   sudo systemctl restart cbbretagne
    ```
-4. Tester `https://gestioncbb.compagnonsbatisseurs.eu` → login OK, cadenas vert.
+5. Tester `https://gestioncbb.compagnonsbatisseurs.eu` → login OK, cadenas vert.
 
 ---
 
