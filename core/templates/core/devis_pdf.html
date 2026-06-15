@@ -499,8 +499,11 @@ table.lignes .td-total {
         </div>
         <div class="bon-field">
           <span class="bon-field-lbl">Pour les Compagnons Bâtisseurs Bretagne</span>
+          {% if params.signature %}
+          <img src="{{ params.signature.url }}" alt="Signature" style="max-height:56px;width:auto;margin-top:4px;object-fit:contain;align-self:flex-start">
+          {% else %}
           <div class="bon-field-line"></div>
-          <span class="bon-field-sub">Signature et cachet de la directrice</span>
+          {% endif %}
         </div>
       </div>
     </div>

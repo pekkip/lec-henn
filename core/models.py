@@ -260,6 +260,10 @@ class ParametresAssociation(models.Model):
     logo = models.ImageField(
         upload_to='logo/', null=True, blank=True
     )
+    signature = models.ImageField(
+        upload_to='signature/', null=True, blank=True,
+        help_text="Signature + cachet de la directrice (PNG transparent recommandé)"
+    )
     couleur_principale = models.CharField(
         max_length=7, default='#6B1F3A',
         help_text="Code hexadécimal ex: #6B1F3A"
