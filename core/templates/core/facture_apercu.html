@@ -172,7 +172,6 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
 
 <div class="no-print">
   <a href="{% if facture.devis %}{% url 'core:facture-detail' facture.pk %}{% else %}{% url 'core:compta-facture-detail' facture.pk %}{% endif %}">← Retour</a>
-  <button onclick="window.print()">🖨 Imprimer</button>
   <a href="?download=1">⬇ Télécharger PDF</a>
   <span class="bar-title">{{ facture.get_reference }} — Aperçu</span>
 </div>

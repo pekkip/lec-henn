@@ -86,7 +86,9 @@
 .bar-days{flex-shrink:0;white-space:nowrap}
 .bar-prog{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.15);overflow:hidden;min-width:16px}
 .bar-prog-fill{height:100%;background:currentColor;opacity:.55;border-radius:2px}
+.bar-prog-fill.over{background:#D64545;opacity:.85}
 .bar-pct{flex-shrink:0;white-space:nowrap}
+.bar-pct.over{color:#D64545;font-weight:700}
 .tl-bar{cursor:pointer}
 .tl-bar:hover{box-shadow:0 2px 6px rgba(0,0,0,.16);filter:brightness(.97)}
 .tl-bar.cha{background:var(--teal-lt);border:1px solid var(--teal-bd);border-left:3px solid var(--teal);color:var(--teal-dk)}
@@ -376,8 +378,8 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
               <div class="bar-name">{{ barre.label }}</div>
               <div class="bar-meta">
                 <span class="bar-days">{{ barre.nb_jours }}&nbsp;j</span>
-                <div class="bar-prog" title="{{ barre.pct_consomme }}% consommé"><div class="bar-prog-fill" style="width:{{ barre.pct_consomme }}%"></div></div>
-                <span class="bar-pct">{{ barre.pct_consomme }}%</span>
+                <div class="bar-prog" title="{{ barre.pct_consomme }}% réalisé / facturable"><div class="bar-prog-fill{% if barre.over %} over{% endif %}" style="width:{{ barre.pct_bar }}%"></div></div>
+                <span class="bar-pct{% if barre.over %} over{% endif %}">{{ barre.pct_consomme }}%</span>
               </div>
               {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button>{% if barre.has_presences %}<button type="button" class="bar-lock" title="Émargements renseignés — cliquer pour déverrouiller">🔒</button>{% endif %}<span class="resize-r" draggable="true" data-side="right"></span>{% endif %}
             </div>

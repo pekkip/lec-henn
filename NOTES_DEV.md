@@ -1655,6 +1655,9 @@ Pour supprimer proprement :
   `pypdf` après génération. **Dépend de : OVH (volume persistant `media/` — Railway perd
   les uploads au redéploiement, cf. session 12 logo) puis WeasyPrint.** Les annexes
   suivront aussi le dépôt SharePoint (même pipeline que les factures).
+- **Sauts de page manuels dans l'éditeur de devis** — permettre d'insérer un saut de page
+  entre deux lignes (ex. type de ligne `SAUT_PAGE`, ignoré dans les totaux, rendu en
+  `page-break-before: always` dans le PDF WeasyPrint). À faire après stabilisation de l'export PDF.
 - **Snapshot PDF** — case "marquer comme envoyé" + mécanisme de dégel.
 - **Barre de progression par titre** — affiche le total des factures précédentes, pas le montant par titre.
 - **Restriction email @compagnonsbatisseurs.eu à la création d'utilisateur** — validation

@@ -550,7 +550,7 @@ def planning_mois(request):
     equipe_effectifs_json = {e.pk: e.nb_equipiers for e in equipes}
 
     # Heures consommées par tranche (somme presences de toutes les équipes affectées)
-    from django.db.models import Sum as _DbSum
+    from django.db.models import Sum as _DbSum, Count as _DbCount
     tranche_ids = list({aff.tranche_id for aff in affectations})
     _rows = (
         Presence.objects.filter(affectation__tranche_id__in=tranche_ids)
@@ -558,6 +558,17 @@ def planning_mois(request):
         .annotate(total=_DbSum('heures'))
     ) if tranche_ids else []
     heures_par_tranche = {r['affectation__tranche_id']: float(r['total']) for r in _rows}
+
+    # Jours réalisés par affectation = dates distinctes avec ≥1 présence pointée
+    # (code=''). Base du % d'avancement de la barre (cohérent avec le tableau de
+    # bord insertion). 1 jour par date, peu importe le nombre d'équipiers présents.
+    aff_ids = [aff.pk for aff in affectations]
+    _jr_rows = (
+        Presence.objects.filter(affectation_id__in=aff_ids, code='')
+        .values('affectation_id')
+        .annotate(n=_DbCount('date', distinct=True))
+    ) if aff_ids else []
+    jours_realises_par_aff = {r['affectation_id']: r['n'] for r in _jr_rows}
 
     # ── Événements dans la fenêtre ──────────────────────────────────────
     evenements = list(
@@ -634,10 +645,13 @@ def planning_mois(request):
             label = aff.tranche.devis.chantier or aff.tranche.devis.client.nom
             pos, neg = _build_evenement_sets(equipe.pk, aff.date_debut, aff.date_fin)
             nb_jours = _count_working_days(aff.date_debut, aff.date_fin, pos, neg)
-            mo_eur = devis_mo_json.get(aff.tranche.devis_id, 0)
-            heures_budget = mo_eur / float(_TAUX_JOUR_PLANNING) * 7
-            heures_conso  = heures_par_tranche.get(aff.tranche_id, 0)
-            pct_consomme  = min(100, round(heures_conso / heures_budget * 100)) if heures_budget > 0 else 0
+            # % d'avancement = jours réalisés / jours facturables (prévus), en jours.
+            # PAS de plafond : un dépassement s'affiche tel quel (ex. 115 %).
+            jours_realises = jours_realises_par_aff.get(aff.pk, 0)
+            heures_conso   = heures_par_tranche.get(aff.tranche_id, 0)
+            pct_consomme   = round(jours_realises / nb_jours * 100) if nb_jours > 0 else 0
+            pct_bar        = min(pct_consomme, 120)   # largeur de barre bornée
+            over           = pct_consomme > 100       # style « dépassement »
             devis = aff.tranche.devis
             lieu_parts = [p for p in (devis.chantier_cp, devis.chantier_ville) if p]
             lieu = ' '.join(lieu_parts)
@@ -653,6 +667,8 @@ def planning_mois(request):
                 'lundi_em': lundi_em.isoformat(),
                 'nb_jours': nb_jours,
                 'pct_consomme': pct_consomme,
+                'pct_bar': pct_bar,
+                'over': over,
                 'has_presences': heures_conso > 0,
             })
 
