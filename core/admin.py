@@ -58,7 +58,7 @@ class ParametresAssociationAdmin(admin.ModelAdmin):
             'fields': ('adresse', 'email', 'telephone', 'site_web')
         }),
         ('Apparence', {
-            'fields': ('logo', 'couleur_principale', 'couleur_secondaire', 'couleur_accent')
+            'fields': ('logo', 'signature', 'couleur_principale', 'couleur_secondaire', 'couleur_accent')
         }),
     )
 
