@@ -90,6 +90,8 @@ body { font-family: var(--f); background: #EBEBEB; color: var(--gray); font-size
   gap: 0;
   border-bottom: 1px solid var(--gray-bd);
 }
+.doc-parties--single { grid-template-columns: 1fr; }
+.doc-parties--single .doc-bloc { border-right: none; }
 .doc-bloc {
   padding: 14px 20px;
   font-size: 11px;
@@ -279,9 +281,10 @@ table.lignes .td-total {
 .bon-fields {
   display: flex; gap: 32px; flex-wrap: wrap;
 }
-.bon-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
-.bon-field-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--gray-md); }
-.bon-field-line { border-bottom: 1px solid var(--gray); height: 28px; }
+.bon-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.bon-field-lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .07em; color: var(--gray-md); padding-right: 4px; }
+.bon-field-line { border-bottom: 1px solid var(--gray); height: 56px; }
+.bon-field-sub { font-size: 9px; color: var(--gray-md); margin-top: 4px; font-style: italic; }
 
 /* ── CONDITIONS ── */
 .doc-conditions {
@@ -325,7 +328,6 @@ table.lignes .td-total {
 {# ── Barre impression ── #}
 <div class="no-print">
   <a href="{% url 'core:devis-detail' devis.pk %}">← Retour</a>
-  <button onclick="window.print()">🖨 Imprimer</button>
   <a href="?download=1">⬇ Télécharger PDF</a>
   <span class="bar-title">{{ devis.reference }} — Vue client</span>
 </div>
@@ -361,18 +363,19 @@ table.lignes .td-total {
   </div>
 
   {# ── PARTIES : Chantier + Client ── #}
-  <div class="doc-parties">
+  {% with has_chantier=devis.chantier_adresse1|default:devis.chantier_ville %}
+  <div class="doc-parties {% if not has_chantier %}doc-parties--single{% endif %}">
+    {% if has_chantier %}
     <div class="doc-bloc">
       <div class="doc-bloc-title">Adresse du chantier</div>
       <div class="doc-bloc-main">{{ devis.chantier }}</div>
-      {% if devis.chantier_adresse1 or devis.chantier_ville %}
       <div class="doc-bloc-sub">
         {% if devis.chantier_adresse1 %}{{ devis.chantier_adresse1 }}<br>{% endif %}
         {% if devis.chantier_adresse2 %}{{ devis.chantier_adresse2 }}<br>{% endif %}
         {% if devis.chantier_cp or devis.chantier_ville %}{{ devis.chantier_cp }} {{ devis.chantier_ville }}{% endif %}
       </div>
-      {% endif %}
     </div>
+    {% endif %}
     <div class="doc-bloc">
       <div class="doc-bloc-title">Coordonnées du maître d'ouvrage</div>
       <div class="doc-bloc-main">{{ devis.client }}</div>
@@ -384,6 +387,7 @@ table.lignes .td-total {
       </div>
     </div>
   </div>
+  {% endwith %}
 
   {# ── COORDONNÉES CB ── #}
   {% if coordonnees_cb %}
@@ -487,19 +491,16 @@ table.lignes .td-total {
 
     {# ── BON POUR ACCORD ── #}
     <div class="doc-bon">
-      <div class="bon-title">Bon pour accord</div>
       <div class="bon-fields">
         <div class="bon-field">
-          <span class="bon-field-lbl">Date</span>
+          <span class="bon-field-lbl">Pour le Maître d'Ouvrage</span>
           <div class="bon-field-line"></div>
+          <span class="bon-field-sub">Signature et cachet — précédée de la mention « Bon pour Accord »</span>
         </div>
-        <div class="bon-field" style="flex:3">
-          <span class="bon-field-lbl">Signature et cachet du maître d'ouvrage</span>
-          <div class="bon-field-line" style="height:52px"></div>
-        </div>
-        <div class="bon-field" style="flex:3">
+        <div class="bon-field">
           <span class="bon-field-lbl">Pour les Compagnons Bâtisseurs Bretagne</span>
-          <div class="bon-field-line" style="height:52px"></div>
+          <div class="bon-field-line"></div>
+          <span class="bon-field-sub">Signature et cachet de la directrice</span>
         </div>
       </div>
     </div>
@@ -516,10 +517,10 @@ table.lignes .td-total {
   {# ── PIED DE PAGE ── #}
   <div class="doc-footer">
     <strong>{{ params.nom }}</strong>
-    {% if params.adresse %} · {{ params.adresse }}{% endif %}
     {% if params.telephone %} · {{ params.telephone }}{% endif %}
     {% if params.email %} · {{ params.email }}{% endif %}
     {% if params.site_web %} · {{ params.site_web }}{% endif %}
+    {% if params.adresse %}<br>{{ params.adresse }}{% endif %}
     <br>
     {% if params.siret %}SIRET {{ params.siret }}{% endif %}
     {% if params.ape %} · APE {{ params.ape }}{% endif %}
