@@ -299,6 +299,12 @@ table.lignes .td-total {
 }
 .doc-conditions strong { color: var(--gray); }
 
+/* ── FIN DE PAGE (bon pour accord + footer collés) ── */
+.doc-end {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 /* ── PIED DE PAGE ── */
 .doc-footer {
   margin-top: 24px;
@@ -495,7 +501,17 @@ table.lignes .td-total {
     </div>
     {% endif %}
 
-    {# ── BON POUR ACCORD ── #}
+    {# ── CONDITIONS ── #}
+    {% if devis.conditions_devis %}
+    <div class="doc-conditions">
+      {{ devis.conditions_devis|linebreaksbr }}
+    </div>
+    {% endif %}
+
+  </div>{# /.doc-body #}
+
+  {# ── BON POUR ACCORD + PIED DE PAGE (toujours solidaires) ── #}
+  <div class="doc-end">
     <div class="doc-bon">
       <div class="bon-fields">
         <div class="bon-field">
@@ -513,29 +529,19 @@ table.lignes .td-total {
         </div>
       </div>
     </div>
-
-    {# ── CONDITIONS ── #}
-    {% if devis.conditions_devis %}
-    <div class="doc-conditions">
-      {{ devis.conditions_devis|linebreaksbr }}
+    <div class="doc-footer">
+      <strong>{{ params.nom }}</strong>
+      {% if params.adresse %} · {{ params.adresse }}{% endif %}
+      {% if params.telephone %} · Tél : {{ params.telephone }}{% endif %}
+      {% if params.email %} · {{ params.email }}{% endif %}
+      <br>
+      {% if params.siret %}SIRET {{ params.siret }}{% endif %}
+      {% if params.ape %} · APE {{ params.ape }}{% endif %}
+      <br>
+      <span class="footer-mention">Association de chantiers à caractère social agréée par le Ministère de la Jeunesse et des Sports — reconnue d'utilité sociale</span>
+      <br>
+      <span class="footer-mention">Association conventionnée structure porteuse ACI par le Ministère chargé de l'emploi</span>
     </div>
-    {% endif %}
-
-  </div>{# /.doc-body #}
-
-  {# ── PIED DE PAGE ── #}
-  <div class="doc-footer">
-    <strong>{{ params.nom }}</strong>
-    {% if params.adresse %} · {{ params.adresse }}{% endif %}
-    {% if params.telephone %} · Tél : {{ params.telephone }}{% endif %}
-    {% if params.email %} · {{ params.email }}{% endif %}
-    <br>
-    {% if params.siret %}SIRET {{ params.siret }}{% endif %}
-    {% if params.ape %} · APE {{ params.ape }}{% endif %}
-    <br>
-    <span class="footer-mention">Association de chantiers à caractère social agréée par le Ministère de la Jeunesse et des Sports — reconnue d'utilité sociale</span>
-    <br>
-    <span class="footer-mention">Association conventionnée structure porteuse ACI par le Ministère chargé de l'emploi</span>
   </div>
 
 </div>{# /.page #}
