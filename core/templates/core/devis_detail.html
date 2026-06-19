@@ -1367,6 +1367,7 @@ function assignNumbers(nodes, prefix, parentType) {
   let idx = 1;
   nodes.forEach(n => {
     if (n.type_ligne === 'FIN' || n._isFINGroup) return;
+    if (n.type_ligne === 'PAGE') { n._num = null; return; }
     // Pas de numéro si le parent est un composite/simple/ouvrage (enfants internes)
     if (['MO', 'MAT'].includes(n.type_ligne)) { n._num = null; return; }
     if (n.type_ligne === 'OUV' && ['C', 'S', 'OUV'].includes(parentType)) { n._num = null; return; }

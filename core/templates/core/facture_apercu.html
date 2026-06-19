@@ -164,8 +164,13 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
   .doc-header { padding: 16px 24px 14px; }
   table.lignes th, .row-titre td, .doc-objet, .doc-footer, .doc-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .doc-signature { page-break-inside: avoid; }
-  .row-pagebreak { break-before: page; height: 0; visibility: hidden; }
-  .row-pagebreak td { padding: 0; border: none; }
+  @media screen {
+    .row-pagebreak td { padding: 5px 8px; border-top: 2px dashed #ccc; color: #aaa; font-size: 10px; text-align: center; font-style: italic; }
+  }
+  @media print {
+    .row-pagebreak { break-before: page; height: 0; visibility: hidden; }
+    .row-pagebreak td { padding: 0; border: none; }
+  }
   @page { margin: 1cm; size: A4; }
 }
 </style>
@@ -287,7 +292,7 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
       <tbody>
         {% for lf in lignes %}
           {% if lf.type_ligne == 'PAGE' %}
-          <tr class="row-pagebreak"><td colspan="5"></td></tr>
+          <tr class="row-pagebreak"><td colspan="5">— Saut de page —</td></tr>
           {% elif lf.type_ligne == 'TITRE' %}
           <tr class="row-titre">
             <td>{{ lf.description|safe }}</td>

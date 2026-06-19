@@ -300,8 +300,13 @@ table.lignes .td-total {
 .doc-conditions strong { color: var(--gray); }
 
 /* ── SAUT DE PAGE MANUEL ── */
-.row-pagebreak { break-before: page; height: 0; visibility: hidden; }
-.row-pagebreak td { padding: 0; border: none; }
+@media screen {
+  .row-pagebreak td { padding: 5px 8px; border-top: 2px dashed #ccc; color: #aaa; font-size: 10px; text-align: center; font-style: italic; }
+}
+@media print {
+  .row-pagebreak { break-before: page; height: 0; visibility: hidden; }
+  .row-pagebreak td { padding: 0; border: none; }
+}
 
 /* ── FIN DE PAGE (bon pour accord + footer collés) ── */
 .doc-end {
@@ -434,7 +439,7 @@ table.lignes .td-total {
       <tbody>
         {% for l in lignes_pos %}
           {% if l.type_ligne == 'PAGE' %}
-          <tr class="row-pagebreak"><td colspan="5"></td></tr>
+          <tr class="row-pagebreak"><td colspan="5">— Saut de page —</td></tr>
           {% elif l.type_ligne == 'TITRE' %}
           <tr class="row-titre">
             <td colspan="4">
