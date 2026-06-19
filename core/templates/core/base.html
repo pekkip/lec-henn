@@ -100,6 +100,9 @@
     <a href="{% url 'core:feuilles-liste' %}" title="Feuilles de présence" class="nav-item {% block nav_feuilles %}{% endblock %}">
       <i class="ti ti-signature"></i><span class="nav-label">Feuilles de présence</span>
     </a>
+    <a href="{% url 'core:releve' %}" title="Relevé de chantier" class="nav-item {% if 'releve' in request.path %}active{% endif %}">
+      <i class="ti ti-ruler-2"></i><span class="nav-label">Relevé</span>
+    </a>
     <a href="{% url 'core:aide-insertion' %}" title="Fonctions insertion" class="nav-item {% block nav_aide_insertion %}{% endblock %}">
       <i class="ti ti-help"></i><span class="nav-label">Fonctions insertion</span>
     </a>

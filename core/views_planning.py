@@ -19,14 +19,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from django.db.models import Q, Count, Prefetch
+from django.db.models import Q, Count, Prefetch, Max
 
 from .models import (
-    Devis, Facture, LigneFacture, Equipe,
+    Devis, Facture, LigneDevis, LigneFacture, Equipe,
     Equipier, TrancheDevis, Affectation, Presence, Evenement, Pret,
     FicheNote, ClotureMois,
 )
-from .permissions import peut_acceder_planning, est_encadrant
+from .permissions import peut_acceder_planning, est_encadrant, peut_modifier_devis
 from .planning_utils import (
     _TAUX_JOUR_PLANNING,
     _planning_date, _in_loan, _half_col_creneau,
@@ -1765,3 +1765,74 @@ def cloture_toggle(request):
         return JsonResponse({'ok': True, 'cloture': False})
     ClotureMois.objects.create(equipe=equipe, annee=annee, mois=mois, cloture_par=request.user)
     return JsonResponse({'ok': True, 'cloture': True})
+
+
+# ── Companion app Relevé ──────────────────────────────────────────────────────
+
+@login_required
+def releve_view(request):
+    if not peut_acceder_planning(request.user):
+        return redirect('core:dashboard')
+    devis_qs = (
+        Devis.objects.filter(status__in=['draft', 'accepted'])
+        .select_related('client')
+        .order_by('-created_at')[:100]
+    )
+    devis_json = json.dumps([
+        {
+            'id': d.id,
+            'ref': d.reference,
+            'client': str(d.client),
+            'chantier': d.chantier or '',
+        }
+        for d in devis_qs
+    ])
+    preselect = request.GET.get('devis', '')
+    return render(request, 'core/releve.html', {
+        'devis_json': devis_json,
+        'preselect': preselect,
+    })
+
+
+@login_required
+@require_POST
+def releve_import(request):
+    if not peut_acceder_planning(request.user):
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+
+    devis_id = data.get('devis_id')
+    lignes   = data.get('lignes', [])
+
+    devis = get_object_or_404(Devis, pk=devis_id)
+    if not peut_modifier_devis(request.user, devis):
+        return json_error_permission()
+
+    max_ordre = (
+        LigneDevis.objects.filter(devis=devis, parent=None)
+        .aggregate(m=Max('ordre'))['m'] or 0
+    )
+
+    def _create(nodes, parent, ordre_start):
+        for i, node in enumerate(nodes):
+            cu = node.get('cout_unitaire')
+            ligne = LigneDevis.objects.create(
+                devis=devis,
+                parent=parent,
+                type_ligne=node.get('type_ligne', 'S'),
+                description=node.get('description', ''),
+                quantite=to_decimal(node.get('quantite'), default=1),
+                unite=(node.get('unite') or ''),
+                cout_unitaire=None if cu is None else to_decimal(cu, default=None),
+                ordre=ordre_start + i,
+                ouvert=True,
+            )
+            _create(node.get('enfants') or [], ligne, 0)
+
+    _create(lignes, None, max_ordre + 1)
+    return JsonResponse({
+        'ok': True,
+        'devis_url': reverse('core:devis-detail', args=[devis.pk]),
+    })
