@@ -305,13 +305,11 @@ table.lignes .td-total {
   .page { padding-left: 38px; padding-right: 38px; }
   .doc-header { margin-left: -38px; margin-right: -38px; }
   .doc-footer { margin-left: -38px; margin-right: -38px; }
-  .row-pagebreak { background: #EBEBEB; }
   .row-pagebreak td {
     background: #EBEBEB;
-    padding: 18px 0;
+    padding: 6px 0;
     border-top: 3px solid #d4d4d4;
     border-bottom: 3px solid #d4d4d4;
-    box-shadow: inset 0 4px 6px -4px rgba(0,0,0,.12), inset 0 -4px 6px -4px rgba(0,0,0,.12);
     color: #bbb;
     font-size: 10px;
     text-align: center;
@@ -455,7 +453,7 @@ table.lignes .td-total {
       <tbody>
         {% for l in lignes_pos %}
           {% if l.type_ligne == 'PAGE' %}
-          <tr class="row-pagebreak"><td colspan="5">— Saut de page —</td></tr>
+          <tr class="row-pagebreak"><td colspan="5">✂ — Saut de page — ✂</td></tr>
           {% elif l.type_ligne == 'TITRE' %}
           <tr class="row-titre">
             <td colspan="4">
@@ -584,14 +582,39 @@ window.addEventListener('load', function () {
   var pageTop = pageEl ? Math.round(pageEl.getBoundingClientRect().top + window.scrollY) : 0;
   document.body.style.position = 'relative';
   var totalH = document.body.scrollHeight;
-  var y = pageTop + PAGE_H, p = 1;
-  while (y < totalH - 30) {
-    var el = document.createElement('div');
-    el.style.cssText = 'position:absolute;top:' + y + 'px;left:0;right:0;background:#ebebeb;border-top:3px solid #d4d4d4;border-bottom:3px solid #d4d4d4;padding:6px 0;text-align:center;pointer-events:none;z-index:5;';
-    el.innerHTML = '<span style="color:#bbb;font-size:10px;font-style:italic;letter-spacing:.06em">— fin de page ' + p + ' —</span>';
-    document.body.appendChild(el);
-    y += PAGE_H - theadH; /* les pages suivantes : le thead se répète en haut */
-    p++;
+
+  /* Positions Y des sauts de page manuels (déjà dans le DOM) */
+  var manualBreaks = Array.from(document.querySelectorAll('tr.row-pagebreak'))
+    .map(function(r) { return Math.round(r.getBoundingClientRect().top + window.scrollY); })
+    .filter(function(y) { return y > pageTop; })
+    .sort(function(a, b) { return a - b; });
+  var mIdx = 0;
+
+  var pageStart = pageTop;
+  var firstPage = true;
+  var p = 1;
+  while (true) {
+    var curH = firstPage ? PAGE_H : PAGE_H - theadH;
+    var nextEst = pageStart + curH;
+    if (nextEst >= totalH - 30) break;
+
+    /* Y a-t-il un saut manuel avant la prochaine estimation ? */
+    while (mIdx < manualBreaks.length && manualBreaks[mIdx] <= pageStart) mIdx++;
+    if (mIdx < manualBreaks.length && manualBreaks[mIdx] < nextEst) {
+      /* Saut manuel trouvé : on repart de là, pas d'indicateur estimé */
+      pageStart = manualBreaks[mIdx];
+      mIdx++;
+      firstPage = false;
+    } else {
+      /* Pas de saut manuel : on insère l'indicateur estimé */
+      var el = document.createElement('div');
+      el.style.cssText = 'position:absolute;top:' + nextEst + 'px;left:0;right:0;background:#ebebeb;border-top:3px solid #d4d4d4;border-bottom:3px solid #d4d4d4;padding:6px 0;text-align:center;pointer-events:none;z-index:5;';
+      el.innerHTML = '<span style="color:#bbb;font-size:10px;font-style:italic;letter-spacing:.06em">— fin de page ' + p + ' —</span>';
+      document.body.appendChild(el);
+      pageStart = nextEst;
+      firstPage = false;
+      p++;
+    }
   }
 });
 </script>
