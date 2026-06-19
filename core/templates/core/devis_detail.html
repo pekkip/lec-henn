@@ -369,7 +369,7 @@
   <a href="#" class="tab on" onclick="switchTab(event,'edit')"><i class="ti ti-edit" style="font-size:12px;margin-right:4px"></i>Édition</a>
   <a href="#" class="tab" onclick="switchTab(event,'factures')">Factures <span id="fcount" style="background:var(--prune-lt);color:var(--prune);border-radius:99px;padding:1px 7px;font-size:11px;margin-left:3px">{{ factures|length }}</span></a>
   <a href="#" class="tab" onclick="switchTab(event,'audit')">Journal</a>
-  <a href="{% url 'core:devis-pdf' devis.pk %}" target="_blank" class="tab"><i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Vue client</a>
+  <a href="{% url 'core:devis-pdf' devis.pk %}" class="tab"><i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Vue client</a>
   <a href="{% url 'core:devis-excel' devis.pk %}" class="tab"><i class="ti ti-file-spreadsheet" style="font-size:12px;margin-right:4px"></i>Excel</a>
   {% if not peut_modifier %}
   <span style="margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-md);padding-right:4px" title="Vous ne faites pas partie de l'équipe de ce devis : consultation seule. Vous pouvez toujours glisser des lignes vers votre bibliothèque.">
