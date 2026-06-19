@@ -1228,6 +1228,8 @@ function switchTab(e, name) {
   document.getElementById('pane-' + name).classList.add('on');
 }
 
+if (location.hash === '#factures') { switchTab(null, 'factures'); history.replaceState(null, '', location.pathname); }
+
 // ── AUTOCOMPLÉTION CP (api.gouv.fr) ──
 let _cpTimer = null;
 function cpAutocomplete(val) {
