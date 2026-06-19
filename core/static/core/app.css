@@ -196,6 +196,8 @@ tbody tr:hover td{background:#FAFAF8}
 .logo-txt strong { color:var(--prune); }
 .logo-txt span   { color:var(--teal-dk); }
 .topbar-title    { color:var(--gray-md); }
+.topbar-slogan   { font-family:'Montserrat Alternates',sans-serif; font-style:italic;
+  font-weight:600; font-size:18px; color:var(--prune); flex-shrink:0; white-space:nowrap; }
 .btn-ghost { background:#fff; border-color:var(--gray-bd); color:var(--prune); }
 .btn-ghost:hover { background:var(--gray-lt); color:var(--prune); }
 select.btn-ghost option { color:var(--gray); background:#fff; }
@@ -216,3 +218,13 @@ select.btn-ghost option { color:var(--gray); background:#fff; }
 .breadcrumb-anc:hover { color:var(--gray); }
 .breadcrumb-cur { color:var(--prune); font-weight:500; }
 .breadcrumb-sub { color:var(--gray-md); }
+/* page-hd prune + boutons adaptés */
+.page-hd { background:var(--prune); border-bottom:none; }
+.page-title { color:#fff; }
+.page-sub   { color:rgba(255,255,255,.72); }
+.page-hd .btn         { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.3); color:#fff; }
+.page-hd .btn:hover   { background:rgba(255,255,255,.18); }
+.page-hd .btn-prune   { background:#fff; color:var(--prune); border-color:#fff; }
+.page-hd .btn-prune:hover { background:var(--prune-lt); }
+.page-hd .btn-teal    { background:#fff; color:var(--teal-dk); border-color:#fff; }
+.page-hd .btn-teal:hover  { background:var(--teal-lt); color:var(--teal-dk); }

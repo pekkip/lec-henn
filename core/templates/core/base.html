@@ -36,6 +36,9 @@
       <div class="logo-txt"><strong>compagnons bâtisseurs</strong><span>bretagne</span></div>
     {% endif %}
   </a>
+  {% if params.slogan %}
+  <div class="topbar-slogan">{{ params.slogan }}</div>
+  {% endif %}
 
   <div class="topbar-title">{% block topbar_title %}{% endblock %}</div>
 

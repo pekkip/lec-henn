@@ -155,11 +155,23 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .tl-bar.just-updated{animation:bar-flash .7s ease-in-out}
 
 /* —— Modal Affecter un chantier — 4 étapes —— */
-.aff-steps{display:flex;align-items:center;gap:4px;font-size:11px;margin-bottom:.75rem;color:var(--gray-md)}
-.aff-step{padding:2px 6px;border-radius:10px;cursor:default}
-.aff-step.active{background:var(--teal-light,#e0f7f5);color:var(--teal);font-weight:600}
-.aff-step.done{color:var(--teal);cursor:pointer;text-decoration:underline}
-.aff-step-sep{opacity:.4}
+/* Wizard step indicator — cercles + barre */
+.aff-steps{display:flex;align-items:flex-start;margin-bottom:20px}
+.aff-step-node{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none}
+.aff-step-circle{width:30px;height:30px;border-radius:50%;background:var(--gray-lt);color:var(--gray-md);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;transition:background .2s}
+.aff-step-lbl{font-size:10.5px;color:var(--gray-md);white-space:nowrap}
+.aff-step-line{flex:1;height:2px;background:var(--gray-bd);margin-top:14px}
+.aff-step-node.active .aff-step-circle{background:var(--teal-dk);color:#fff;box-shadow:0 0 0 4px rgba(0,115,94,.15)}
+.aff-step-node.active .aff-step-lbl{color:var(--teal-dk);font-weight:700}
+.aff-step-node.done .aff-step-circle{background:var(--teal);color:#fff}
+.aff-step-node.done .aff-step-circle span{display:none}
+.aff-step-node.done .aff-step-circle::before{content:'✓';font-size:15px}
+.aff-step-node.done .aff-step-lbl{color:var(--teal-dk);font-weight:600}
+.aff-step-line.done{background:var(--teal)}
+/* Segmented control créneaux (composant réutilisable) */
+.cren-grp{display:flex;background:var(--gray-lt);border-radius:8px;padding:3px;gap:3px}
+.cren-grp button{flex:1;padding:6px 14px;border-radius:6px;font-size:13px;border:none;background:transparent;color:var(--gray-md);font-family:var(--f);cursor:pointer;font-weight:500}
+.cren-grp button.active{background:#fff;color:var(--gray);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .aff-back{background:none;border:none;color:var(--teal);cursor:pointer;font-size:12px;padding:0;margin-bottom:.5rem;display:block}
 .aff-recap{font-size:11px;color:#333;background:#f0f0f0;border-radius:6px;padding:6px 10px;margin-bottom:.6rem;line-height:1.6}
 .aff-recap strong{color:#111;font-weight:700}
@@ -182,8 +194,8 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .equipe-card .eq-jours{font-size:14px;font-weight:700;color:var(--teal);margin:.2rem 0}
 .equipe-card .eq-charge{font-size:10px;color:#555}
 .equipe-card .eq-na{font-size:10px;color:var(--red,#e53e3e);margin-top:2px}
-.tranche-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:12px;border:1.5px solid var(--border);cursor:pointer;font-size:11px;margin:2px 2px 2px 0;background:var(--bg)}
-.tranche-chip.selected{border-color:var(--teal);background:var(--teal-light,#e0f7f5);font-weight:600}
+.tranche-chip{display:inline-flex;align-items:center;padding:7px 15px;border-radius:99px;border:1.5px solid var(--gray-bd);cursor:pointer;font-size:13px;margin:2px 2px 2px 0;background:var(--white)}
+.tranche-chip.selected{border-color:var(--teal);background:var(--teal-lt);font-weight:600;color:var(--teal-dk)}
 .tranche-chip.new-btn{border-style:dashed;color:var(--teal)}
 /* ── calendrier affectation ── */
 .pret-cal{user-select:none;margin-bottom:.5rem}
@@ -259,7 +271,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
       <button class="btn btn-prune btn-sm" onclick="openAffModal(null)">
         <i class="ti ti-plus"></i> Assigner un chantier
       </button>
-      <button class="btn btn-sm" style="border-color:var(--prune);color:var(--prune)" onclick="openModalEvNew()">
+      <button class="btn btn-sm" onclick="openModalEvNew()">
         <i class="ti ti-calendar-event"></i> Événement
       </button>
       {% endif %}
@@ -408,13 +420,25 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
   <div class="modal modal-wizard modal-scroll">
     <div class="modal-title">Affecter un chantier</div>
     <div id="aff-steps" class="aff-steps">
-      <span class="aff-step active" data-step="1">Chantier</span>
-      <span class="aff-step-sep">›</span>
-      <span class="aff-step" data-step="2">Équipe</span>
-      <span class="aff-step-sep">›</span>
-      <span class="aff-step" data-step="3">Durée</span>
-      <span class="aff-step-sep">›</span>
-      <span class="aff-step" data-step="4">Date</span>
+      <div class="aff-step-node active" data-step="1">
+        <div class="aff-step-circle"><span>1</span></div>
+        <span class="aff-step-lbl">Chantier</span>
+      </div>
+      <div class="aff-step-line"></div>
+      <div class="aff-step-node" data-step="2">
+        <div class="aff-step-circle"><span>2</span></div>
+        <span class="aff-step-lbl">Équipe</span>
+      </div>
+      <div class="aff-step-line"></div>
+      <div class="aff-step-node" data-step="3">
+        <div class="aff-step-circle"><span>3</span></div>
+        <span class="aff-step-lbl">Durée</span>
+      </div>
+      <div class="aff-step-line"></div>
+      <div class="aff-step-node" data-step="4">
+        <div class="aff-step-circle"><span>4</span></div>
+        <span class="aff-step-lbl">Date</span>
+      </div>
     </div>
     <!-- Étape 1 : Chantier -->
     <div id="aff-s1">
@@ -1234,11 +1258,14 @@ function affGoStep(n) {
   _aff.step = n;
   [1, 2, 3, 4].forEach(function(i) {
     document.getElementById('aff-s' + i).classList.toggle('hidden', i !== n);
-    const el = document.querySelector('.aff-step[data-step="' + i + '"]');
+    const el = document.querySelector('.aff-step-node[data-step="' + i + '"]');
     if (el) {
       el.classList.toggle('active', i === n);
       el.classList.toggle('done', i < n);
     }
+  });
+  document.querySelectorAll('.aff-step-line').forEach(function(l, i) {
+    l.classList.toggle('done', i + 1 < n);
   });
   if (n === 2) renderEquipeCards();
   if (n === 3) renderTrancheSection();

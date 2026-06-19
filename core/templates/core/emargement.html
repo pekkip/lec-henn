@@ -114,10 +114,10 @@
 .ev-autre,.ev-decale{background:var(--gray-lt);color:var(--gray)}
 .cell.ferie{background:repeating-linear-gradient(135deg,#DCFCE7 0 6px,#BBF7D0 6px 12px);color:#166534;font-size:9px;font-weight:600}
 .cell.ferie::before{display:none}
-/* ── créneaux modal prêt ─────────────────── */
-.cren-grp{display:flex;gap:4px}
-.cren-grp button{flex:1;padding:3px 6px;font-size:11px;border:1px solid var(--gray-bd);border-radius:3px;background:#fff;cursor:pointer;color:var(--gray)}
-.cren-grp button.active{background:var(--amber);border-color:#d97706;color:#fff;font-weight:600}
+/* Créneaux matin/après-midi — même style que planning, contraste corrigé */
+.cren-grp{display:flex;background:var(--gray-lt);border-radius:8px;padding:3px;gap:3px}
+.cren-grp button{flex:1;padding:6px 14px;border-radius:6px;font-size:13px;font-family:var(--f);border:none;background:transparent;color:var(--gray-md);cursor:pointer;font-weight:500}
+.cren-grp button.active{background:var(--teal-dk);color:#fff;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 /* ── prêt équipier ───────────────────────── */
 .cell.lent::before{background:var(--amber)}
 .pret-del{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:18px;height:18px;border:none;background:transparent;color:var(--gray-md);cursor:pointer;font-size:15px;line-height:1;border-radius:3px;display:flex;align-items:center;justify-content:center}
