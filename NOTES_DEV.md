@@ -4,6 +4,8 @@
 > le travail à froid (nouvelle machine, nouveau collègue) après un simple
 > `git pull` + lecture. Tenir à jour à chaque session.
 
+> **RAPPEL DESIGN** — revenir sur l'outil de design (planche "Refonte CB Bretagne") pour valider et porter la refonte des écrans restants : éditeur de devis (`devis_detail.html`), écran d'édition facture (`facture_detail.html` — PAS l'aperçu PDF client), et planning/émargement (`planning.html`/`emargement.html`). Décisions actées : palette prune/teal unifiée, contraste AA, cibles ≥48 px terrain. Relevé : option A retenue, option B (parcours guidé) à essayer pour débutants.
+
 ## Consignes de collaboration
 
 - **Doute sur ce que l'utilisateur voit ou veut** → poser des questions ciblées plutôt que partir sur des hypothèses. Utiliser l'outil `AskUserQuestion` pour des questions à choix, ou poser une question directe dans le chat.
