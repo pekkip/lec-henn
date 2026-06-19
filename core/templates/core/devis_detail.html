@@ -1447,10 +1447,20 @@ function isDefaultDesc(n) {
 function renderNode(n, depth) {
   if (n.type_ligne === 'PAGE') {
     return `<div class="tree-node" data-nid="${n._nid}">
-      <div class="page-sep-row">
+      <div class="node-row page-sep-row"
+           draggable="${CAN_EDIT ? 'true' : 'false'}"
+           ondragstart="onNodeRowDragStart(event,'${n._nid}')"
+           ondragend="onNodeRowDragEnd(event)"
+           ondragover="onNodeRowDragOver2(event,'${n._nid}')"
+           ondrop="onNodeRowDrop2(event,'${n._nid}')"
+           ondragleave="document.querySelectorAll('.drop-above').forEach(el=>el.classList.remove('drop-above'))">
+        <i class="ti ti-grip-vertical" style="color:#BBBAB8;font-size:13px;cursor:grab;flex-shrink:0"></i>
         <i class="ti ti-scissors" style="font-size:12px;color:var(--gray-md);flex-shrink:0"></i>
         <span class="page-sep-lbl">— Saut de page —</span>
-        ${CAN_EDIT ? `<button class="ico-btn" style="padding:1px 4px" onclick="deleteNode('${n._nid}')" title="Supprimer le saut de page"><i class="ti ti-x" style="font-size:11px"></i></button>` : ''}
+        ${CAN_EDIT ? `<div class="nd-acts">
+          <button class="ico-btn" onclick="copyNode('${n._nid}')" title="Copier"><i class="ti ti-copy"></i></button>
+          <button class="ico-btn danger" onclick="delNode('${n._nid}')" title="Supprimer"><i class="ti ti-trash"></i></button>
+        </div>` : '<div class="nd-acts"></div>'}
       </div>
     </div>`;
   }
