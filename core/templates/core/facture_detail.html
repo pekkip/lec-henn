@@ -13,7 +13,7 @@
 {% endblock %}
 
 {% block topbar_actions %}
-  <a href="{% url 'core:facture-apercu' facture.pk %}" target="_blank" class="btn btn-ghost btn-sm">
+  <a href="{% url 'core:facture-apercu' facture.pk %}?retour=facture" class="btn btn-ghost btn-sm">
     <i class="ti ti-eye"></i> Aperçu
   </a>
 {% endblock %}
@@ -130,7 +130,7 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
   <span class="tab on">
     <i class="ti ti-receipt" style="font-size:12px;margin-right:4px"></i>{{ facture.get_reference }}
   </span>
-  <a href="{% url 'core:facture-apercu' facture.pk %}" target="_blank" class="tab">
+  <a href="{% url 'core:facture-apercu' facture.pk %}?retour=facture" class="tab">
     <i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Aperçu
   </a>
 </div>
