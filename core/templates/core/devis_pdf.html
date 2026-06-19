@@ -305,17 +305,7 @@ table.lignes .td-total {
   .page { padding-left: 38px; padding-right: 38px; }
   .doc-header { margin-left: -38px; margin-right: -38px; }
   .doc-footer { margin-left: -38px; margin-right: -38px; }
-  .row-pagebreak td {
-    background: #EBEBEB;
-    padding: 6px 0;
-    border-top: 3px solid #d4d4d4;
-    border-bottom: 3px solid #d4d4d4;
-    color: #bbb;
-    font-size: 10px;
-    text-align: center;
-    font-style: italic;
-    letter-spacing: .06em;
-  }
+  .row-pagebreak td { visibility: hidden; padding: 6px 0; border: none; }
 }
 @media print {
   .row-pagebreak { break-before: page; height: 0; visibility: hidden; }
@@ -589,6 +579,14 @@ window.addEventListener('load', function () {
     .filter(function(y) { return y > pageTop; })
     .sort(function(a, b) { return a - b; });
   var mIdx = 0;
+
+  /* Overlays pleine largeur pour les sauts de page manuels */
+  manualBreaks.forEach(function(y) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:absolute;top:' + y + 'px;left:0;right:0;background:#ebebeb;border-top:3px solid #d4d4d4;border-bottom:3px solid #d4d4d4;padding:6px 0;text-align:center;pointer-events:none;z-index:5;';
+    el.innerHTML = '<span style="color:#bbb;font-size:10px;font-style:italic;letter-spacing:.06em">✂ — Saut de page — ✂</span>';
+    document.body.appendChild(el);
+  });
 
   var pageStart = pageTop;
   var firstPage = true;
