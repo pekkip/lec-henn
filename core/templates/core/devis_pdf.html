@@ -569,5 +569,26 @@ table.lignes .td-total {
 
 </div>{# /.page #}
 
+<script>
+/* Estimation visuelle des coupures de page (navigateur uniquement — WeasyPrint ignore le JS) */
+window.addEventListener('load', function () {
+  var PAGE_H = Math.round(277 * 96 / 25.4); /* A4 (297mm) - 2×1cm marges ≈ 1047px */
+  var thead = document.querySelector('table.lignes thead');
+  var theadH = thead ? Math.round(thead.getBoundingClientRect().height) : 0;
+
+  document.body.style.position = 'relative';
+  var totalH = document.body.scrollHeight;
+  var y = PAGE_H, p = 1;
+  while (y < totalH - 30) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:absolute;top:' + y + 'px;left:0;right:0;border-top:2px dashed #bbb;text-align:center;pointer-events:none;z-index:5;';
+    el.innerHTML = '<span style="background:#ebebeb;color:#bbb;font-size:10px;font-style:italic;padding:1px 10px;position:relative;top:-10px;display:inline-block;border-radius:3px">— fin de page ' + p + ' (estimation) —</span>';
+    document.body.appendChild(el);
+    y += PAGE_H - theadH; /* les pages suivantes : le thead se répète en haut */
+    p++;
+  }
+});
+</script>
+
 </body>
 </html>
