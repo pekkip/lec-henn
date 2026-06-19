@@ -47,7 +47,7 @@
 <div class="tabs">
   <a href="{% url meta.list_url %}" class="tab"><i class="ti ti-arrow-left"></i> Liste</a>
   <a href="#" class="tab active"><i class="ti ti-pencil"></i> Édition</a>
-  <a href="{% url 'core:facture-apercu' facture.pk %}" class="tab" id="apercu-tab" target="_blank"><i class="ti ti-eye"></i> Aperçu client</a>
+  <a href="{% url 'core:facture-apercu' facture.pk %}" class="tab" id="apercu-tab"><i class="ti ti-eye"></i> Aperçu client</a>
 </div>
 
 {% if facture.type_doc == 'avoir' and facture.facture_origine %}

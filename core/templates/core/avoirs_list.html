@@ -44,7 +44,7 @@
         <td><span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span></td>
         <td style="text-align:right;white-space:nowrap">
           <a href="{% url 'core:compta-facture-detail' f.pk %}" class="ico-btn" title="Ouvrir"><i class="ti ti-pencil"></i></a>
-          <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu" target="_blank"><i class="ti ti-eye"></i></a>
+          <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu"><i class="ti ti-eye"></i></a>
         </td>
       </tr>
       {% empty %}

@@ -53,7 +53,7 @@
         </td>
         <td style="text-align:right;white-space:nowrap">
           <a href="{% url 'core:compta-facture-detail' f.pk %}" class="ico-btn" title="Ouvrir"><i class="ti ti-pencil"></i></a>
-          <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu" target="_blank"><i class="ti ti-eye"></i></a>
+          <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu"><i class="ti ti-eye"></i></a>
           {% if f.type_doc != 'avoir' %}
           <form method="post" action="{% url 'core:compta-facture-duplicate' f.pk %}" style="display:inline" onsubmit="return confirm('Dupliquer {{ f.get_reference }} en brouillon ?')">
             {% csrf_token %}
