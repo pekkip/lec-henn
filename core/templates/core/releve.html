@@ -8,6 +8,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Relevé — CB Bretagne</title>
   {% load static %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,500&family=Montserrat+Alternates:ital,wght@1,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'core/app.css' %}">
   <style>
     html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#eef1f6; }
@@ -26,7 +29,7 @@
 
 <div id="app">
 <style>
-  #app{--acc:#1E9081;--acc-d:#13675C;--bg:#eef1f6;--card:#ffffff;--line:#e3e7ef;--ink:#2a2f3a;--mut:#7a8497;
+  #app{--acc:#00735E;--acc-d:#00574A;--bg:#eef1f6;--card:#ffffff;--line:#e3e7ef;--ink:#2a2f3a;--mut:#7a8497;
        --paper:#f5f8fc;--sel:#e2622d;--teal:#2ec4b6;--prune:#b07bac;--bleu:#7d93c0;--ambre:#e0a458;--gris:#8a96a0;
        font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--ink); background:var(--bg); border-radius:0; overflow:hidden; user-select:none; -webkit-user-select:none; max-width:100%; flex:1; display:flex; flex-direction:column;}
   #app *{box-sizing:border-box;}
@@ -45,7 +48,7 @@
   #app button.warn{color:#c0392b;}
   #app label{font-size:12px; color:var(--mut); display:flex; gap:5px; align-items:center;}
   #app input.num{background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:9px 8px; min-width:58px; width:62px; font-size:14px; text-align:center; cursor:pointer; -webkit-user-select:none; user-select:none;}
-  #app input.num:active{background:#E8F8F5; border-color:var(--acc);}
+  #app input.num:active{background:#E1F6F0; border-color:var(--acc);}
   #app input[type=text].free{background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px 7px; width:54px; font-size:13px;}
   #app .stagewrap{position:relative; background:var(--paper); flex:1; overflow:hidden; min-height:0;}
   #app svg.stage{display:block; width:100%; height:100%; touch-action:none; background:var(--paper);}
@@ -65,9 +68,9 @@
   #app .room-h b{font-size:14px;} #app .room-h .meta{color:var(--mut); font-size:12px; margin-left:auto;}
   #app .mrow{display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid var(--line); font-size:13px; flex-wrap:wrap;}
   #app .mrow .nm{min-width:78px; color:var(--mut);} #app .mrow .val{font-weight:600; min-width:64px;}
-  #app .mrow button,#app .wall-edit button{background:#E8F8F5; color:var(--acc-d); border:1px solid #9DE0D5; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer;}
+  #app .mrow button,#app .wall-edit button{background:#E1F6F0; color:var(--acc-d); border:1px solid #93D9CB; border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer;}
   #app .assign{display:flex; align-items:center; gap:6px; padding:5px 0 5px 12px; font-size:13px; flex-wrap:wrap;}
-  #app .assign .tl{font-size:11px; background:#E8F8F5; border:1px solid #9DE0D5; border-radius:5px; padding:1px 5px; color:var(--acc-d); font-weight:600;}
+  #app .assign .tl{font-size:11px; background:#E1F6F0; border:1px solid #93D9CB; border-radius:5px; padding:1px 5px; color:var(--acc-d); font-weight:600;}
   #app .assign .x{margin-left:auto; color:#c0392b; cursor:pointer; padding:2px 7px;}
   #app .wall-edit{padding:8px 0 4px 12px; border-top:1px dashed var(--line); font-size:13px;}
   #app .wall-edit .op{display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:6px 4px; color:var(--mut); border-radius:7px;}
@@ -77,10 +80,10 @@
   #app select{background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:8px; width:100%; font-size:13px; margin-bottom:8px;}
   #app .libgrp>.gh{display:flex; align-items:center; gap:6px; cursor:pointer; padding:6px 0; font-weight:600;}
   #app .libitem{display:flex; align-items:center; gap:8px; padding:8px 10px; margin:3px 0; border-radius:9px; background:var(--card); border:1px solid var(--line); cursor:pointer; font-size:13px;}
-  #app .libitem:active{background:#E8F8F5;}
-  #app .libitem .tl{font-size:11px; background:#E8F8F5; border:1px solid #9DE0D5; border-radius:5px; padding:1px 5px; color:var(--acc-d); font-weight:600;}
+  #app .libitem:active{background:#E1F6F0;}
+  #app .libitem .tl{font-size:11px; background:#E1F6F0; border:1px solid #93D9CB; border-radius:5px; padding:1px 5px; color:var(--acc-d); font-weight:600;}
   #app .libitem .u{margin-left:auto; color:var(--mut); font-size:12px;}
-  #app .target{background:#E8F8F5; border:1px solid var(--acc); border-radius:10px; padding:8px 10px; margin-bottom:10px; font-size:13px;}
+  #app .target{background:#E1F6F0; border:1px solid var(--acc); border-radius:10px; padding:8px 10px; margin-bottom:10px; font-size:13px;}
   #app .muted{color:var(--mut); font-size:12px;}
   #app .prim{background:var(--acc); color:#fff; border:none; border-radius:9px; padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer;}
   #app .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(24px + env(safe-area-inset-bottom)); background:var(--ink); color:#fff; padding:10px 16px; border-radius:10px; font-size:13px; z-index:70; opacity:0; transition:opacity .2s; pointer-events:none;}
@@ -95,7 +98,7 @@
   #app .pad .val{font-size:30px; font-weight:700; color:var(--ink);}
   #app .pad .unit{font-size:16px; color:var(--mut);}
   #app .pad .presets{display:flex; gap:7px; flex-wrap:wrap; margin:10px 0 12px;}
-  #app .pad .presets button{background:#E8F8F5; color:var(--acc-d); border:1px solid #9DE0D5; border-radius:18px; padding:8px 14px; font-size:15px; cursor:pointer;}
+  #app .pad .presets button{background:#E1F6F0; color:var(--acc-d); border:1px solid #93D9CB; border-radius:18px; padding:8px 14px; font-size:15px; cursor:pointer;}
   #app .pad .body{display:flex; gap:8px;}
   #app .pad .digits{flex:3; display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
   #app .pad .side{flex:1; display:flex; flex-direction:column; gap:8px;}
@@ -104,17 +107,17 @@
   #app .pad .side button{flex:1; font-size:22px;}
   #app .pad .ok{width:100%; margin-top:10px; background:var(--acc); color:#fff; border:none; border-radius:13px; padding:16px 0; font-size:17px; font-weight:700; cursor:pointer;}
 /* === Refonte : alignement charte CB + cibles tactiles terrain === */
-#app{ --acc:#1E9081; --acc-d:#13675C; --mut:#5C6470; }
-#app .appbar{ background:#67123A; }
-#app .nav button.on{ color:#1E9081; }
-#app .seg button.on{ color:#67123A; }
-/* cibles ≥ 48px pour doigts/gants */
-#app .nav button{ padding:12px 4px 13px; font-size:11.5px; }
-#app .fab{ width:60px; height:60px; }
-#app .fab .ic{ width:28px; height:28px; }
-#app button.t{ padding:12px 14px; font-size:14px; }
-#app input.num{ min-height:46px; }
-#app .prim{ padding:12px 16px; font-size:14px; }
+#app { font-family:'Montserrat',system-ui,sans-serif;
+       --acc:#00735E; --acc-d:#00574A; --mut:#5C6470; }
+#app .appbar { background:#67123A; }
+#app .nav button.on { color:#00735E; }
+#app .seg button.on { color:#67123A; }
+#app .nav button { padding:12px 4px 13px; font-size:12px; }
+#app .fab        { width:62px; height:62px; }
+#app .fab .ic    { width:28px; height:28px; }
+#app button.t    { padding:12px 14px; font-size:14px; }
+#app input.num   { min-height:48px; }
+#app .prim       { padding:12px 16px; font-size:14px; }
 </style>
 
 <svg width="0" height="0" style="position:absolute"><defs>
@@ -301,7 +304,7 @@
   window.padConfirm=()=>{ if(!pad.cfg) return; const cb=pad.cfg.onConfirm, v=padNum(); padClose(); cb(v); };
   window.padClose=()=>{ $('padback').classList.remove('on'); pad.cfg=null; };
 
-  function cotePill(mx,my,txt){ const fs=S.cellCm*0.34, pw=txt.length*fs*0.58+fs*0.7, ph=fs*1.5; return `<rect x="${mx-pw/2}" y="${my-ph/2}" width="${pw}" height="${ph}" rx="${ph*0.32}" fill="#ffffff" stroke="#9DE0D5" stroke-width="${S.cellCm*0.022}"/><text x="${mx}" y="${my}" fill="#13675C" font-size="${fs}" text-anchor="middle" dominant-baseline="central" font-weight="600">${txt}</text>`; }
+  function cotePill(mx,my,txt){ const fs=S.cellCm*0.34, pw=txt.length*fs*0.58+fs*0.7, ph=fs*1.5; return `<rect x="${mx-pw/2}" y="${my-ph/2}" width="${pw}" height="${ph}" rx="${ph*0.32}" fill="#ffffff" stroke="#93D9CB" stroke-width="${S.cellCm*0.022}"/><text x="${mx}" y="${my}" fill="#00574A" font-size="${fs}" text-anchor="middle" dominant-baseline="central" font-weight="600">${txt}</text>`; }
 
   /* ================= RENDER PLAN ================= */
   let coteHits=[];
@@ -312,8 +315,8 @@
     const upp=vw/(stage.clientWidth||800);
     let g=`<rect x="${S.panX}" y="${S.panY}" width="${vw}" height="${vh}" fill="#f5f8fc"/>`;
     const i0=Math.floor(S.panX/S.cellCm), i1=Math.ceil((S.panX+vw)/S.cellCm), j0=Math.floor(S.panY/S.cellCm), j1=Math.ceil((S.panY+vh)/S.cellCm);
-    for(let i=i0;i<=i1;i++){ const x=i*S.cellCm; g+=`<line x1="${x}" y1="${S.panY}" x2="${x}" y2="${S.panY+vh}" stroke="${i%5?'#D9E8E4':'#9DE0D5'}" stroke-width="${upp*(i%5?0.6:1)}"/>`; }
-    for(let j=j0;j<=j1;j++){ const y=j*S.cellCm; g+=`<line x1="${S.panX}" y1="${y}" x2="${S.panX+vw}" y2="${y}" stroke="${j%5?'#D9E8E4':'#9DE0D5'}" stroke-width="${upp*(j%5?0.6:1)}"/>`; }
+    for(let i=i0;i<=i1;i++){ const x=i*S.cellCm; g+=`<line x1="${x}" y1="${S.panY}" x2="${x}" y2="${S.panY+vh}" stroke="${i%5?'#D7ECE6':'#93D9CB'}" stroke-width="${upp*(i%5?0.6:1)}"/>`; }
+    for(let j=j0;j<=j1;j++){ const y=j*S.cellCm; g+=`<line x1="${S.panX}" y1="${y}" x2="${S.panX+vw}" y2="${y}" stroke="${j%5?'#D7ECE6':'#93D9CB'}" stroke-width="${upp*(j%5?0.6:1)}"/>`; }
     const sw=S.cellCm*0.13;
     S.rooms.forEach(r=>{ const col=roomCol(r); const ctr=centroid(r.points);
       g+=`<path d="${r.points.map((p,i)=>(i?'L':'M')+p.x+' '+p.y).join(' ')+' Z'}" fill="${col}22" stroke="#33445f" stroke-width="${sw}" stroke-linejoin="round"/>`;
@@ -349,7 +352,7 @@
         g+=`<line x1="${B1.x-su.x}" y1="${B1.y-su.y}" x2="${B1.x+su.x}" y2="${B1.y+su.y}" stroke="#5a7fae" stroke-width="${upp}"/>`;
         const mx=(A1.x+B1.x)/2, my=(A1.y+B1.y)/2; let ang=Math.atan2(du.y,du.x)*180/Math.PI; if(ang>90)ang-=180; if(ang<-90)ang+=180;
         const tx=fmt(dist(a,b)/100)+' m', fs=S.cellCm*0.38, pw=tx.length*fs*0.58+fs*0.5, ph=fs*1.35;
-        g+=`<g transform="rotate(${ang} ${mx} ${my})"><rect x="${mx-pw/2}" y="${my-ph/2}" width="${pw}" height="${ph}" fill="#f5f8fc"/><text x="${mx}" y="${my}" fill="#13675C" font-size="${fs}" text-anchor="middle" dominant-baseline="central" font-weight="600">${tx}</text></g>`;
+        g+=`<g transform="rotate(${ang} ${mx} ${my})"><rect x="${mx-pw/2}" y="${my-ph/2}" width="${pw}" height="${ph}" fill="#f5f8fc"/><text x="${mx}" y="${my}" fill="#00574A" font-size="${fs}" text-anchor="middle" dominant-baseline="central" font-weight="600">${tx}</text></g>`;
         coteHits.push({x:mx,y:my,r:Math.max(pw,ph,S.cellCm*0.7)*0.7,roomId:r.id,wall:i});
       }
       r.points.forEach((p,idx)=>{ const vsel=S.selVertex&&S.selVertex.roomId===r.id&&S.selVertex.idx===idx; if(vsel) g+=`<circle cx="${p.x}" cy="${p.y}" r="${S.cellCm*0.28}" fill="none" stroke="${SEL}" stroke-width="3"/>`; g+=`<circle cx="${p.x}" cy="${p.y}" r="${S.cellCm*0.15}" fill="${vsel?SEL:'#33445f'}"/>`; });
@@ -357,9 +360,9 @@
       g+=`<text x="${c.x}" y="${c.y}" fill="#2a3a55" font-size="${S.cellCm*0.52}" text-anchor="middle" font-weight="600" paint-order="stroke" stroke="#f5f8fc" stroke-width="5">${r.name}</text>`;
       g+=`<text x="${c.x}" y="${c.y}" dy="${S.cellCm*0.62}" fill="#5a6678" font-size="${S.cellCm*0.4}" text-anchor="middle" paint-order="stroke" stroke="#f5f8fc" stroke-width="4">${fmt(m.sol)} m²</text>`;
     });
-    if(S.selRoom&&!S.drawing){ const r=S.rooms.find(x=>x.id===S.selRoom); if(r) for(let i=0;i<r.points.length;i++){ const a=r.points[i],b=r.points[(i+1)%r.points.length]; const mx=(a.x+b.x)/2,my=(a.y+b.y)/2; g+=`<circle cx="${mx}" cy="${my}" r="${S.cellCm*0.2}" fill="#ffffff" stroke="#1E9081" stroke-width="${upp*1.6}"/><text x="${mx}" y="${my}" fill="#1E9081" font-size="${S.cellCm*0.34}" text-anchor="middle" dominant-baseline="central">+</text>`; } }
-    if(S.drawing&&S.drawing.points.length){ const pts=S.drawing.points; g+=`<path d="${pts.map((p,i)=>(i?'L':'M')+p.x+' '+p.y).join(' ')}" fill="none" stroke="#1E9081" stroke-width="${sw}" stroke-dasharray="${S.cellCm*0.4} ${S.cellCm*0.3}"/>`;
-      pts.forEach((p,i)=> g+=`<circle cx="${p.x}" cy="${p.y}" r="${S.cellCm*0.18}" fill="${i===0?SEL:'#1E9081'}"/>`);
+    if(S.selRoom&&!S.drawing){ const r=S.rooms.find(x=>x.id===S.selRoom); if(r) for(let i=0;i<r.points.length;i++){ const a=r.points[i],b=r.points[(i+1)%r.points.length]; const mx=(a.x+b.x)/2,my=(a.y+b.y)/2; g+=`<circle cx="${mx}" cy="${my}" r="${S.cellCm*0.2}" fill="#ffffff" stroke="#00735E" stroke-width="${upp*1.6}"/><text x="${mx}" y="${my}" fill="#00735E" font-size="${S.cellCm*0.34}" text-anchor="middle" dominant-baseline="central">+</text>`; } }
+    if(S.drawing&&S.drawing.points.length){ const pts=S.drawing.points; g+=`<path d="${pts.map((p,i)=>(i?'L':'M')+p.x+' '+p.y).join(' ')}" fill="none" stroke="#00735E" stroke-width="${sw}" stroke-dasharray="${S.cellCm*0.4} ${S.cellCm*0.3}"/>`;
+      pts.forEach((p,i)=> g+=`<circle cx="${p.x}" cy="${p.y}" r="${S.cellCm*0.18}" fill="${i===0?SEL:'#00735E'}"/>`);
       for(let i=0;i<pts.length-1;i++){ const a=pts[i],b=pts[i+1]; g+=cotePill((a.x+b.x)/2,(a.y+b.y)/2, fmt(dist(a,b)/100)+' m'); } }
     stage.innerHTML=g;
   }
@@ -370,7 +373,7 @@
   function renderIso(){
     stage.setAttribute('viewBox', `0 0 ${VW} ${VH}`); isoQuads=[];
     const all=[]; S.rooms.forEach(r=>r.points.forEach(p=>all.push(p)));
-    if(!all.length){ stage.innerHTML=`<rect width="${VW}" height="${VH}" fill="#E8F8F5"/><text x="${VW/2}" y="${VH/2}" fill="#8aa0bd" font-size="22" text-anchor="middle">Dessine d'abord une pièce en vue Plan</text>`; return; }
+    if(!all.length){ stage.innerHTML=`<rect width="${VW}" height="${VH}" fill="#E1F6F0"/><text x="${VW/2}" y="${VH/2}" fill="#8aa0bd" font-size="22" text-anchor="middle">Dessine d'abord une pièce en vue Plan</text>`; return; }
     let cx=0,cy=0; all.forEach(p=>{cx+=p.x;cy+=p.y;}); cx/=all.length; cy/=all.length; const faces=[],proj=[];
     S.rooms.forEach(r=>{ const col=roomCol(r); const fp=r.points.map(p=>{const q=project(p.x,p.y,0,cx,cy); proj.push(q); return q;}); faces.push({raw:fp, fill:col+'40', stroke:col, depth:Math.min(...fp.map(q=>q.depth))-1, kind:'floor'});
       if(r.walls.some(w=>w.h1!==w.h2)){ triangulate(r.points).forEach(t=>{ const q=t.map(idx=>project(r.points[idx].x,r.points[idx].y,cornerH(r,idx),cx,cy)); q.forEach(z=>proj.push(z)); faces.push({raw:q, fill:col+'26', stroke:col+'77', depth:(q[0].depth+q[1].depth+q[2].depth)/3, kind:'ceil'}); }); }
@@ -379,7 +382,7 @@
     });
     let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9; proj.forEach(q=>{ if(q.sx<minX)minX=q.sx; if(q.sx>maxX)maxX=q.sx; if(q.sy<minY)minY=q.sy; if(q.sy>maxY)maxY=q.sy; });
     const sc=Math.min((VW-2*PAD)/Math.max(1,maxX-minX),(VH-2*PAD)/Math.max(1,maxY-minY))*0.96; const ox=(VW-(maxX-minX)*sc)/2-minX*sc, oy=(VH-(maxY-minY)*sc)/2-minY*sc; const map=q=>({x:q.sx*sc+ox,y:q.sy*sc+oy});
-    faces.sort((a,b)=>b.depth-a.depth); let g=`<rect width="${VW}" height="${VH}" fill="#E8F8F5"/>`;
+    faces.sort((a,b)=>b.depth-a.depth); let g=`<rect width="${VW}" height="${VH}" fill="#E1F6F0"/>`;
     faces.forEach(f=>{ const m=f.raw.map(map); g+=`<path d="${m.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' ')+' Z'}" fill="${f.fill}" stroke="${f.stroke}" stroke-width="${f.kind==='wall'?2.5:1.5}" stroke-linejoin="round"/>`; if(f.kind==='wall') isoQuads.push({pts:m, roomId:f.roomId, wall:f.wall}); });
     stage.innerHTML=g;
   }
@@ -436,7 +439,7 @@
 
   function openZoneFor(id){ S.expanded[id]=true; setTab('zones'); renderZones(); }
   function renderZones(){ const el=$('pZones'); if(!S.rooms.length){ el.innerHTML='<div class="muted">Aucune pièce. Touche le bouton + pour en dessiner une.</div>'; return; }
-    let h=''; if(S.pending){ const t=S.pending; h+=`<div class="target">Cible : <b>${roomName(t.roomId)} · ${t.label}</b> (${fmt(t.qty)} ${t.unit}). Choisis un article dans Bibliothèque, ou <a style="color:#1E9081;cursor:pointer" onclick="freeArticle()">saisie libre</a>. <span style="cursor:pointer;color:#c0392b" onclick="cancelPending()">annuler</span></div>`; }
+    let h=''; if(S.pending){ const t=S.pending; h+=`<div class="target">Cible : <b>${roomName(t.roomId)} · ${t.label}</b> (${fmt(t.qty)} ${t.unit}). Choisis un article dans Bibliothèque, ou <a style="color:#00735E;cursor:pointer" onclick="freeArticle()">saisie libre</a>. <span style="cursor:pointer;color:#c0392b" onclick="cancelPending()">annuler</span></div>`; }
     S.rooms.forEach(r=>{ const col=roomCol(r), m=measures(r), open=!!S.expanded[r.id];
       h+=`<div class="card"><div class="room-h" onclick="toggleRoom('${r.id}')"><span class="swatch" style="background:${col}"></span><b>${r.name}</b><span class="meta">${fmt(m.sol)} m² sol · ${fmt(m.murs)} m² murs ${open?'▲':'▼'}</span></div>`;
       if(open){ MEAS.forEach(meas=>{ const val=m[meas.k]; h+=`<div class="mrow"><span class="nm">${meas.label}</span><span class="val">${fmt(val)} ${meas.unit}</span><button onclick="pickFor('${r.id}','${meas.k}','${meas.label}',${val},'${meas.unit}')">+ ouvrage</button></div>`; S.assignments.filter(a=>a.roomId===r.id&&a.measureKey===meas.k).forEach(a=>h+=assignRow(a)); });

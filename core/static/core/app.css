@@ -3,16 +3,16 @@
    dans son template (extra_css). */
 :root{
   --prune:#67123A;--prune-dk:#4E1529;--prune-lt:#F5EEF1;--prune-bd:#D4A3B5;
-  --teal:#2BBFA4;--teal-dk:#1E9081;--teal-lt:#E8F8F5;--teal-bd:#9DE0D5;
-  --amber:#E8A020;--amber-lt:#FDF3E1;
+  --teal:#00AA8D;--teal-dk:#00735E;--teal-lt:#E1F6F0;--teal-bd:#93D9CB;
+  --amber:#F7A600;--amber-lt:#FEF3DE;
   --red:#C0392B;--red-lt:#FDECEB;
   --gray:#2A2A2A;--gray-md:#565656;--gray-lt:#F0EEEC;--gray-bd:#DAD8D5;
   --white:#fff;--bg:#F7F5F4;
-  --f:'Segoe UI',system-ui,sans-serif;--fm:'Courier New',monospace;
+  --f:'Montserrat',system-ui,sans-serif;--fm:'Courier New',monospace;
   --r:6px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--f);font-size:13px;color:var(--gray);background:var(--bg);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body{font-family:var(--f);font-size:14px;color:var(--gray);background:var(--bg);height:100vh;overflow:hidden;display:flex;flex-direction:column}
 input,button,select,textarea{font-family:var(--f)}
 button{cursor:pointer}
 a{color:inherit;text-decoration:none}
@@ -33,7 +33,7 @@ a{color:inherit;text-decoration:none}
 
 /* SIDEBAR */
 .nav-sect{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-md);padding:.9rem 1rem 3px;margin-top:4px}
-.nav-item{display:flex;align-items:center;gap:8px;padding:8px 1rem;font-size:12px;color:var(--gray-md);border-left:2px solid transparent;text-decoration:none}
+.nav-item{display:flex;align-items:center;gap:8px;padding:8px 1rem;font-size:13px;color:var(--gray-md);border-left:2px solid transparent;text-decoration:none}
 .nav-item:hover{background:var(--gray-lt);color:var(--gray)}
 .nav-item.active{color:var(--prune);background:var(--prune-lt);border-left-color:var(--prune);font-weight:500}
 .nav-item i{font-size:16px}
@@ -51,7 +51,7 @@ html.sb-collapsed .sidebar .nav-item{border-left-width:3px}
 html.sb-collapsed .sidebar .nav-collapse-btn i{transform:rotate(180deg)}
 
 /* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;font-size:12px;border-radius:var(--r);border:1px solid var(--gray-bd);background:transparent;color:var(--gray);cursor:pointer;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;font-size:13px;border-radius:var(--r);border:1px solid var(--gray-bd);background:transparent;color:var(--gray);cursor:pointer;text-decoration:none}
 .btn:hover{background:var(--gray-lt)}
 .btn i{font-size:14px}
 /* Les icônes ne capturent pas la souris : tout le bouton/onglet reste cliquable
@@ -75,7 +75,7 @@ select.btn-ghost option{color:var(--gray);background:#fff}
 /* BADGES — pilule canonique + modificateurs.
    Statuts devis : b-<status> · statuts facture : b-f<status> ·
    couleurs génériques (préférer aux styles inline) : b-gray/teal/prune/green/amber/red/blue/violet */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:500}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .b-draft{background:#EFEFED;color:#5F5E5A}.dot-draft{background:#888780}
 .b-sent{background:#E6F1FB;color:#0C447C}.dot-sent{background:#185FA5}
@@ -102,8 +102,8 @@ select.btn-ghost option{color:var(--gray);background:#fff}
 .card-hd{padding:9px 1rem;border-bottom:1px solid var(--gray-bd);display:flex;align-items:center;justify-content:space-between}
 .card-title{font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px}
 .card-body{padding:1rem}
-table{width:100%;border-collapse:collapse;font-size:12px}
-th{padding:7px 1rem;text-align:left;font-size:11px;font-weight:500;color:var(--gray-md);border-bottom:1px solid var(--gray-bd);background:var(--gray-lt);white-space:nowrap}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:7px 1rem;text-align:left;font-size:12px;font-weight:500;color:var(--gray-md);border-bottom:1px solid var(--gray-bd);background:var(--gray-lt);white-space:nowrap}
 td{padding:9px 1rem;border-bottom:1px solid var(--gray-bd);vertical-align:middle}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:#FAFAF8}
@@ -112,7 +112,7 @@ tbody tr:hover td{background:#FAFAF8}
 
 /* PAGE */
 .page-hd{padding:1rem 1.25rem;background:var(--white);border-bottom:1px solid var(--gray-bd);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.page-title{font-size:16px;font-weight:600;color:var(--prune)}
+.page-title{font-size:18px;font-weight:600;color:var(--prune)}
 .page-sub{font-size:12px;color:var(--gray-md);margin-top:2px}
 .page-body{flex:1;overflow-y:auto;padding:1.25rem}
 .scroll-y{flex:1;overflow-y:auto}  /* zone scrollable des pages listes (page-hd + toolbar fixes au-dessus) */
@@ -126,7 +126,7 @@ tbody tr:hover td{background:#FAFAF8}
 /* STATS */
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1rem}
 .stat{background:var(--gray-lt);border-radius:var(--r);padding:11px 14px}
-.stat-lbl{font-size:11px;color:var(--gray-md);margin-bottom:4px}
+.stat-lbl{font-size:12px;color:var(--gray-md);margin-bottom:4px}
 .stat-val{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
 .stat-sub{font-size:11px;color:var(--gray-md);margin-top:3px}
 
@@ -190,3 +190,29 @@ tbody tr:hover td{background:#FAFAF8}
 .toast.ok{background:var(--teal-dk)}
 .toast.err{background:var(--red)}
 .toast.show{opacity:1}
+
+/* === Refonte chrome option 2 : topbar blanc, sidebar prune === */
+.topbar { background:#fff; border-bottom:1px solid var(--gray-bd); }
+.logo-txt strong { color:var(--prune); }
+.logo-txt span   { color:var(--teal-dk); }
+.topbar-title    { color:var(--gray-md); }
+.btn-ghost { background:#fff; border-color:var(--gray-bd); color:var(--prune); }
+.btn-ghost:hover { background:var(--gray-lt); color:var(--prune); }
+select.btn-ghost option { color:var(--gray); background:#fff; }
+
+.sidebar { background:var(--prune); border-right:none; }
+.nav-sect { color:rgba(255,255,255,.5); }
+.nav-item { color:rgba(255,255,255,.82); }
+.nav-item:hover { background:rgba(255,255,255,.08); color:#fff; }
+.nav-item.active { color:#fff; background:rgba(255,255,255,.14);
+                   border-left-color:var(--teal); font-weight:600; }
+.nav-badge { background:rgba(255,255,255,.18); color:#fff; }
+.nav-collapse-btn { color:rgba(255,255,255,.7);
+                    border-top-color:rgba(255,255,255,.15); }
+.nav-collapse-btn:hover { background:rgba(255,255,255,.08); color:#fff; }
+/* breadcrumbs sur topbar blanc */
+.breadcrumb-sep { color:var(--gray-bd); }
+.breadcrumb-anc { color:var(--gray-md); }
+.breadcrumb-anc:hover { color:var(--gray); }
+.breadcrumb-cur { color:var(--prune); font-weight:500; }
+.breadcrumb-sub { color:var(--gray-md); }
