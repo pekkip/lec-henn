@@ -164,6 +164,8 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
   .doc-header { padding: 16px 24px 14px; }
   table.lignes th, .row-titre td, .doc-objet, .doc-footer, .doc-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .doc-signature { page-break-inside: avoid; }
+  .row-pagebreak { break-before: page; height: 0; visibility: hidden; }
+  .row-pagebreak td { padding: 0; border: none; }
   @page { margin: 1cm; size: A4; }
 }
 </style>
@@ -284,7 +286,9 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
       </thead>
       <tbody>
         {% for lf in lignes %}
-          {% if lf.type_ligne == 'TITRE' %}
+          {% if lf.type_ligne == 'PAGE' %}
+          <tr class="row-pagebreak"><td colspan="5"></td></tr>
+          {% elif lf.type_ligne == 'TITRE' %}
           <tr class="row-titre">
             <td>{{ lf.description|safe }}</td>
             <td class="td-num">1</td>

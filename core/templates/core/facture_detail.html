@@ -62,6 +62,7 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 .nb-C{background:var(--prune-lt);color:#72243E}
 .nb-FMO{background:var(--amber-lt);color:#8B5E0A}
 .nb-FMAT{background:#EAF3DE;color:#27500A}
+.page-sep-row{display:flex;align-items:center;gap:6px;padding:3px 6px;border:1px dashed var(--gray-bd);border-radius:var(--r);background:var(--gray-lt);margin:2px 0;font-size:11px;color:var(--gray-md);text-align:center}
 .nb-FIN{background:var(--red-lt);color:var(--red)}
 .nb-OUV{background:var(--teal-lt);color:var(--teal-dk)}
 .nb-F{background:#E1F5EE;color:#085041}
@@ -323,6 +324,11 @@ const BADGE_LABELS = {
 };
 
 function renderNode(n, parentZero) {
+  if (n.type_ligne === 'PAGE') {
+    return `<div class="tree-node" data-nid="${n._nid}">
+      <div class="page-sep-row"><i class="ti ti-scissors" style="font-size:12px;flex-shrink:0"></i><span style="flex:1">— Saut de page —</span></div>
+    </div>`;
+  }
   const qf       = parseFloat(n.quantite || 0);
   const qd       = parseFloat(n.quantite_originale || 0);
   const isTitre  = n.type_ligne === 'TITRE';

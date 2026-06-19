@@ -165,6 +165,8 @@
 .add-kid-btn:hover{background:#fff;color:var(--teal-dk);border-color:var(--teal-bd)}
 .dz{height:28px;border:1.5px dashed var(--teal-bd);border-radius:var(--r);background:var(--teal-lt);display:none;align-items:center;justify-content:center;font-size:11px;color:var(--teal-dk);margin-bottom:4px}
 .dz.on{display:flex}
+.page-sep-row{display:flex;align-items:center;gap:6px;padding:3px 6px;border:1px dashed var(--gray-bd);border-radius:var(--r);background:var(--gray-lt);margin:2px 0}
+.page-sep-lbl{flex:1;font-size:11px;color:var(--gray-md);letter-spacing:.04em;text-align:center}
 /* ZONES FINANCEMENT */
 .fin-zone-hd{display:flex;align-items:center;gap:4px;background:var(--red-lt);border:1px solid #F5C6C2;border-radius:var(--r);padding:5px 8px;min-height:34px;margin-bottom:3px}
 .fin-zone-body{margin-left:22px;border-left:2px solid #F5C6C2;padding-left:4px;margin-top:3px;display:flex;flex-direction:column;gap:3px}
@@ -652,6 +654,7 @@
           <button class="btn btn-sm" onclick="addRootNode('FMAT')"><i class="ti ti-plus"></i> Forfait MTX</button>
           <button class="btn btn-sm" onclick="addRootNode('S')"><i class="ti ti-plus"></i> Ouvrage simple</button>
           <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
+          <button class="btn btn-sm" onclick="addPageBreak(null)" style="border-color:var(--gray-md);color:var(--gray-md)"><i class="ti ti-scissors"></i> Saut de page</button>
           <div style="flex:1"></div>
           <button class="btn btn-sm" id="btn-zone-fin" onclick="activerZoneFinancement()" style="border-color:var(--red);color:var(--red);background:var(--red-lt)">
             <i class="ti ti-gift"></i> Aide travaux CBB
@@ -1442,6 +1445,15 @@ function isDefaultDesc(n) {
 }
 
 function renderNode(n, depth) {
+  if (n.type_ligne === 'PAGE') {
+    return `<div class="tree-node" data-nid="${n._nid}">
+      <div class="page-sep-row">
+        <i class="ti ti-scissors" style="font-size:12px;color:var(--gray-md);flex-shrink:0"></i>
+        <span class="page-sep-lbl">— Saut de page —</span>
+        ${CAN_EDIT ? `<button class="ico-btn" style="padding:1px 4px" onclick="deleteNode('${n._nid}')" title="Supprimer le saut de page"><i class="ti ti-x" style="font-size:11px"></i></button>` : ''}
+      </div>
+    </div>`;
+  }
   const isNeg   = n.type_ligne === 'FIN';
   const isTitre = n.type_ligne === 'TITRE';
   const hasK    = n.enfants && n.enfants.length > 0;
@@ -1565,7 +1577,8 @@ function kidBtns(nid, type) {
   const ouv = ['C','OUV'].includes(type)
     ? `<button class="add-kid-btn" onclick="addChild('${nid}','OUV')"><i class="ti ti-plus"></i>Sous-ouvrage</button>`
     : '';
-  return `<div class="add-kid-row">${mo}${mat}${ouv}</div>`;
+  const pg  = `<button class="add-kid-btn" onclick="addPageBreak('${nid}')" style="color:var(--gray-md)"><i class="ti ti-scissors"></i>Saut de page</button>`;
+  return `<div class="add-kid-row">${mo}${mat}${ouv}${pg}</div>`;
 }
 
 function titreBtns(nid) {
@@ -1574,6 +1587,7 @@ function titreBtns(nid) {
     <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','F')"><i class="ti ti-plus"></i>Forfait</button>
     <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','S')"><i class="ti ti-plus"></i>Ouvrage simple</button>
     <button class="add-kid-btn" onclick="addOuvrageEnfant('${nid}','C')"><i class="ti ti-plus"></i>Ouvrage composite</button>
+    <button class="add-kid-btn" onclick="addPageBreak('${nid}')" style="color:var(--gray-md)"><i class="ti ti-scissors"></i>Saut de page</button>
   </div>`;
 }
 
@@ -1755,6 +1769,22 @@ function addTitre() {
   const n = {type_ligne:'TITRE', description:'Nouveau titre', enfants:[], ouvert:true};
   n._nid = nextNid();
   tree.push(n);
+  renderTree();
+}
+
+function addPageBreak(parentNid) {
+  if (!CAN_EDIT) return;
+  historySnapshot();
+  const n = {type_ligne:'PAGE', description:'', quantite:1, cout_unitaire:null, enfants:[], ouvert:true};
+  n._nid = nextNid();
+  if (parentNid) {
+    const p = findNode(tree, parentNid); if (!p) return;
+    if (!p.enfants) p.enfants = [];
+    p.enfants.push(n);
+    p.ouvert = true;
+  } else {
+    tree.push(n);
+  }
   renderTree();
 }
 

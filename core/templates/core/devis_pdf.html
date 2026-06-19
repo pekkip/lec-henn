@@ -299,6 +299,10 @@ table.lignes .td-total {
 }
 .doc-conditions strong { color: var(--gray); }
 
+/* ── SAUT DE PAGE MANUEL ── */
+.row-pagebreak { break-before: page; height: 0; visibility: hidden; }
+.row-pagebreak td { padding: 0; border: none; }
+
 /* ── FIN DE PAGE (bon pour accord + footer collés) ── */
 .doc-end {
   break-inside: avoid;
@@ -429,7 +433,9 @@ table.lignes .td-total {
       </thead>
       <tbody>
         {% for l in lignes_pos %}
-          {% if l.type_ligne == 'TITRE' %}
+          {% if l.type_ligne == 'PAGE' %}
+          <tr class="row-pagebreak"><td colspan="5"></td></tr>
+          {% elif l.type_ligne == 'TITRE' %}
           <tr class="row-titre">
             <td colspan="4">
               {% if l.num %}<span class="ligne-num">{{ l.num }}.</span>{% endif %}

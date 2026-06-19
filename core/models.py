@@ -539,6 +539,7 @@ class LigneDevis(models.Model):
         ('FIN',   'Aide travaux CBB'),
         ('FINX',  'Financement organisme'),
         ('TITRE', 'Titre'),
+        ('PAGE',  'Saut de page'),
     ]
     devis = models.ForeignKey(
         Devis, on_delete=models.CASCADE, related_name='lignes'
