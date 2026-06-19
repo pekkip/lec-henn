@@ -301,6 +301,10 @@ table.lignes .td-total {
 
 /* ── SAUT DE PAGE MANUEL ── */
 @media screen {
+  /* Simule les marges A4 (1cm) pour faire correspondre la largeur de rendu avec WeasyPrint (718px) */
+  .page { padding-left: 38px; padding-right: 38px; }
+  .doc-header { margin-left: -38px; margin-right: -38px; }
+  .doc-footer { margin-left: -38px; margin-right: -38px; }
   .row-pagebreak { background: #EBEBEB; }
   .row-pagebreak td {
     background: #EBEBEB;
@@ -576,13 +580,15 @@ window.addEventListener('load', function () {
   var thead = document.querySelector('table.lignes thead');
   var theadH = thead ? Math.round(thead.getBoundingClientRect().height) : 0;
 
+  var pageEl = document.querySelector('.page');
+  var pageTop = pageEl ? Math.round(pageEl.getBoundingClientRect().top + window.scrollY) : 0;
   document.body.style.position = 'relative';
   var totalH = document.body.scrollHeight;
-  var y = PAGE_H, p = 1;
+  var y = pageTop + PAGE_H, p = 1;
   while (y < totalH - 30) {
     var el = document.createElement('div');
-    el.style.cssText = 'position:absolute;top:' + y + 'px;left:0;right:0;background:#ebebeb;border-top:3px solid #d4d4d4;border-bottom:3px solid #d4d4d4;padding:18px 0;text-align:center;pointer-events:none;z-index:5;box-shadow:inset 0 4px 6px -4px rgba(0,0,0,.12),inset 0 -4px 6px -4px rgba(0,0,0,.12);';
-        el.innerHTML = '<span style="color:#bbb;font-size:10px;font-style:italic;letter-spacing:.06em">— fin de page ' + p + ' —</span>';
+    el.style.cssText = 'position:absolute;top:' + y + 'px;left:0;right:0;background:#ebebeb;border-top:3px solid #d4d4d4;border-bottom:3px solid #d4d4d4;padding:6px 0;text-align:center;pointer-events:none;z-index:5;';
+    el.innerHTML = '<span style="color:#bbb;font-size:10px;font-style:italic;letter-spacing:.06em">— fin de page ' + p + ' —</span>';
     document.body.appendChild(el);
     y += PAGE_H - theadH; /* les pages suivantes : le thead se répète en haut */
     p++;
