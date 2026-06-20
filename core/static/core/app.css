@@ -248,6 +248,10 @@ tr.row-link{cursor:pointer}
 /* Référence d'objet lié cliquable */
 .cell-link{cursor:pointer;text-decoration:underline;text-decoration-color:rgba(103,18,58,.35);text-underline-offset:2px}
 .cell-link:hover{text-decoration-color:var(--prune);color:var(--prune-dk)}
+/* Cellule entière cliquable (ref liée) */
+td.td-link{padding:0}
+td.td-link>a.cell-link{display:block;padding:12px 1rem;transition:box-shadow .12s}
+td.td-link:hover>a.cell-link{box-shadow:inset 0 0 0 2px var(--prune);border-radius:3px}
 
 /* Badges groupés */
 .badges{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}

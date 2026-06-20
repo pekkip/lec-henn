@@ -49,12 +49,11 @@
         <td>{{ f.created_by.get_full_name|default:f.created_by.username|default:"—" }}</td>
         <td><span class="cell-ref">{{ f.get_reference }}</span></td>
         <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.notes|striptags|truncatechars:50 }}</td>
-        <td>
-          {% if f.devis %}
-          <a class="cell-ref cell-link" href="{% url 'core:devis-detail' f.devis.pk %}"
-             onclick="event.stopPropagation()">{{ f.devis.reference }}</a>
-          {% else %}—{% endif %}
+        {% if f.devis %}
+        <td class="td-link" onclick="event.stopPropagation()">
+          <a class="cell-ref cell-link" href="{% url 'core:devis-detail' f.devis.pk %}">{{ f.devis.reference }}</a>
         </td>
+        {% else %}<td>—</td>{% endif %}
         <td>{{ f.destinataire }}</td>
         <td>{{ f.date_creation|date:"d/m/Y" }}</td>
         <td>{{ f.date_echeance|date:"d/m/Y" }}</td>

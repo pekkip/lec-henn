@@ -43,17 +43,15 @@
           {% else %}<i class="ti ti-receipt" title="Avoir sur facture de chantier" style="color:var(--gray-md);margin-right:5px"></i>{% endif %}
           <span class="cell-ref">{{ f.get_reference }}</span>
         </td>
-        <td>
-          {% if f.facture_origine %}
-            {% if f.devis %}
-            <a class="cell-ref cell-link" href="{% url 'core:facture-detail' f.facture_origine.pk %}"
-               onclick="event.stopPropagation()">{{ f.facture_origine.get_reference }}</a>
-            {% else %}
-            <a class="cell-ref cell-link" href="{% url 'core:compta-facture-detail' f.facture_origine.pk %}"
-               onclick="event.stopPropagation()">{{ f.facture_origine.get_reference }}</a>
-            {% endif %}
-          {% else %}—{% endif %}
+        {% if f.facture_origine %}
+        <td class="td-link" onclick="event.stopPropagation()">
+          {% if f.devis %}
+          <a class="cell-ref cell-link" href="{% url 'core:facture-detail' f.facture_origine.pk %}">{{ f.facture_origine.get_reference }}</a>
+          {% else %}
+          <a class="cell-ref cell-link" href="{% url 'core:compta-facture-detail' f.facture_origine.pk %}">{{ f.facture_origine.get_reference }}</a>
+          {% endif %}
         </td>
+        {% else %}<td>—</td>{% endif %}
         <td>{{ f.get_client|default:f.destinataire }}</td>
         <td>{{ f.date_creation|date:"d/m/Y" }}</td>
         <td class="num">{{ f.montant|floatformat:2 }} €</td>
