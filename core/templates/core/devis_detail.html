@@ -2,32 +2,8 @@
 {% block title %}{{ devis.reference }}{% endblock %}
 {% block nav_devis %}active{% endblock %}
 
-{% block topbar_title %}
-  <span class="breadcrumb">
-    <span class="breadcrumb-anc">Devis</span>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-cur">{{ devis.reference }}</span>
-    <span class="breadcrumb-sub">— {{ devis.client }}</span>
-  </span>
-  <span class="badge b-{{ devis.status }}" style="font-size:11px"><span class="dot dot-{{ devis.status }}"></span>{{ devis.get_status_display }}</span>
-{% endblock %}
-
-{% block topbar_actions %}
-  {% if peut_modifier %}
-  <form method="post" action="{% url 'core:devis-status' devis.pk %}" style="display:flex;gap:6px;align-items:center">
-    {% csrf_token %}
-    <select name="status" class="btn btn-ghost btn-sm" onchange="this.form.submit()">
-      {% for val,label in devis.STATUS_CHOICES %}
-      <option value="{{ val }}" {% if devis.status == val %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-  </form>
-  {% endif %}
-  <a href="{% url 'core:devis-duplicate' devis.pk %}" class="btn btn-ghost btn-sm"><i class="ti ti-copy"></i> Dupliquer</a>
-  {% if peut_modifier %}
-  <button onclick="document.getElementById('modal-facture').classList.remove('hidden')" class="btn btn-ghost btn-sm"><i class="ti ti-receipt"></i> Nouvelle facture</button>
-  {% endif %}
-{% endblock %}
+{% block topbar_title %}{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -38,10 +14,10 @@
 .ac-item:hover{background:var(--teal-lt)}
 .ac-item .sub{font-size:11px;color:var(--gray-md)}
 .ac-empty{padding:8px 10px;font-size:11px;color:var(--gray-md)}
-.tabs{background:#fff;border-bottom:1px solid var(--gray-bd);display:flex;padding:0 1.25rem;flex-shrink:0}
-.tab{padding:10px 14px;font-size:13px;color:var(--gray-md);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
-.tab.on{color:var(--prune);border-bottom-color:var(--prune);font-weight:500}
-.tab:hover:not(.on){color:var(--gray)}
+.tabs{background:var(--prune);border-bottom:none;display:flex;padding:0 1.25rem;flex-shrink:0}
+.tab{padding:13px 18px;font-size:14px;color:rgba(255,255,255,.72);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:0;white-space:nowrap;text-decoration:none}
+.tab.on{color:#fff;border-bottom:2px solid var(--teal);font-weight:600}
+.tab:hover:not(.on){color:#fff}
 .tab-pane{display:none;flex:1;overflow:hidden;flex-direction:column}.tab-pane.on{display:flex}
 
 /* EDITOR */
@@ -78,7 +54,7 @@
 
 /* TREE NODES */
 .tree-node{margin-bottom:3px}
-.node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:34px}
+.node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:36px}
 .node-row:hover{border-color:#BBBAB8}
 .node-row.drag-over{border:1.5px dashed var(--teal);background:var(--teal-lt)}
 .node-row.is-neg{background:#FFF8F7;border-color:#F5C6C2}
@@ -173,7 +149,7 @@
 .fin-zone-dz{height:32px;border:1.5px dashed #F5C6C2;border-radius:var(--r);display:none;align-items:center;justify-content:center;font-size:11px;color:var(--red);margin-bottom:4px;transition:all .15s}
 .fin-zone-dz.on{display:flex}
 .fin-zone-dz.active{border-color:var(--red);background:var(--red-lt)}
-.nb-FINX{background:#EDE9F8;color:#5B3EA5}
+.nb-FINX{background:var(--violet-lt);color:var(--violet)}
 .aides-cat-hd{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:5px 10px 3px;color:var(--gray-md);border-bottom:1px solid var(--gray-bd)}
 .aide-tag{font-size:10px;color:var(--red);opacity:.6;margin-left:3px;flex-shrink:0}
 /* SECTION AIDES (biblio partagée) */
@@ -357,7 +333,20 @@
 .lib-cat-hd:hover{background:var(--gray-lt)}
 .lib-cat-body{display:block}
 
+/* BOUTONS ZONE FINANCEMENT */
+.btn-fin  { border-color:var(--red);    color:var(--red);    background:var(--red-lt) }
+.btn-finx { border-color:var(--violet); color:var(--violet); background:var(--violet-lt) }
 
+/* EN-TÊTE COLONNES STICKY */
+.col-hdr{display:flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid transparent;background:var(--bg);position:sticky;top:0;z-index:10;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+
+/* ICÔNES DANS LES TABS */
+.tab i{font-size:12px;margin-right:4px}
+
+/* BOUTONS DANS LA TAB BAR (fond prune) */
+.tabs .btn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.3);color:#fff}
+.tabs .btn:hover{background:rgba(255,255,255,.18);color:#fff}
+.tabs select.btn option{color:var(--gray);background:#fff}
 
 </style>
 {% endblock %}
@@ -365,17 +354,30 @@
 {% block content %}
 <!-- TABS -->
 <div class="tabs">
-  <a href="#" class="tab" onclick="switchTab(event,'entete')"><i class="ti ti-info-circle" style="font-size:12px;margin-right:4px"></i>En-tête</a>
-  <a href="#" class="tab on" onclick="switchTab(event,'edit')"><i class="ti ti-edit" style="font-size:12px;margin-right:4px"></i>Édition</a>
-  <a href="#" class="tab" onclick="switchTab(event,'factures')">Factures <span id="fcount" style="background:var(--prune-lt);color:var(--prune);border-radius:99px;padding:1px 7px;font-size:11px;margin-left:3px">{{ factures|length }}</span></a>
+  <a href="#" class="tab" onclick="switchTab(event,'entete')"><i class="ti ti-info-circle"></i>En-tête</a>
+  <a href="#" class="tab on" onclick="switchTab(event,'edit')"><i class="ti ti-edit"></i>Édition</a>
+  <a href="#" class="tab" onclick="switchTab(event,'factures')">Factures <span id="fcount" style="background:rgba(255,255,255,.18);color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;margin-left:3px">{{ factures|length }}</span></a>
   <a href="#" class="tab" onclick="switchTab(event,'audit')">Journal</a>
-  <a href="{% url 'core:devis-pdf' devis.pk %}" class="tab"><i class="ti ti-eye" style="font-size:12px;margin-right:4px"></i>Vue client</a>
-  <a href="{% url 'core:devis-excel' devis.pk %}" class="tab"><i class="ti ti-file-spreadsheet" style="font-size:12px;margin-right:4px"></i>Excel</a>
-  {% if not peut_modifier %}
-  <span style="margin-left:auto;align-self:center;display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--gray-md);padding-right:4px" title="Vous ne faites pas partie de l'équipe de ce devis : consultation seule. Vous pouvez toujours glisser des lignes vers votre bibliothèque.">
-    <i class="ti ti-lock" style="font-size:13px"></i> Consultation seule
-  </span>
-  {% endif %}
+  <a href="{% url 'core:devis-pdf' devis.pk %}" class="tab"><i class="ti ti-eye"></i>Vue client</a>
+  <a href="{% url 'core:devis-excel' devis.pk %}" class="tab"><i class="ti ti-file-spreadsheet"></i>Excel</a>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:6px;padding-right:8px">
+    {% if not peut_modifier %}
+    <span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:rgba(255,255,255,.72)" title="Vous ne faites pas partie de l'équipe de ce devis : consultation seule.">
+      <i class="ti ti-lock" style="font-size:13px"></i> Consultation seule
+    </span>
+    {% endif %}
+    {% if peut_modifier %}
+    <form method="post" action="{% url 'core:devis-status' devis.pk %}" style="display:flex">
+      {% csrf_token %}
+      <select name="status" class="btn btn-ghost btn-sm" onchange="this.form.submit()">
+        {% for val,label in devis.STATUS_CHOICES %}
+        <option value="{{ val }}" {% if devis.status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% endif %}
+    <a href="{% url 'core:devis-duplicate' devis.pk %}" class="btn btn-ghost btn-sm"><i class="ti ti-copy"></i> Dupliquer</a>
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════
@@ -564,6 +566,9 @@
     <!-- ÉDITEUR -->
     <div class="editor-main">
       <div class="editor-meta" id="editor-meta">
+        <div class="meta-f"><span class="meta-lbl">Réf.</span><span class="meta-val" style="font-size:11px;font-family:var(--fm,monospace)">{{ devis.reference }}</span></div>
+        <span class="badge b-{{ devis.status }}" style="align-self:center"><span class="dot dot-{{ devis.status }}"></span>{{ devis.get_status_display }}</span>
+        <div class="meta-sep"></div>
         <div class="meta-f"><span class="meta-lbl">Client</span><span class="meta-val" id="meta-client">{{ devis.client }}</span></div>
         <div class="meta-sep"></div>
         <div class="meta-f"><span class="meta-lbl">Chantier</span><span class="meta-val" id="meta-chantier">{{ devis.chantier }}</span></div>
@@ -646,6 +651,19 @@
       {% endif %}
 
       <div class="editor-body" id="editor-body">
+        <!-- EN-TÊTE COLONNES (sticky) -->
+        <div class="col-hdr">
+          <div style="width:13px;flex-shrink:0"></div>
+          <div style="width:16px;flex-shrink:0"></div>
+          <div style="flex:1">Description</div>
+          <div style="width:46px;text-align:right">Qté</div>
+          <div style="width:28px"></div>
+          <div style="width:52px;text-align:right">Coût u. {% if saisie_ht %}<span style="color:var(--teal-dk)" title="Saisie en HT — conversion TTC +20% automatique">HT</span>{% endif %}</div>
+          <div style="width:60px;text-align:right;color:var(--amber)">Coût MO</div>
+          <div style="width:60px;text-align:right;color:var(--teal-dk)">Coût Mtx</div>
+          <div style="width:68px;text-align:right;color:var(--prune)">Total</div>
+          <div style="width:44px"></div>
+        </div>
         {% if peut_modifier %}
         <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Titre</button>
@@ -656,23 +674,14 @@
           <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
           <button class="btn btn-sm" onclick="addPageBreak(null)" style="border-color:var(--gray-md);color:var(--gray-md)"><i class="ti ti-scissors"></i> Saut de page</button>
           <div style="flex:1"></div>
-          <button class="btn btn-sm" id="btn-zone-fin" onclick="activerZoneFinancement()" style="border-color:var(--red);color:var(--red);background:var(--red-lt)">
+          <button class="btn btn-sm btn-fin" id="btn-zone-fin" onclick="activerZoneFinancement()">
             <i class="ti ti-gift"></i> Aide travaux CBB
           </button>
-          <button class="btn btn-sm" id="btn-zone-fin-ext" onclick="activerZoneFinancementExt()" style="border-color:#5B3EA5;color:#5B3EA5;background:#EDE9F8">
+          <button class="btn btn-sm btn-finx" id="btn-zone-fin-ext" onclick="activerZoneFinancementExt()">
             <i class="ti ti-building-bank"></i> Financements organismes
           </button>
         </div>
         {% endif %}
-        <!-- EN-TÊTES COLONNES -->
-        <div style="display:flex;align-items:center;padding:0 8px 4px 4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;gap:4px;margin-bottom:3px">
-          <div style="flex:1">Description</div>
-          <div style="width:52px;text-align:right">Coût u. {% if saisie_ht %}<span style="color:var(--teal-dk)" title="Saisie en HT — conversion TTC +20% automatique">HT</span>{% endif %}</div>
-          <div style="width:60px;text-align:right;color:var(--amber)">Coût MO</div>
-          <div style="width:60px;text-align:right;color:var(--teal-dk)">Coût Mtx</div>
-          <div style="width:68px;text-align:right;color:var(--prune)">Total</div>
-          <div style="width:44px"></div>
-        </div>
         {% if peut_modifier %}<div class="dz" id="root-dz">↓ Déposer ici pour ajouter au devis</div>{% endif %}
         <div id="tree"></div>
       </div>

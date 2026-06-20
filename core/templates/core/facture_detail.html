@@ -23,7 +23,7 @@
   /* ── TABS ── */
 .tabs{background:#fff;border-bottom:1px solid var(--gray-bd);display:flex;padding:0 1.25rem;flex-shrink:0}
 .tab{padding:10px 14px;font-size:13px;color:var(--gray-md);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
-.tab.on{color:var(--prune);border-bottom-color:var(--prune);font-weight:500}
+.tab.on{color:var(--teal-dk);border-bottom:2px solid var(--teal);font-weight:600}
 .tab:hover:not(.on){color:var(--gray)}
 /* ── BARRE FORMAT ── */
 .fmt-bar{display:flex;align-items:center;gap:3px;padding:5px 8px;background:#fff;border-bottom:1px solid var(--gray-bd);flex-shrink:0;flex-wrap:wrap}
@@ -40,7 +40,7 @@ textarea.notes-input{width:100%;font-size:12px;border:1px solid var(--gray-bd);b
 textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 
 /* ── EN-TÊTES COLONNES ── */
-.col-hd{background:#fff;border-bottom:1px solid var(--gray-bd);padding:4px 10px;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;flex-shrink:0}
+.col-hd{background:var(--bg);border:1px solid transparent;padding:4px 10px;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;z-index:10;margin-bottom:2px}
 
 /* ── ÉDITEUR ── */
 .editor-shell{display:flex;flex:1;overflow:hidden}
@@ -50,7 +50,7 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 .tree-node{margin-bottom:2px}
 .node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:34px}
 .node-row:hover{border-color:#BBBAB8}
-.node-row.zero{opacity:.38;background:var(--gray-lt)}
+.node-row.zero{opacity:.5;background:var(--gray-lt)}
 .node-row.titre-row{background:var(--prune-lt);border-color:var(--prune-bd)}
 .node-row.titre-row.zero{opacity:.38}
 
@@ -74,8 +74,8 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 .nd-desc-ce [contenteditable].zero-text{color:var(--gray-md);text-decoration:line-through}
 
 .nd-qty-wrap{width:80px;flex-shrink:0;display:flex;align-items:center;gap:3px;justify-content:flex-end}
-.nd-qty{width:52px;text-align:right;font-size:12px;border:1px solid var(--gray-bd);border-radius:4px;padding:2px 5px;background:var(--gray-lt);color:var(--gray);font-family:var(--f);outline:none}
-.nd-qty:focus{border-color:var(--teal);background:#fff}
+.nd-qty{width:52px;text-align:right;font-size:12px;border:1px solid var(--gray-bd);border-radius:4px;padding:2px 5px;background:var(--gray-lt);color:var(--gray);font-family:var(--f);outline:none;min-height:32px}
+.nd-qty:focus{border-color:var(--teal);background:#fff;box-shadow:0 0 0 3px rgba(0,170,141,.12)}
 .nd-qty:disabled{opacity:.4;cursor:not-allowed}
 .nd-unit{font-size:11px;color:var(--gray-md);width:24px;flex-shrink:0}
 .nd-pu{width:64px;text-align:right;font-size:11px;color:var(--gray-md);flex-shrink:0;font-variant-numeric:tabular-nums}
@@ -89,7 +89,7 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 .titre-prog{padding:0 8px 8px}
 .prog-track{height:4px;background:var(--gray-bd);border-radius:2px;margin-bottom:5px;position:relative;overflow:hidden}
 .prog-fill-prev{height:4px;border-radius:2px;background:var(--prune-bd);position:absolute;top:0;left:0}
-.prog-fill{height:4px;border-radius:2px;background:var(--prune);position:absolute;top:0;left:0;transition:width .3s}
+.prog-fill{height:4px;border-radius:2px;background:var(--teal);position:absolute;top:0;left:0;transition:width .3s}
 .prog-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--gray-md)}
 .prog-labels .current{color:var(--prune);font-weight:500}
 
@@ -164,18 +164,17 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
   >{{ facture.notes }}</textarea>
 </div>
 
-{# En-têtes colonnes #}
-<div class="col-hd">
-  <div style="flex:1">Description</div>
-  <div style="width:80px;text-align:right">Qté facturée</div>
-  <div style="width:56px;text-align:right">Qté devis</div>
-  <div style="width:64px;text-align:right">P.U.</div>
-  <div style="width:74px;text-align:right;color:var(--prune)">Total</div>
-</div>
-
 {# Corps de l'éditeur — rendu par JS #}
 <div class="editor-shell">
   <div class="editor-body" id="editor-body">
+    {# En-têtes colonnes (sticky) #}
+    <div class="col-hd">
+      <div style="flex:1">Description</div>
+      <div style="width:80px;text-align:right">Facturée</div>
+      <div style="width:56px;text-align:right">Devis</div>
+      <div style="width:64px;text-align:right">P.U.</div>
+      <div style="width:74px;text-align:right;color:var(--prune)">Total</div>
+    </div>
     <div style="color:var(--gray-md);font-size:12px;padding:1rem">Chargement…</div>
   </div>
 </div>
