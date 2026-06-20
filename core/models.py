@@ -105,6 +105,14 @@ class Equipe(models.Model):
 #  PROFIL UTILISATEUR
 # ══════════════════════════════════════════
 
+PALETTE_COULEURS = [
+    '#67123A', '#C2185B', '#C0392B', '#D35400', '#F7A600', '#827717',
+    '#3B6D11', '#00AA8D', '#0097A7', '#185FA5', '#3949AB', '#5B3EA5',
+    '#795548', '#546E7A',
+]
+COULEUR_CHOICES = [(c, c) for c in PALETTE_COULEURS]
+
+
 class ProfilUtilisateur(models.Model):
     ROLE_CHOICES = [
         ('admin',        'Administrateur'),
@@ -167,6 +175,10 @@ class ProfilUtilisateur(models.Model):
     coordonnees_cb = models.TextField(
         blank=True,
         help_text="Coordonnées CB affichées sur les devis/factures (nom, fonction, tél.)"
+    )
+    couleur = models.CharField(
+        max_length=7, choices=COULEUR_CHOICES, default='#546E7A',
+        help_text="Couleur du liseré auteur dans les listes"
     )
 
     class Meta:
@@ -1187,3 +1199,22 @@ class Pret(models.Model):
 
     def __str__(self):
         return f"{self.equipier} → {self.equipe_hote} ({self.date_debut}–{self.date_fin})"
+
+
+# ══════════════════════════════════════════
+#  SIGNAL — couleur automatique à la création d'un profil
+# ══════════════════════════════════════════
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=ProfilUtilisateur)
+def assign_couleur_auto(sender, instance, created, **kwargs):
+    if not created or instance.couleur != '#546E7A':
+        return
+    counts = {c: 0 for c in PALETTE_COULEURS}
+    for c in ProfilUtilisateur.objects.exclude(pk=instance.pk).values_list('couleur', flat=True):
+        if c in counts:
+            counts[c] += 1
+    best = min(PALETTE_COULEURS, key=lambda c: counts[c])
+    ProfilUtilisateur.objects.filter(pk=instance.pk).update(couleur=best)

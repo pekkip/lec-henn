@@ -37,13 +37,13 @@
     <option value="refused" {% if status_filter == 'refused' %}selected{% endif %}>Refusé</option>
     <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Expiré</option>
   </select>
-  <button type="submit" class="btn"><i class="ti ti-search"></i> Filtrer</button>
+  <button type="submit" class="btn"><i class="ti ti-filter"></i> Filtrer</button>
   <a href="{% url 'core:devis-list' %}" class="btn">Réinitialiser</a>
 </div>
 </form>
 
 <div class="scroll-y">
-<table>
+<table class="tbl-author">
   <thead><tr>
     <th style="width:10%">Auteur</th>
     <th style="width:10%">Référence</th>
@@ -58,14 +58,14 @@
   </tr></thead>
   <tbody>
     {% for d in devis %}
-    <tr style="cursor:pointer" onclick="location='{% url 'core:devis-detail' d.pk %}'">
+    <tr class="row-link" style="--rail:{{ d.created_by.profil.couleur|default:'#546E7A' }}"
+        onclick="location='{% url 'core:devis-detail' d.pk %}'">
       <td>{{ d.created_by.get_full_name|default:d.created_by.username|default:"—" }}</td>
-      <td><span class="mono">{{ d.reference }}</span></td>
+      <td><span class="cell-ref">{{ d.reference }}</span></td>
       <td>{{ d.client }}</td>
       <td>{{ d.chantier }}</td>
       <td>
-        {% if d.equipe %}
-        <span style="font-size:11px;background:var(--prune-lt);color:var(--prune-dk);padding:1px 6px;border-radius:3px">{{ d.equipe.nom }}</span>
+        {% if d.equipe %}<span class="badge b-prune">{{ d.equipe.nom }}</span>
         {% else %}—{% endif %}
       </td>
       <td>{{ d.date_creation|date:"d/m/Y" }}</td>
@@ -74,7 +74,7 @@
       <td class="num" style="color:{% if d.rtf > 0 %}var(--amber){% elif d.rtf < 0 %}var(--red){% else %}var(--teal-dk){% endif %}">
         {% if d.rtf < 0 %}−{% endif %}{{ d.rtf|floatformat:2 }} €
       </td>
-      <td style="text-align:right" onclick="event.stopPropagation()">
+      <td class="cell-act" onclick="event.stopPropagation()">
         <a href="{% url 'core:devis-duplicate' d.pk %}" class="ico-btn" title="Dupliquer"><i class="ti ti-copy"></i></a>
         {% if peut_supprimer|get_item:d.pk %}
         <form method="post" action="{% url 'core:devis-delete' d.pk %}" style="display:inline" onsubmit="return confirm('Supprimer ce devis ?')">

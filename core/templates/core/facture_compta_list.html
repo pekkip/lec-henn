@@ -16,8 +16,21 @@
   <a href="{% url 'core:compta-appel-create' %}" class="btn btn-prune"><i class="ti ti-plus"></i> Nouvel appel</a>
   {% endif %}
 </div>
+
+<form method="get">
+<div class="toolbar">
+  <div class="search-wrap"><i class="ti ti-search"></i><input class="search-inp" name="q" value="{{ q }}" placeholder="Référence, client, objet…"/></div>
+  <select class="sel" name="auteur" onchange="this.form.submit()">
+    <option value="">Tous les auteurs</option>
+    {% for a in auteurs %}<option value="{{ a.pk }}" {% if auteur_filter == a.pk|stringformat:'s' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="btn"><i class="ti ti-filter"></i> Filtrer</button>
+  <a href="?type_doc={{ type_doc }}" class="btn">Réinitialiser</a>
+</div>
+</form>
+
 <div class="scroll-y">
-  <table>
+  <table class="tbl-author">
     <thead><tr>
       <th>Auteur</th>
       <th>Référence</th>
@@ -30,28 +43,33 @@
     </tr></thead>
     <tbody>
       {% for f in factures %}
-      <tr>
+      <tr class="row-link" style="--rail:{{ f.created_by.profil.couleur|default:'#546E7A' }}"
+          onclick="location='{% url 'core:compta-facture-detail' f.pk %}'">
         <td>{{ f.created_by.get_full_name|default:f.created_by.username|default:"—" }}</td>
         <td>
-          <a href="{% url 'core:compta-facture-detail' f.pk %}" class="mono" style="color:inherit;text-decoration:none" title="Ouvrir">{{ f.get_reference }}</a>
+          <span class="cell-ref">{{ f.get_reference }}</span>
           {% if f.type_doc == 'avoir' %}<span class="badge b-refused" style="margin-left:4px">Avoir</span>{% endif %}
         </td>
         <td>{{ f.get_client|default:f.destinataire }}</td>
-        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="{% url 'core:compta-facture-detail' f.pk %}" style="color:inherit;text-decoration:none" title="Ouvrir">{{ f.notes|striptags|truncatechars:60 }}</a></td>
+        <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.notes|striptags|truncatechars:60 }}</td>
         <td>{{ f.date_creation|date:"d/m/Y" }}</td>
         <td class="num">{{ f.montant|floatformat:2 }} €</td>
         <td>
-          <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
-          {% if f.bypass_validation %}<span class="badge b-amber" style="margin-left:4px"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span>{% endif %}
-          {% with av=f.avoirs.all %}{% if av %}
-            {% if av|length == 1 %}
-            <a href="{% url 'core:compta-facture-detail' av.0.pk %}" class="badge b-red" style="margin-left:4px" title="Avoir {{ av.0.get_reference }}"><i class="ti ti-receipt-refund" style="font-size:11px"></i> Avoir</a>
-            {% else %}
-            <a href="{% url 'core:avoirs-list' %}" class="badge b-red" style="margin-left:4px" title="{{ av|length }} avoirs"><i class="ti ti-receipt-refund" style="font-size:11px"></i> {{ av|length }} avoirs</a>
-            {% endif %}
-          {% endif %}{% endwith %}
+          <span class="badges">
+            <span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span>
+            {% if f.bypass_validation %}<span class="badge b-amber"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span>{% endif %}
+            {% with av=f.avoirs.all %}{% if av %}
+              {% if av|length == 1 %}
+              <a href="{% url 'core:compta-facture-detail' av.0.pk %}" class="badge b-red"
+                 onclick="event.stopPropagation()" title="Avoir {{ av.0.get_reference }}"><i class="ti ti-receipt-refund" style="font-size:11px"></i> Avoir</a>
+              {% else %}
+              <a href="{% url 'core:avoirs-list' %}" class="badge b-red"
+                 onclick="event.stopPropagation()" title="{{ av|length }} avoirs"><i class="ti ti-receipt-refund" style="font-size:11px"></i> {{ av|length }} avoirs</a>
+              {% endif %}
+            {% endif %}{% endwith %}
+          </span>
         </td>
-        <td style="text-align:right;white-space:nowrap">
+        <td class="cell-act" onclick="event.stopPropagation()">
           <a href="{% url 'core:compta-facture-detail' f.pk %}" class="ico-btn" title="Ouvrir"><i class="ti ti-pencil"></i></a>
           <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu"><i class="ti ti-eye"></i></a>
           {% if f.type_doc != 'avoir' %}

@@ -45,7 +45,8 @@
   {% if request.user.is_authenticated %}
   <div class="topbar-actions">
     {% block topbar_actions %}{% endblock %}
-    <a href="{% url 'core:profil' %}" class="btn btn-ghost btn-sm">
+    <a href="{% url 'core:profil' %}" class="btn btn-ghost btn-sm"
+       style="border-color:{{ profil.couleur|default:'#546E7A' }}">
       <i class="ti ti-user"></i>
       {{ request.user.get_full_name|default:request.user.username }}
     </a>

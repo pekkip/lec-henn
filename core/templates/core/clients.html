@@ -33,13 +33,13 @@
 </form>
 
 <div class="scroll-y">
-  <table>
+  <table class="tbl-author">
     <thead><tr>
       <th>Nom</th><th>Type</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Ville</th><th>CP</th><th class="num">Devis</th>{% if is_admin %}<th></th>{% endif %}
     </tr></thead>
     <tbody>
       {% for c in clients %}
-      <tr>
+      <tr style="--rail:{{ c.created_by.profil.couleur|default:'#546E7A' }}">
         <td style="font-weight:500">{{ c.nom }}
           {% if c.contacts.all %}<span class="badge b-teal" style="margin-left:4px" title="Contacts / services">{{ c.contacts.all|length }} contact{{ c.contacts.all|length|pluralize }}</span>{% endif %}
         </td>
@@ -51,7 +51,7 @@
         <td class="mono">{{ c.code_postal|default:"—" }}</td>
         <td class="num">{{ c.devis.count }}</td>
         {% if is_admin %}
-        <td style="text-align:right;white-space:nowrap">
+        <td class="cell-act">
           <button type="button" class="ico-btn"
             data-action="{% url 'core:client-edit' c.pk %}"
             data-pk="{{ c.pk }}"

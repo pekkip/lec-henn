@@ -12,6 +12,8 @@
 - **Ne pas improviser** sur l'apparence, le comportement ou les données côté navigateur sans avoir confirmé le problème exact (ex. : demander si les dates sont absentes ou décalées, quel élément manque de contraste, etc.).
 - **Modifications de fichiers** : utiliser les outils natifs `Edit`/`Read`/`Write` directement.
 
+**État du projet (21/06/2026 — session 54) :** **Refonte gabarit unique des listes + couleur auteur.** (1) **Logo login** : `login.html` — SVG inline remplacé par `<img src="/media/logo/logo_CB_B_C_V_web.png">` (max-width:180px, centré). (2) **`NOTES_DEV.md`** : migration Railway → OVH documentée — Stack, § Déploiement, § Infra, commandes seed. (3) **`ProfilUtilisateur.couleur`** : nouveau champ `CharField(max_length=7)` avec `PALETTE_COULEURS` (14 couleurs) + signal `post_save` auto-attribution par rotation (`.update()`, sans récursion) + migration `0029_profil_couleur` (`AddField` + `RunPython distribute_colors` aux profils existants). (4) **`app.css`** : bloc « Gabarit listes harmonisées » — en-tête collant `.scroll-y thead th` (sticky + box-shadow), `.scroll-y table td` (padding 12px, font-size 13px), `.tbl-author` (zébrage #FAF8F6, hover #F5EEF1, liseré `::before` via `var(--rail)`), `.row-link` (curseur pointeur), `.cell-link` (underline prune), `.badges` (inline-flex, gap 5px), `.cell-act` (hover-only icons via opacity .4→1), `.swatch/.swatch.sel` (nuancier couleur). (5) **`base.html`** : bouton profil — `style="border-color:{{ profil.couleur|default:'#546E7A' }}"`. (6) **`profil.html` + `profil_view`** : carte nuancier 14 swatches + `<input type="hidden" name="couleur">` ; POST gère `couleur in PALETTE_COULEURS` ; contexte `palette_couleurs`. (7) **`views.py`** : `select_related('created_by__profil')` sur devis/factures/avoirs/compta/clients ; filtres ajoutés — `factures_list` (q sur numero/notes/client + status) ; `avoirs_list` (q sur numero/client/facture_origine + auteur) ; `factures_compta_list` (q + auteur). (8) **6 templates de liste harmonisés** : `devis_list.html` (déjà traité session précédente), `factures_list.html` (clic→facture-detail, ref devis cell-link, toolbar q+statut+auteur, badges grouped, icône ↗ supprimée), `avoirs_list.html` (clic→compta-facture-detail, ref facture_origine cell-link, col « Coupable »→« Auteur », toolbar q+auteur), `facture_compta_list.html` (clic→compta-facture-detail, toolbar q+auteur, badges grouped), `clients.html` (tbl-author + --rail, cell-act admin). Tous : `<table class="tbl-author">`, `<tr style="--rail:{{ obj.created_by.profil.couleur|default:'#546E7A' }}">`. **185 tests OK** (inchangé).
+
 **État du projet (20/06/2026 — session 53) :** **Harmonisation éditeur devis + facture — charte CB (CSS/templates, zéro changement fonctionnel).** (1) **`app.css`** : token violet ajouté (`--violet:#5B3EA5 / --violet-lt / --violet-dk / --violet-bd`). (2) **`facture_detail.html`** : `.tab.on` teal-dk + soulignement teal ; `.col-hd` déplacé à l'intérieur de `editor-body` en sticky ; `.nd-qty` min-height 32 px + focus ring teal ; `.prog-fill` en teal (était prune) ; colonnes renommées « Facturée / Devis ». (3) **`devis_detail.html`** — charte complète : `.tabs` fond prune (42 px, fonte 14 px) ; onglet inactif `rgba(255,255,255,.72)`, actif blanc + soulignement teal ; `.col-hdr` déplacé en sticky dans `editor-body` avec placeholders grip/toggler + colonnes Qté et Unité alignées sur `renderNode` (74 px de décalage corrigé) ; `.btn-fin/.btn-finx` (rouge/violet) remplacent les inline styles des boutons zone financement ; `.nb-FINX` utilise `--violet-lt/--violet`. Réorganisation chrome : breadcrumb + badge statut **supprimés de la topbar** — topbar redevient chrome nu (logo + slogan) ; référence + badge statut ajoutés comme premier champ de `editor-meta` ; sélecteur d'état + Dupliquer **déplacés dans la tab bar** (droite, ghost blancs) ; bouton « Nouvelle facture » **supprimé**. **185 tests OK** (inchangé).
 
 **État du projet (20/06/2026 — session 52) :** **Refonte design — planning, émargement, topbar slogan (CSS/templates uniquement, zéro changement fonctionnel).** (1) **Slogan topbar** : `{{ params.slogan }}` injecté dans `base.html` entre `.logo-area` et `.topbar-title` ; style `.topbar-slogan` dans le bloc Chrome d'`app.css` — Montserrat Alternates italic 600, 18 px, `color:var(--prune)`. (2) **Page-hd prune** : ajouté en fin de bloc Chrome dans `app.css` — `.page-hd { background:var(--prune); border-bottom:none }`, `.page-title { color:#fff }`, `.page-sub { color:rgba(255,255,255,.72) }`, `.page-hd .btn` (fond blanc transparent), `.page-hd .btn-prune` (fond blanc / texte prune), `.page-hd .btn-teal` (fond blanc / texte teal-dk). (3) **Wizard Affecter un chantier** (`planning.html`) : indicateur d'étapes texte `›` remplacé par **cercles + barre** — CSS `.aff-step-node / .aff-step-circle / .aff-step-lbl / .aff-step-line` + états `active` (teal-dk + halo) / `done` (teal + ✓) ; HTML mis à jour ; `affGoStep` JS adapté (sélecteur `.aff-step-node`, mise à jour `.aff-step-line.done`). (4) **Planning — petites corrections** : bouton Événement avait `style="border-color:var(--prune);color:var(--prune)"` → texte prune invisible sur page-hd prune → inline style supprimé ; `.tranche-chip` utilisait `var(--border)` / `var(--bg)` / `var(--teal-light)` indéfinis → corrigé en `var(--gray-bd)` / `var(--white)` / `var(--teal-lt)`, padding 3→7 px, font-size 11→13 px, border-radius 12px→99px ; `.cren-grp` ajouté (segmented control, fond `--gray-lt`, actif fond blanc). (5) **Émargement — contraste cren-grp** : `.cren-grp button.active` utilisait `background:var(--amber)` + texte blanc → ratio ≈ 1,8:1 avec #F7A600 (échec AA) → remplacé par `background:var(--teal-dk)` (~5:1, AA). **185 tests OK** (inchangé).
@@ -57,7 +59,7 @@
 **État du projet (08/06/2026 — session 33) :** **Coller depuis Excel sur facture structure** : bouton "Coller depuis Excel" dans l'éditeur facture compta → chaque ligne Excel devient un forfait, dates détectées automatiquement, alignement monospace via U+00A0. **Calcul Tutorat** : outil dédié aux services civiques dans l'éditeur facture compta — coller la liste volontaires (Secteur optionnel, Nom, Prénom, Date début, Date fin), choisir trimestre/année/taux mensuel → calcul JOURS360 (méthode européenne 30j/mois), génère titre "Xe trimestre YYYY — SERVICES CIVIQUES" + ligne repère colonnes + un forfait/personne (qté=jours, unité=J, PU=taux/30). Détection auto colonne Secteur (code numérique) et Nom+Prénom séparés ou fusionnés. **Refs cliquables** : dans la liste factures compta et la liste factures travaux, la référence et l'objet sont désormais des liens directs vers la facture. Colonne "Objet" ajoutée à la liste factures travaux. **Deux zones financement dans le devis** : la zone financement unique est remplacée par deux zones indépendantes — "Aide travaux CBB" (type FIN, icône 🎁) et "Financements organismes" (type FINX, icône 🏦, violet). Chaque zone a sa propre catégorie dans la sidebar bibliothèque Aides. Migration `0025_devis_zone_financement_ext_finx` appliquée (`zone_financement_ext` BooleanField + type FINX dans LigneDevis et BibliothèqueAides).
 
 **État du projet (08/06/2026 — session 32) :** en test beta. **Module Planning & Émargement**
-opérationnel sur railway (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
+opérationnel en prod (sessions 25–27). Drag & drop planning corrigé et accéléré (session 28) :
 bug navigation URL supprimé + `location.reload()` éliminé (mise à jour DOM côté client depuis réponse serveur).
 **Feuilles de présence mensuelles livrées (session 31)** : grille calendrier ISO corrigée (4 bugs),
 jours fériés légaux FR (code F) + ponts Pont→Récup (code R) sur fiche et émargement.
@@ -91,9 +93,9 @@ session 17 appliqués : bypass OTP protégé, durcissement config prod, Decimal 
 reset MDP sûr. Items restants : voir § Dette technique.
 
 ## Stack
-- Django 6 · SQLite (dev) · PostgreSQL (prod Railway)
+- Django 6 · SQLite (dev) · PostgreSQL (prod OVH)
 - Python 3.12 (prod) · Python 3.14 (dev Windows)
-- Railway (prod actuel) → OVH VPS (Phase 4)
+- OVH VPS (`vps-28c76530.vps.ovh.net`, IP 51.178.24.126) — Ubuntu 24.04, nginx, gunicorn systemd
 - Gunicorn · WhiteNoise · Django Admin
 
 ## Démarrage rapide (dev Windows)
@@ -111,15 +113,22 @@ venv\Scripts\python manage.py check
 - Sans `DATABASE_URL`, la base est `db.sqlite3` (locale). Connexion via `/login/`.
 - Les tests de contrôle d'accès vivent dans `core/tests.py`.
 
-## Déploiement (Railway)
-- Remote git : GitHub `pekkip/lec-henn`. Prod : `lec-henn-production.up.railway.app`.
-- **`git push origin main` → Railway redéploie automatiquement.** Le `Procfile`
-  exécute `collectstatic --noinput && migrate && gunicorn cbretagne.wsgi`.
-  `runtime.txt` = python-3.12.
-- Variables d'env prod : `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS`,
-  `DATABASE_URL` (PostgreSQL Railway).
+## Déploiement (OVH VPS)
+- Remote git : GitHub `pekkip/lec-henn`. Prod : `https://vps-28c76530.vps.ovh.net`
+  (domaine définitif `gestioncbb.compagnonsbatisseurs.eu` en attente DNS IT national).
+- **`git push origin main` ne déclenche PAS de déploiement automatique.** Pour déployer,
+  SSH sur le VPS et lancer `deploy.sh` :
+  ```bash
+  cd /srv/cbbretagne/app && ./deploy.sh
+  ```
+  `deploy.sh` fait : `git pull` → `pip install -r requirements.txt` → `migrate` →
+  `collectstatic --noinput` → `sudo systemctl restart cbbretagne`.
+- Variables d'env prod (`.env` sur le VPS, jamais commité) : `SECRET_KEY`, `DEBUG=False`,
+  `ALLOWED_HOSTS`, `DATABASE_URL` (PostgreSQL local), `CSRF_TRUSTED_ORIGINS`, `SITE_URL`,
+  `BREVO_API_KEY`.
 - `.gitignore` présent à la racine : `venv/`, `__pycache__/`, `*.pyc`,
   `db.sqlite3`, `staticfiles/`, `media/`, `.env`, `core/Corrections*/`.
+- Runbook complet : `DEPLOY_OVH.md`.
 
 ## Architecture
 ```
@@ -330,13 +339,15 @@ Objectif : visualiser la production des équipes Insertion 35 directement dans l
 - Devis structurés : TITRE / C (composite) / S (sous-ouvrage) / MO / MAT / FMO / FMAT / F (forfaits)
 - Montants : second œuvre 800–12 000 € MO (30–50 % du devis), maçonnerie 15 000–20 000 € MO (~60 %)
 - **Marqueurs DEMO35** : `reference startswith 'DEMO35-'`, `notes = 'SEED_DEMO35'`, `chantier startswith '[Démo]'`
-- **`--clear` ciblé** : supprime uniquement les données DEMO35 (Presence → Affectation → Facture → Devis via les marqueurs) — ne touche pas les données des collègues sur Railway
+- **`--clear` ciblé** : supprime uniquement les données DEMO35 (Presence → Affectation → Facture → Devis via les marqueurs) — ne touche pas les données des collègues sur le VPS
 
+```bash
+# Sur le VPS OVH
+cd /srv/cbbretagne/app && venv/bin/python manage.py seed_production_demo
+cd /srv/cbbretagne/app && venv/bin/python manage.py seed_production_demo --clear
+```
 ```powershell
-# Sur Railway
-railway run python manage.py seed_production_demo
-railway run python manage.py seed_production_demo --clear
-# En local
+# En local (Windows)
 venv\Scripts\python manage.py seed_production_demo [--clear]
 ```
 
@@ -769,7 +780,7 @@ pièges, tests, URLs). `NOTES_PLANNING.md` sera créé à la 1ʳᵉ session de c
     Atlantic) via `get_or_create` sur la bibliothèque des aides.
   - Équipes réutilisées (`icontains`) ; tout marqué `SEED_DEMO` ;
     `--clear` supprime uniquement la démo de l'utilisateur cible.
-  - Lancé sur Railway via `railway run python manage.py seed_demo`.
+  - Lancé sur le VPS OVH : `cd /srv/cbbretagne/app && venv/bin/python manage.py seed_demo`.
 
 ### Décisions actées
 - Colonne Auteur = `get_full_name|default:username|default:"—"` (pas d'impact modèle).
@@ -847,7 +858,7 @@ logs Brevo.
 
 ### Diagnostic
 - Test d'envoi via `manage.py shell` : en **local**, `BREVO_API_KEY` est un placeholder
-  (`VOTRE_CLE…`) → 401, normal. La vraie clé est sur Railway.
+  (`VOTRE_CLE…`) → 401, normal. La vraie clé est dans le `.env` du VPS OVH.
 - En **prod**, l'écran affichait *« Email envoyé »* mais rien n'était reçu. Logs Brevo :
   clé valide (Brevo accepte, 2xx, un mail *Delivered*) **mais soft bounce « Access denied »**
   vers les adresses `@compagnonsbatisseurs.eu`.
@@ -1738,13 +1749,9 @@ Pour supprimer proprement :
   > OVH : A → 51.178.24.126 et AAAA → 2001:41d0:367:4d7::1. Cela nous
   > permettra de servir l'application sur https://gestioncbb.compagnonsbatisseurs.eu ; le
   > certificat TLS sera géré de notre côté (Let's Encrypt). Merci d'avance.
-- **Migration Railway → OVH (Phase 4)** — **runbook pas-à-pas : `DEPLOY_OVH.md`**.
-  ✅ **VPS opérationnel (15/06/2026)** : Ubuntu 24.04, nginx, PostgreSQL local, gunicorn
-  systemd, appli accessible sur `http://51.178.24.126` (login OK, base vierge + superuser).
-  `HTTPS_ONLY=False` dans le `.env` le temps d'avoir le domaine + cert.
-  **En attente** : (1) mail IT → DNS A/AAAA + Entra ID ; (2) certbot dès DNS résolu ;
-  (3) après HTTPS : supprimer `HTTPS_ONLY=False`, mettre `CSRF_TRUSTED_ORIGINS` +
-  `SITE_URL` en `https://deviscbb.…`, restart ; (4) bascule finale : dump Railway →
-  restore VPS, nouvelle URL aux testeurs, couper Railway. Conditionne aussi : export PDF
-  (WeasyPrint), restriction email à décommenter, HSTS.
-- ✅ **Renommage équipes sur Railway (prod)** — fait session 27 : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM, AQSM→58-AQSM, AQRM→AQRM A + AQRM B.
+- ✅ **Migration Railway → OVH terminée** — runbook : `DEPLOY_OVH.md`.
+  VPS opérationnel : Ubuntu 24.04, nginx, PostgreSQL local, gunicorn systemd, HTTPS Let's Encrypt
+  sur `https://vps-28c76530.vps.ovh.net`. Railway coupé. **En attente** : DNS IT national
+  (`gestioncbb.compagnonsbatisseurs.eu` → 51.178.24.126) + Entra ID Graph (SharePoint + Mail.Send).
+  Dès DNS résolu : `certbot --nginx -d vps-28c76530.vps.ovh.net -d gestioncbb.…` + mise à jour `.env`.
+- ✅ **Renommage équipes en prod** — fait session 27 : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM, AQSM→58-AQSM, AQRM→AQRM A + AQRM B.

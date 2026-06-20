@@ -7,10 +7,23 @@
 <div class="page-hd">
   <div><div class="page-title">Avoirs</div><div class="page-sub">{{ page_obj.paginator.count }} avoir{{ page_obj.paginator.count|pluralize }}</div></div>
 </div>
+
+<form method="get">
+<div class="toolbar">
+  <div class="search-wrap"><i class="ti ti-search"></i><input class="search-inp" name="q" value="{{ q }}" placeholder="Référence, client, facture d'origine…"/></div>
+  <select class="sel" name="auteur" onchange="this.form.submit()">
+    <option value="">Tous les auteurs</option>
+    {% for a in auteurs %}<option value="{{ a.pk }}" {% if auteur_filter == a.pk|stringformat:'s' %}selected{% endif %}>{{ a.get_full_name|default:a.username }}</option>{% endfor %}
+  </select>
+  <button type="submit" class="btn"><i class="ti ti-filter"></i> Filtrer</button>
+  <a href="{% url 'core:avoirs-list' %}" class="btn">Réinitialiser</a>
+</div>
+</form>
+
 <div class="scroll-y">
-  <table>
+  <table class="tbl-author">
     <thead><tr>
-      <th>Coupable</th>
+      <th>Auteur</th>
       <th>Référence</th>
       <th>Facture d'origine</th>
       <th>Client</th>
@@ -21,20 +34,23 @@
     </tr></thead>
     <tbody>
       {% for f in avoirs %}
-      <tr>
+      <tr class="row-link" style="--rail:{{ f.created_by.profil.couleur|default:'#546E7A' }}"
+          onclick="location='{% url 'core:compta-facture-detail' f.pk %}'">
         <td>{{ f.created_by.get_full_name|default:f.created_by.username|default:"—" }}</td>
         <td>
           {% if f.facture_origine.type_doc == 'structure' %}<i class="ti ti-building-bank" title="Avoir sur facture structure" style="color:var(--gray-md);margin-right:5px"></i>
           {% elif f.facture_origine.type_doc == 'appel' %}<i class="ti ti-file-invoice" title="Avoir sur appel de convention" style="color:var(--gray-md);margin-right:5px"></i>
           {% else %}<i class="ti ti-receipt" title="Avoir sur facture de chantier" style="color:var(--gray-md);margin-right:5px"></i>{% endif %}
-          <span class="mono">{{ f.get_reference }}</span>
+          <span class="cell-ref">{{ f.get_reference }}</span>
         </td>
         <td>
           {% if f.facture_origine %}
             {% if f.devis %}
-            <a href="{% url 'core:facture-detail' f.facture_origine.pk %}" style="color:var(--prune);font-family:var(--fm);font-size:11px">{{ f.facture_origine.get_reference }}</a>
+            <a class="cell-ref cell-link" href="{% url 'core:facture-detail' f.facture_origine.pk %}"
+               onclick="event.stopPropagation()">{{ f.facture_origine.get_reference }}</a>
             {% else %}
-            <a href="{% url 'core:compta-facture-detail' f.facture_origine.pk %}" style="color:var(--prune);font-family:var(--fm);font-size:11px">{{ f.facture_origine.get_reference }}</a>
+            <a class="cell-ref cell-link" href="{% url 'core:compta-facture-detail' f.facture_origine.pk %}"
+               onclick="event.stopPropagation()">{{ f.facture_origine.get_reference }}</a>
             {% endif %}
           {% else %}—{% endif %}
         </td>
@@ -42,7 +58,7 @@
         <td>{{ f.date_creation|date:"d/m/Y" }}</td>
         <td class="num">{{ f.montant|floatformat:2 }} €</td>
         <td><span class="badge b-f{{ f.status }}">{{ f.get_status_display }}</span></td>
-        <td style="text-align:right;white-space:nowrap">
+        <td class="cell-act" onclick="event.stopPropagation()">
           <a href="{% url 'core:compta-facture-detail' f.pk %}" class="ico-btn" title="Ouvrir"><i class="ti ti-pencil"></i></a>
           <a href="{% url 'core:facture-apercu' f.pk %}" class="ico-btn" title="Aperçu"><i class="ti ti-eye"></i></a>
         </td>

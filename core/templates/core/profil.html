@@ -70,6 +70,21 @@
     </div>
 
     <div class="card">
+      <div class="card-hd"><div class="card-title"><i class="ti ti-palette"></i> Couleur de mes lignes</div></div>
+      <div class="card-body">
+        <p class="form-hint" style="margin-bottom:12px">Attribuée automatiquement à la création, modifiable ici. S'affiche en liseré sur vos lignes dans les listes et en bordure du bouton profil.</p>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:9px;max-width:260px">
+          {% for c in palette_couleurs %}
+          <button type="button" class="swatch {% if profil.couleur == c %}sel{% endif %}"
+                  style="background:{{ c }}" title="{{ c }}"
+                  onclick="document.getElementById('id_couleur').value='{{ c }}';document.querySelectorAll('.swatch').forEach(function(s){s.classList.remove('sel')});this.classList.add('sel')"></button>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="couleur" id="id_couleur" value="{{ profil.couleur }}">
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-hd"><div class="card-title"><i class="ti ti-building"></i> Coordonnées CB Bretagne</div></div>
       <div class="card-body">
         <div class="field">

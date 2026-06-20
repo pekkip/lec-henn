@@ -229,3 +229,37 @@ select.btn-ghost option { color:var(--gray); background:#fff; }
 .page-hd .btn-prune:hover { background:var(--prune-lt); }
 .page-hd .btn-teal    { background:#fff; color:var(--teal-dk); border-color:#fff; }
 .page-hd .btn-teal:hover  { background:var(--teal-lt); color:var(--teal-dk); }
+
+/* === Gabarit listes harmonisées === */
+/* En-tête collant */
+.scroll-y thead th{position:sticky;top:0;z-index:3;box-shadow:inset 0 -1px 0 var(--gray-bd)}
+/* Hauteur de ligne uniforme / padding 12px */
+.scroll-y table td{padding-top:12px;padding-bottom:12px;font-size:13px}
+
+/* Tableau par auteur */
+tr.row-link{cursor:pointer}
+.tbl-author td{border-bottom:none}
+.tbl-author tbody tr:nth-child(even) td{background:#FAF8F6}
+.tbl-author tbody tr:hover td{background:#F5EEF1}
+.tbl-author tbody td:first-child{position:relative;padding-left:18px}
+.tbl-author tbody td:first-child::before{content:'';position:absolute;left:7px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--rail,transparent)}
+.tbl-author thead th:first-child{padding-left:18px}
+
+/* Référence d'objet lié cliquable */
+.cell-link{cursor:pointer;text-decoration:underline;text-decoration-color:rgba(103,18,58,.35);text-underline-offset:2px}
+.cell-link:hover{text-decoration-color:var(--prune);color:var(--prune-dk)}
+
+/* Badges groupés */
+.badges{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+
+/* Actions au survol */
+.cell-act{text-align:right;white-space:nowrap}
+.cell-act .ico-btn{opacity:.4;transition:opacity .12s}
+tbody tr:hover .cell-act .ico-btn{opacity:1}
+
+/* Nuancier préférences couleur */
+.swatch{width:30px;height:30px;border-radius:7px;border:2px solid #fff;box-shadow:0 0 0 1px var(--gray-bd);cursor:pointer;position:relative;padding:0}
+.swatch:hover{box-shadow:0 0 0 1px var(--gray-md)}
+.swatch.sel{box-shadow:0 0 0 2px var(--gray)}
+.swatch.sel::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.page-hd .btn-teal:hover  { background:var(--teal-lt); color:var(--teal-dk); }

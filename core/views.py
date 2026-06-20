@@ -26,7 +26,7 @@ from .models import (
     Client, ContactClient, Devis, LigneDevis,
     Facture, LigneFacture, AuditLog, ProfilUtilisateur,
     Territoire, Service, Equipe, ParametresAssociation, Bibliotheque,
-    BibliothequeAides,
+    BibliothequeAides, PALETTE_COULEURS,
 )
 from .permissions import (
     peut_modifier_devis, peut_supprimer_devis, peut_voir_devis,
@@ -416,10 +416,13 @@ def profil_view(request):
         profil.conditions_devis = request.POST.get('conditions_devis', '').strip()
         profil.conditions_facture = request.POST.get('conditions_facture', '').strip()
         profil.coordonnees_cb = request.POST.get('coordonnees_cb', '').strip()
+        couleur = request.POST.get('couleur', '')
+        if couleur in PALETTE_COULEURS:
+            profil.couleur = couleur
         profil.save()
         messages.success(request, 'Profil mis à jour.')
         return redirect('core:profil')
-    return render(request, 'core/profil.html', {})
+    return render(request, 'core/profil.html', {'palette_couleurs': PALETTE_COULEURS})
 
     
 # ══════════════════════════════════════════
@@ -496,7 +499,7 @@ def clients_list(request):
     portee = request.GET.get('portee', 'tous')
     type_client = request.GET.get('type_client', '').strip()
 
-    clients = Client.objects.all()
+    clients = Client.objects.select_related('created_by__profil')
     if nom:
         clients = clients.filter(nom__icontains=nom)
     if code_postal:
@@ -731,7 +734,7 @@ def aide_delete(request, pk):
 @login_required
 def devis_list(request):
     qs = Devis.objects.select_related(
-        'client', 'equipe__service__territoire', 'created_by'
+        'client', 'equipe__service__territoire', 'created_by__profil'
     )
 
     # Filtres
@@ -1554,10 +1557,19 @@ def factures_list(request):
     # Factures de chantier uniquement (liées à un devis, hors avoirs).
     # Les factures compta (structure/appel) et les avoirs ont leurs propres listes.
     factures = Facture.objects.select_related(
-        'devis', 'devis__client', 'devis__equipe', 'created_by'
+        'devis', 'devis__client', 'devis__equipe', 'created_by__profil'
     ).prefetch_related('avoirs').filter(devis__isnull=False).exclude(type_doc='avoir')
 
+    q = request.GET.get('q', '').strip()
+    status_filter = request.GET.get('status', '')
     auteur_id = request.GET.get('auteur', '')
+    if q:
+        factures = factures.filter(
+            Q(numero__icontains=q) | Q(notes__icontains=q)
+            | Q(devis__client__nom__icontains=q) | Q(destinataire__icontains=q)
+        )
+    if status_filter:
+        factures = factures.filter(status=status_filter)
     if auteur_id:
         factures = factures.filter(created_by_id=auteur_id)
 
@@ -1571,6 +1583,8 @@ def factures_list(request):
             factures_creees__devis__isnull=False
         ).exclude(factures_creees__type_doc='avoir').distinct().order_by('first_name', 'username'),
         'auteur_filter': auteur_id,
+        'status_filter': status_filter,
+        'q': q,
     })
 
 
@@ -1583,15 +1597,29 @@ def avoirs_list(request):
     accessible à l'utilisateur.
     """
     avoirs = Facture.objects.filter(type_doc='avoir').select_related(
-        'devis', 'client', 'facture_origine', 'created_by'
+        'devis', 'client', 'facture_origine', 'created_by__profil'
     ).order_by('-created_at')
     if not peut_acceder_compta(request.user):
         avoirs = avoirs.filter(devis__isnull=False)
+
+    q = request.GET.get('q', '').strip()
+    auteur_id = request.GET.get('auteur', '')
+    if q:
+        avoirs = avoirs.filter(
+            Q(numero__icontains=q) | Q(client__nom__icontains=q)
+            | Q(facture_origine__numero__icontains=q) | Q(destinataire__icontains=q)
+        )
+    if auteur_id:
+        avoirs = avoirs.filter(created_by_id=auteur_id)
+
     page_obj, base_qs = paginer(request, avoirs)
     return render(request, 'core/avoirs_list.html', {
         'avoirs': page_obj,
         'page_obj': page_obj,
         'base_qs': base_qs,
+        'auteurs': User.objects.filter(factures_creees__type_doc='avoir').distinct().order_by('first_name', 'username'),
+        'auteur_filter': auteur_id,
+        'q': q,
     })
 
 
@@ -2471,7 +2499,17 @@ def factures_compta_list(request, type_doc):
     factures = Facture.objects.filter(
         Q(type_doc=type_doc, devis__isnull=True)
         | Q(type_doc='avoir', facture_origine__type_doc=type_doc)
-    ).select_related('client', 'facture_origine', 'created_by').prefetch_related('avoirs').order_by('-created_at')
+    ).select_related('client', 'facture_origine', 'created_by__profil').prefetch_related('avoirs').order_by('-created_at')
+
+    q = request.GET.get('q', '').strip()
+    auteur_id = request.GET.get('auteur', '')
+    if q:
+        factures = factures.filter(
+            Q(numero__icontains=q) | Q(notes__icontains=q)
+            | Q(client__nom__icontains=q) | Q(destinataire__icontains=q)
+        )
+    if auteur_id:
+        factures = factures.filter(created_by_id=auteur_id)
 
     page_obj, base_qs = paginer(request, factures)
 
@@ -2481,6 +2519,11 @@ def factures_compta_list(request, type_doc):
         'base_qs': base_qs,
         'type_doc': type_doc,
         'meta': meta,
+        'auteurs': User.objects.filter(
+            factures_creees__type_doc__in=[type_doc, 'avoir']
+        ).distinct().order_by('first_name', 'username'),
+        'auteur_filter': auteur_id,
+        'q': q,
     })
 
 
