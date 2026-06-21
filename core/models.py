@@ -956,6 +956,14 @@ class TrancheDevis(models.Model):
         return f"{self.devis.reference} — {self.nom}"
 
 
+# Palette de teintes de chantier (8 classes anti-collision, cf. émargement/planning).
+# Le rouge est réservé aux absences (maladie/AT) — hors palette chantiers.
+COULEURS_CHANTIER = [
+    ('cha', 'Turquoise'), ('chb', 'Or'),         ('chc', 'Prune'),  ('chd', 'Bleu'),
+    ('che', 'Violet'),    ('chf', 'Vert'),       ('chg', 'Terracotta'), ('chh', 'Ardoise'),
+]
+
+
 class Affectation(models.Model):
     """
     Dépose une tranche de chantier sur une équipe pour une période.
@@ -995,6 +1003,10 @@ class Affectation(models.Model):
         max_length=5,
         choices=[('matin', 'Matin'), ('aprem', 'Après-midi')],
         default='aprem',
+    )
+    couleur = models.CharField(
+        max_length=3, blank=True, choices=COULEURS_CHANTIER,
+        help_text="Surcharge manuelle de la teinte du chantier (vide = attribution automatique)"
     )
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,

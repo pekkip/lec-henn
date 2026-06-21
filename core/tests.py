@@ -1381,6 +1381,43 @@ class PlanningGrilleTests(TestCase):
         ligne_autre = next(l for l in resp.context['lignes'] if l['equipe'].pk == self.autre.pk)
         self.assertTrue(ligne_autre['masquee'])
 
+    # ── couleurs par équipe (anti-collision) ──────────────────
+
+    def _aff(self, devis, debut, fin, ordre=0, couleur=''):
+        tr = TrancheDevis.objects.create(devis=devis, nom=f'T{ordre}', ordre=ordre)
+        return Affectation.objects.create(
+            equipe=self.equipe, tranche=tr, date_debut=debut, date_fin=fin,
+            couleur=couleur, created_by=self.admin,
+        )
+
+    def test_couleurs_chantiers_chevauchants_distinctes(self):
+        """3 chantiers (devis distincts) qui se chevauchent → 3 teintes distinctes."""
+        from core.planning_utils import couleurs_par_equipe
+        d2 = Devis.objects.create(reference='DEV-PLAN-002', client=self.client_obj, status='accepted', created_by=self.admin)
+        d3 = Devis.objects.create(reference='DEV-PLAN-003', client=self.client_obj, status='accepted', created_by=self.admin)
+        a1 = self._aff(self.devis, date(2026, 6, 1), date(2026, 6, 12), 0)
+        a2 = self._aff(d2,          date(2026, 6, 8), date(2026, 6, 19), 0)
+        a3 = self._aff(d3,          date(2026, 6, 10), date(2026, 6, 15), 0)
+        affs = list(Affectation.objects.filter(pk__in=[a1.pk, a2.pk, a3.pk]).select_related('tranche'))
+        color = couleurs_par_equipe(affs)
+        self.assertEqual(len({color[a1.pk], color[a2.pk], color[a3.pk]}), 3)
+
+    def test_couleurs_meme_devis_meme_teinte(self):
+        """Deux affectations du même devis sur l'équipe → même teinte."""
+        from core.planning_utils import couleurs_par_equipe
+        a1 = self._aff(self.devis, date(2026, 6, 1),  date(2026, 6, 5),  0)
+        a2 = self._aff(self.devis, date(2026, 6, 15), date(2026, 6, 19), 1)
+        affs = list(Affectation.objects.filter(pk__in=[a1.pk, a2.pk]).select_related('tranche'))
+        color = couleurs_par_equipe(affs)
+        self.assertEqual(color[a1.pk], color[a2.pk])
+
+    def test_couleur_surcharge_manuelle_prioritaire(self):
+        """La surcharge `Affectation.couleur` est respectée."""
+        from core.planning_utils import couleurs_par_equipe
+        a1 = self._aff(self.devis, date(2026, 6, 1), date(2026, 6, 5), 0, couleur='chf')
+        affs = list(Affectation.objects.filter(pk=a1.pk).select_related('tranche'))
+        self.assertEqual(couleurs_par_equipe(affs)[a1.pk], 'chf')
+
     # ── affectation_save ──────────────────────────────────────
 
     def test_affectation_save_ok(self):

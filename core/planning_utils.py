@@ -15,8 +15,11 @@ import math
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from .models import Affectation, Evenement
+from .models import Affectation, Evenement, COULEURS_CHANTIER
 from .totaux import total_mo_devis
+
+# Palette de classes de teinte chantier (dérivée du modèle, ordre = priorité).
+PALETTE_CHANTIER = [c[0] for c in COULEURS_CHANTIER]
 
 _TAUX_JOUR_PLANNING = Decimal('82.5')  # €/jour/équipier, cohérent avec TAUX_JOUR dans planning.html
 
@@ -263,3 +266,43 @@ def _build_grille(annee, mois):
         cur += timedelta(7)
 
     return blocs
+
+
+def _aff_overlap(a, b):
+    """Deux affectations se chevauchent-elles dans le temps ? (dates None → non)."""
+    if not (a.date_debut and a.date_fin and b.date_debut and b.date_fin):
+        return False
+    return a.date_debut <= b.date_fin and b.date_debut <= a.date_fin
+
+
+def couleurs_par_equipe(affectations):
+    """
+    Attribue une classe de teinte à chaque affectation d'UNE équipe, sans
+    collision entre chantiers qui se chevauchent dans le temps.
+
+    Règles (cf. handoff « Imputation & couleurs chantiers ») :
+    - surcharge manuelle `aff.couleur` prioritaire ;
+    - même devis sur l'équipe → même teinte (stable dans le temps) ;
+    - sinon 1ʳᵉ teinte de la palette non utilisée par une affectation qui
+      chevauche celle-ci ; secours `PALETTE[pk % n]` au-delà de 8 simultanés.
+
+    Retourne `{affectation_pk: classe}`. À appeler par équipe (les affectations
+    doivent avoir `tranche.devis_id` accessible — select_related).
+    """
+    color = {}
+    devis_color = {}   # devis_id -> teinte déjà posée sur l'équipe
+    placed = []        # affectations déjà colorées (pour le test de chevauchement)
+    for aff in sorted(affectations, key=lambda a: (a.date_debut or date.min, a.pk)):
+        devis_id = aff.tranche.devis_id
+        if aff.couleur:
+            c = aff.couleur
+        elif devis_id in devis_color:
+            c = devis_color[devis_id]
+        else:
+            used = {color[p.pk] for p in placed if _aff_overlap(p, aff)}
+            c = next((x for x in PALETTE_CHANTIER if x not in used), None) \
+                or PALETTE_CHANTIER[aff.pk % len(PALETTE_CHANTIER)]
+        color[aff.pk] = c
+        devis_color.setdefault(devis_id, c)
+        placed.append(aff)
+    return color

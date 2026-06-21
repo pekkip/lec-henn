@@ -32,7 +32,7 @@ from .planning_utils import (
     _planning_date, _in_loan, _half_col_creneau,
     _build_evenement_sets, _count_working_days,
     _add_working_days, _recalcul_durees_tranche,
-    _jours_feries, _build_grille,
+    _jours_feries, _build_grille, couleurs_par_equipe,
 )
 from .totaux import total_mo_devis, mo_mat_lignes
 from .views import get_profil, to_decimal, _build_period_presets, parse_json_request, json_error, json_error_permission
@@ -233,7 +233,6 @@ def equipier_toggle_actif(request, pk):
 #  PLANNING — Grille d'émargement & présences
 # ══════════════════════════════════════════
 
-COLORS_AFF    = ['cha', 'chb', 'chc', 'cha', 'chb']
 JOURS_FR      = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven']
 CRENEAUX      = [('matin', 'M'), ('aprem', 'A')]
 DEF_H         = {'matin': '4', 'aprem': '3'}
@@ -322,7 +321,8 @@ def emargement_view(request):
             date_fin__gte=lundi,
         ).select_related('tranche__devis__client').order_by('date_debut')
     )
-    aff_color = {aff.pk: COLORS_AFF[aff.tranche.devis_id % len(COLORS_AFF)] for aff in affectations}
+    # Couleurs anti-collision (une seule équipe ici → un seul appel).
+    aff_color = couleurs_par_equipe(affectations)
     for aff in affectations:
         aff.css_color = aff_color[aff.pk]
 
@@ -538,7 +538,13 @@ def planning_mois(request):
         .select_related('tranche__devis__client', 'equipe')
         .order_by('date_debut')
     )
-    aff_color = {aff.pk: COLORS_AFF[aff.tranche.devis_id % len(COLORS_AFF)] for aff in affectations}
+    # Couleurs anti-collision, attribuées par équipe (cf. couleurs_par_equipe).
+    aff_color = {}
+    _aff_par_eq = {}
+    for aff in affectations:
+        _aff_par_eq.setdefault(aff.equipe_id, []).append(aff)
+    for _affs in _aff_par_eq.values():
+        aff_color.update(couleurs_par_equipe(_affs))
     equipes_modifiables_ids = {e.pk for e in equipes if est_encadrant(request.user, e)}
 
     # Filtre par équipe persistant (préférence utilisateur). Liste d'ids
