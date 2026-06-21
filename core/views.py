@@ -1938,13 +1938,16 @@ def facture_apercu(request, pk):
         _factures_prec_qs = devis.factures.filter(
             status__in=_STATUTS_VALIDES, type_doc='facture',
         ).exclude(pk=facture.pk).order_by('created_at')
-        ref_to_libelle = {
-            f.get_reference(): (f.libelle or f.notes or '')
+        ref_to_info = {
+            f.get_reference(): {
+                'date':  f.date_creation.strftime('%d/%m/%Y'),
+                'notes': f.notes or '',
+            }
             for f in _factures_prec_qs
         }
     else:
         deja_par_source = {}
-        ref_to_libelle  = {}
+        ref_to_info     = {}
 
     def filtrer_lignes(lignes_qs, parent_non_facture=False):
         result = []
@@ -1955,7 +1958,12 @@ def facture_apercu(request, pk):
                     lf.pu_section = lf.total() / lf.quantite
                 entry = deja_par_source.get(lf.ligne_devis_source_id) if lf.ligne_devis_source_id else None
                 lf.refs_prec = [
-                    {'ref': ref, 'libelle': ref_to_libelle.get(ref, ''), 'montant': montant}
+                    {
+                        'ref':     ref,
+                        'montant': montant,
+                        'date':    ref_to_info.get(ref, {}).get('date', ''),
+                        'notes':   ref_to_info.get(ref, {}).get('notes', ''),
+                    }
                     for ref, montant in sorted((entry or {}).get('refs', {}).items())
                     if montant > 0
                 ]

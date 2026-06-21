@@ -361,9 +361,10 @@ function renderNode(n, parentZero) {
         const fp = factures_prec.find(f => f.reference === r.ref);
         const libelle = fp ? fp.libelle : '';
         const canEdit = fp && MODIFIABLE;
+        const dateStr = fp && fp.date ? `<span style="font-size:9px;color:var(--gray-md);display:block">${fp.date}</span>` : '';
         precRows += `
           <div class="prec-row">
-            <span class="prec-ref">${escHtml(r.ref)}</span>
+            <span class="prec-ref">${escHtml(r.ref)}${dateStr}</span>
             <div class="prec-libelle">
               <div ${canEdit
                    ? `contenteditable="true" data-prec-pk="${fp.pk}" onblur="saveLibelle(this,${fp.pk})"`

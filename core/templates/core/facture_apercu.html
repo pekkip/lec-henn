@@ -104,11 +104,10 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
 /* Historique factures précédentes (sous chaque TITRE) */
 .row-prec td { padding: 0; border-bottom: 1px solid var(--prune-bd); }
 .prec-summary { background: var(--prune-lt); padding: 4px 10px 4px 20px; }
-.prec-item { display:flex; align-items:baseline; gap:8px; font-size:10px; padding:2px 0; color:#72243E; }
+.prec-item { font-size:10px; padding:2px 0; color:#72243E; line-height:1.6; }
 .prec-item:not(:last-child) { border-bottom: 1px solid var(--prune-bd); }
-.prec-item-ref { font-family:var(--fm); flex-shrink:0; width:110px; }
-.prec-item-libelle { flex:1; color:var(--gray-md); font-style:italic; }
-.prec-item-montant { font-variant-numeric:tabular-nums; font-weight:500; white-space:nowrap; }
+.prec-item-ref { font-family:var(--fm); }
+.prec-item-notes { color:var(--gray-md); font-style:italic; }
 
 /* Lignes financement */
 .sep-fin td {
@@ -324,9 +323,7 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
               <div class="prec-summary">
                 {% for r in lf.refs_prec %}
                 <div class="prec-item">
-                  <span class="prec-item-ref">{{ r.ref }}</span>
-                  <span class="prec-item-libelle">{{ r.libelle }}</span>
-                  <span class="prec-item-montant">{{ r.montant|floatformat:2 }} €</span>
+                  Facturé <strong>{{ r.montant|floatformat:2 }} €</strong>{% if r.date %} le {{ r.date }}{% endif %} · <span class="prec-item-ref">{{ r.ref }}</span>{% if r.notes %} — <span class="prec-item-notes">{{ r.notes }}</span>{% endif %}
                 </div>
                 {% endfor %}
               </div>

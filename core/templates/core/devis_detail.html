@@ -692,7 +692,10 @@
       <div class="fact-row" style="flex-wrap:wrap;align-items:flex-start;padding:10px 12px">
 
         {# Référence + type #}
-        <span class="fact-ref" style="padding-top:2px">{{ f.get_reference }}</span>
+        <span class="fact-ref" style="padding-top:2px">
+          {{ f.get_reference }}
+          <br><span style="font-size:10px;color:var(--gray-md);font-weight:400">{{ f.date_creation|date:"d/m/Y" }}</span>
+        </span>
 
         {# Destinataire #}
         <span class="fact-dest" style="padding-top:2px">{{ f.destinataire }}</span>
