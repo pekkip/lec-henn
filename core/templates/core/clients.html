@@ -35,11 +35,17 @@
 <div class="scroll-y">
   <table class="tbl-author">
     <thead><tr>
-      <th>Nom</th><th>Type</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Ville</th><th>CP</th><th class="num">Devis</th>{% if is_admin %}<th></th>{% endif %}
+      <th>Nom</th><th>Type</th><th>Contact</th><th>Email</th><th>Téléphone</th><th>Ville</th><th>CP</th><th class="num">Devis</th><th></th>
     </tr></thead>
     <tbody>
       {% for c in clients %}
-      <tr style="--rail:{{ c.created_by.profil.couleur|default:'#546E7A' }}">
+      <tr class="row-link" style="--rail:{{ c.created_by.profil.couleur|default:'#546E7A' }}"
+          data-action="{% url 'core:client-edit' c.pk %}"
+          data-pk="{{ c.pk }}"
+          data-nom="{{ c.nom }}" data-type="{{ c.type_client }}" data-contact="{{ c.contact }}" data-email="{{ c.email }}"
+          data-telephone="{{ c.telephone }}" data-adresse="{{ c.adresse }}"
+          data-cp="{{ c.code_postal }}" data-ville="{{ c.ville }}"
+          onclick="openEdit(this)">
         <td style="font-weight:500">{{ c.nom }}
           {% if c.contacts.all %}<span class="badge b-teal" style="margin-left:4px" title="Contacts / services">{{ c.contacts.all|length }} contact{{ c.contacts.all|length|pluralize }}</span>{% endif %}
         </td>
@@ -50,24 +56,18 @@
         <td>{{ c.ville|default:"—" }}</td>
         <td class="mono">{{ c.code_postal|default:"—" }}</td>
         <td class="num">{{ c.devis.count }}</td>
-        {% if is_admin %}
-        <td class="cell-act">
-          <button type="button" class="ico-btn"
-            data-action="{% url 'core:client-edit' c.pk %}"
-            data-pk="{{ c.pk }}"
-            data-nom="{{ c.nom }}" data-type="{{ c.type_client }}" data-contact="{{ c.contact }}" data-email="{{ c.email }}"
-            data-telephone="{{ c.telephone }}" data-adresse="{{ c.adresse }}"
-            data-cp="{{ c.code_postal }}" data-ville="{{ c.ville }}"
-            onclick="openEdit(this)" title="Modifier"><i class="ti ti-pencil"></i></button>
+        <td class="cell-act" onclick="event.stopPropagation()">
+          <button type="button" class="ico-btn" onclick="openEdit(this.closest('tr'))" title="Modifier"><i class="ti ti-pencil"></i></button>
+          {% if is_admin %}
           <form method="post" action="{% url 'core:client-delete' c.pk %}" style="display:inline" onsubmit="return confirm('Supprimer {{ c.nom }} ?')">
             {% csrf_token %}
             <button type="submit" class="ico-btn danger" title="Supprimer"><i class="ti ti-trash"></i></button>
           </form>
+          {% endif %}
         </td>
-        {% endif %}
       </tr>
       {% empty %}
-      <tr><td colspan="{% if is_admin %}9{% else %}8{% endif %}" class="empty-state">Aucun client.</td></tr>
+      <tr><td colspan="9" class="empty-state">Aucun client.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -105,7 +105,6 @@
   </div>
 </div>
 
-{% if is_admin %}
 <!-- Édition -->
 <div id="modal-edit" class="modal-bg hidden">
   <div class="modal modal-scroll">
@@ -148,20 +147,19 @@
     </div>
   </div>
 </div>
-{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const CSRF = '{{ csrf_token }}';
+const IS_ADMIN = {% if is_admin %}true{% else %}false{% endif %};
+
 function openCreate(){ document.getElementById('modal-client').classList.remove('hidden'); }
 
-// Pré-remplissage ville depuis le CP (helper global défini dans base.html)
 const cCp = document.getElementById('c-cp');
 const cVille = document.getElementById('c-ville');
 if (cCp) cCp.addEventListener('blur', () => remplirVilleDepuisCP(cCp, cVille));
 
-{% if is_admin %}
 const eCp = document.getElementById('e-cp');
 const eVille = document.getElementById('e-ville');
 if (eCp) eCp.addEventListener('blur', () => remplirVilleDepuisCP(eCp, eVille));
@@ -201,10 +199,12 @@ async function loadContacts(){
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:4px 8px;background:var(--gray-lt);border-radius:4px';
       row.innerHTML = `<span>${c.label}</span>`;
-      const del = document.createElement('button');
-      del.type = 'button'; del.className = 'ico-btn danger'; del.innerHTML = '<i class="ti ti-trash"></i>';
-      del.onclick = () => deleteContact(c.id);
-      row.appendChild(del);
+      if (IS_ADMIN) {
+        const del = document.createElement('button');
+        del.type = 'button'; del.className = 'ico-btn danger'; del.innerHTML = '<i class="ti ti-trash"></i>';
+        del.onclick = () => deleteContact(c.id);
+        row.appendChild(del);
+      }
       box.appendChild(row);
     });
   } catch(e){ box.innerHTML = '<span style="font-size:11px;color:var(--red)">Erreur de chargement.</span>'; }
@@ -237,6 +237,5 @@ async function deleteContact(pk){
     if (resp.ok) loadContacts();
   } catch(e){ /* silencieux */ }
 }
-{% endif %}
 </script>
 {% endblock %}

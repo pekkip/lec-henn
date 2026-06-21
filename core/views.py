@@ -592,9 +592,6 @@ def client_create(request):
 @login_required
 @require_POST
 def client_edit(request, pk):
-    if not is_admin(request.user):
-        messages.error(request, 'Action réservée à l\'administrateur.')
-        return redirect('core:clients')
     client = get_object_or_404(Client, pk=pk)
     nom = request.POST.get('nom', '').strip()
     if not nom:
@@ -2820,8 +2817,6 @@ def client_contacts_get(request, client_pk):
 @require_POST
 def contact_client_create(request):
     """Ajout rapide d'un contact à un client → {id, label}."""
-    if not peut_acceder_compta(request.user):
-        return json_error_permission()
     data, err = parse_json_request(request)
     if err:
         return err

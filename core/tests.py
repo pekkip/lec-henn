@@ -605,7 +605,7 @@ class ClientsTests(TestCase):
         clients = set(resp.context['clients'])
         self.assertEqual(clients, {self.cli_alice, self.cli_bob})
 
-    # ── Édition (admin uniquement) ───────────────────────────────────
+    # ── Édition (tout utilisateur connecté) ─────────────────────────
 
     def test_client_edit_admin_ok(self):
         self.client.login(username='admin', password='pw')
@@ -617,15 +617,15 @@ class ClientsTests(TestCase):
         self.cli_alice.refresh_from_db()
         self.assertEqual(self.cli_alice.ville, 'Quimper Centre')
 
-    def test_client_edit_refuse_non_admin(self):
+    def test_client_edit_non_admin_ok(self):
         self.client.login(username='alice', password='pw')
         resp = self.client.post(
             reverse('core:client-edit', args=[self.cli_alice.pk]),
-            {'nom': 'Piraté', 'ville': 'Nulle Part'},
+            {'nom': 'Mairie de Landerneau', 'ville': 'Landerneau'},
         )
         self.assertEqual(resp.status_code, 302)
         self.cli_alice.refresh_from_db()
-        self.assertEqual(self.cli_alice.nom, 'Mairie de Quimper')  # inchangé
+        self.assertEqual(self.cli_alice.nom, 'Mairie de Landerneau')
 
 
 class FactureComptaTests(TestCase):
