@@ -484,5 +484,62 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
   </div>{# /.doc-end #}
 
 </div>{# /.page #}
+
+<script>
+/* Estimation visuelle des coupures de page (navigateur uniquement — WeasyPrint ignore le JS) */
+window.addEventListener('load', function () {
+  var PAGE_H = Math.round(277 * 96 / 25.4); /* A4 (297mm) - 2×1cm marges ≈ 1047px */
+  var thead = document.querySelector('table.lignes thead');
+  var theadH = thead ? Math.round(thead.getBoundingClientRect().height) : 0;
+
+  var pageEl = document.querySelector('.page');
+  var pageTop = pageEl ? Math.round(pageEl.getBoundingClientRect().top + window.scrollY) : 0;
+  document.body.style.position = 'relative';
+  var totalH = document.body.scrollHeight;
+
+  /* Positions Y des sauts de page manuels (déjà dans le DOM) */
+  var manualBreaks = Array.from(document.querySelectorAll('tr.row-pagebreak'))
+    .map(function(r) { return Math.round(r.getBoundingClientRect().top + window.scrollY); })
+    .filter(function(y) { return y > pageTop; })
+    .sort(function(a, b) { return a - b; });
+  var mIdx = 0;
+
+  /* Overlays pleine largeur pour les sauts de page manuels */
+  manualBreaks.forEach(function(y) {
+    var el = document.createElement('div');
+    el.style.cssText = 'position:absolute;top:' + y + 'px;left:0;right:0;background:#ebebeb;border-top:3px solid #d4d4d4;border-bottom:3px solid #d4d4d4;padding:6px 0;text-align:center;pointer-events:none;z-index:5;';
+    el.innerHTML = '<span style="color:#bbb;font-size:10px;font-style:italic;letter-spacing:.06em">✂ — Saut de page — ✂</span>';
+    document.body.appendChild(el);
+  });
+
+  var pageStart = pageTop;
+  var firstPage = true;
+  var p = 1;
+  while (true) {
+    var curH = firstPage ? PAGE_H : PAGE_H - theadH;
+    var nextEst = pageStart + curH;
+    if (nextEst >= totalH - 30) break;
+
+    /* Y a-t-il un saut manuel avant la prochaine estimation ? */
+    while (mIdx < manualBreaks.length && manualBreaks[mIdx] <= pageStart) mIdx++;
+    if (mIdx < manualBreaks.length && manualBreaks[mIdx] < nextEst) {
+      /* Saut manuel trouvé : on repart de là, pas d'indicateur estimé */
+      pageStart = manualBreaks[mIdx];
+      mIdx++;
+      firstPage = false;
+    } else {
+      /* Pas de saut manuel : on insère l'indicateur estimé */
+      var el = document.createElement('div');
+      el.style.cssText = 'position:absolute;top:' + nextEst + 'px;left:0;right:0;background:#ebebeb;border-top:3px solid #d4d4d4;border-bottom:3px solid #d4d4d4;padding:6px 0;text-align:center;pointer-events:none;z-index:5;';
+      el.innerHTML = '<span style="color:#bbb;font-size:10px;font-style:italic;letter-spacing:.06em">— fin de page ' + p + ' —</span>';
+      document.body.appendChild(el);
+      pageStart = nextEst;
+      firstPage = false;
+      p++;
+    }
+  }
+});
+</script>
+
 </body>
 </html>
