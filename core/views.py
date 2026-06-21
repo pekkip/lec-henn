@@ -1931,6 +1931,21 @@ def facture_apercu(request, pk):
     from .models import ParametresAssociation
     params = ParametresAssociation.get()
 
+    # Historique de facturation par source (pour affichage dans l'aperçu par TITRE)
+    if devis is not None:
+        deja_par_source = calc_deja_par_source_detail(devis, facture)
+        _STATUTS_VALIDES = ('validated', 'sent', 'paid')
+        _factures_prec_qs = devis.factures.filter(
+            status__in=_STATUTS_VALIDES, type_doc='facture',
+        ).exclude(pk=facture.pk).order_by('created_at')
+        ref_to_libelle = {
+            f.get_reference(): (f.libelle or f.notes or '')
+            for f in _factures_prec_qs
+        }
+    else:
+        deja_par_source = {}
+        ref_to_libelle  = {}
+
     def filtrer_lignes(lignes_qs, parent_non_facture=False):
         result = []
         for lf in lignes_qs:
@@ -1938,6 +1953,12 @@ def facture_apercu(request, pk):
             if lf.type_ligne == 'TITRE':
                 if not lf.non_facture:
                     lf.pu_section = lf.total() / lf.quantite
+                entry = deja_par_source.get(lf.ligne_devis_source_id) if lf.ligne_devis_source_id else None
+                lf.refs_prec = [
+                    {'ref': ref, 'libelle': ref_to_libelle.get(ref, ''), 'montant': montant}
+                    for ref, montant in sorted((entry or {}).get('refs', {}).items())
+                    if montant > 0
+                ]
                 lf.enfants_filtres = filtrer_lignes(lf.enfants.all(), lf.non_facture)
                 result.append(lf)
             else:
@@ -1950,6 +1971,7 @@ def facture_apercu(request, pk):
         result = []
         for lf in lignes_qs:
             if lf.type_ligne == 'TITRE':
+                lf.refs_prec = []
                 lf.enfants_filtres = garder_tout(lf.enfants.all())
                 result.append(lf)
             else:
@@ -2066,7 +2088,7 @@ def lignes_facture_get(request, pk):
         {
             'pk': f.pk,
             'reference': f.get_reference(),
-            'libelle': f.libelle or '',
+            'libelle': f.libelle or f.notes or '',
             'montant': float(f.montant),
             'date': f.date_creation.strftime('%d/%m/%Y'),
             'libelle_save_url': f'/factures/{f.pk}/libelle/',
