@@ -174,7 +174,9 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
       <div style="width:64px;text-align:right">P.U.</div>
       <div style="width:74px;text-align:right;color:var(--prune)">Total</div>
     </div>
-    <div style="color:var(--gray-md);font-size:12px;padding:1rem">Chargement…</div>
+    <div id="lignes-tree">
+      <div style="color:var(--gray-md);font-size:12px;padding:1rem">Chargement…</div>
+    </div>
   </div>
 </div>
 
@@ -434,7 +436,7 @@ function renderNode(n, parentZero) {
 }
 
 function renderAll() {
-  const body = document.getElementById('editor-body');
+  const body = document.getElementById('lignes-tree');
   body.innerHTML = lignes.map(n => renderNode(n, false)).join('');
   refreshFooter();
   setupQtyNavigation();
@@ -647,7 +649,7 @@ async function init() {
     renderAll();
     renderAcomptes();
   } catch(e) {
-    document.getElementById('editor-body').innerHTML =
+    document.getElementById('lignes-tree').innerHTML =
       '<div style="color:var(--red);padding:1rem;font-size:12px">Erreur de chargement.</div>';
   }
 }
