@@ -211,6 +211,47 @@ class AccesDevisFactureTests(TestCase):
         self.assertIn('Section exclue', content)
         self.assertIn('row-nf', content)
 
+    def test_apercu_titre_quantite_partielle(self):
+        # TITRE.qty=0.5 : aperçu doit afficher 0,5 (pas 1) et deja_facture enfant = 50%
+        titre_ld = LigneDevis.objects.create(
+            devis=self.devis, type_ligne='TITRE', description='Lot partiel',
+            quantite=Decimal('1'), ordre=0,
+        )
+        enfant_ld = LigneDevis.objects.create(
+            devis=self.devis, parent=titre_ld, type_ligne='F', description='Travaux',
+            quantite=Decimal('10'), cout_unitaire=Decimal('100'), ordre=0,
+        )
+        f1 = Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='C', status='validated',
+            montant=Decimal('500'), created_by=self.user_a,
+        )
+        titre_lf = LigneFacture.objects.create(
+            facture=f1, type_ligne='TITRE', description='Lot partiel',
+            quantite=Decimal('0.5'), quantite_originale=Decimal('1'), ordre=0,
+            ligne_devis_source=titre_ld,
+        )
+        LigneFacture.objects.create(
+            facture=f1, parent=titre_lf, type_ligne='F', description='Travaux',
+            quantite=Decimal('10'), quantite_originale=Decimal('10'),
+            cout_unitaire=Decimal('100'), ordre=0, ligne_devis_source=enfant_ld,
+        )
+        # Aperçu : quantité affichée = 0,5 (pas 1)
+        self.client.login(username='alice', password='pw')
+        resp = self.client.get(reverse('core:facture-apercu', args=[f1.pk]))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn('0,5', content)
+        self.assertNotIn('>1<', content)  # pas de "1" seul dans une cellule td-num
+        # deja_facture de l'enfant pour une 2e facture = 500 (50% de 10*100), pas 1000
+        from core.views import calc_deja_par_source_detail
+        f2 = Facture.objects.create(
+            devis=self.devis, type_doc='facture', destinataire='C', status='draft',
+            montant=Decimal('0'), created_by=self.user_a,
+        )
+        deja = calc_deja_par_source_detail(self.devis, f2)
+        enfant_deja = deja.get(enfant_ld.pk, {}).get('montant', 0.0)
+        self.assertAlmostEqual(enfant_deja, 500.0, places=2)
+
     def test_nouvelle_facture_titre_completement_facture_a_zero(self):
         # TITRE (qty=1) + F entièrement facturé (10/10) → TITRE=0 dans la nouvelle facture
         titre_ld = LigneDevis.objects.create(

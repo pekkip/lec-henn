@@ -1845,19 +1845,24 @@ def calc_deja_par_source_detail(devis, facture_courante):
     return deja
 
 
-def _agreger_deja(ligne, deja, ref_facture):
-    """Accumule montant + qty + refs par source_id ; stoppe sur TITRE exclu."""
+def _agreger_deja(ligne, deja, ref_facture, titre_factor=Decimal('1')):
+    """Accumule montant + qty + refs par source_id en tenant compte du facteur TITRE parent."""
+    if ligne.type_ligne == 'TITRE' and ligne.quantite == 0:
+        return  # section exclue — ne pas descendre
+
     if ligne.ligne_devis_source_id:
         sid = ligne.ligne_devis_source_id
+        effective_total = float(ligne.total()) * float(titre_factor)
+        effective_qty   = ligne.quantite * titre_factor
         e = deja.setdefault(sid, {'montant': 0.0, 'qty': Decimal('0'), 'refs': {}})
-        e['montant'] += float(ligne.total())
-        e['qty'] += ligne.quantite
-        if ligne.quantite > 0:
-            e['refs'][ref_facture] = e['refs'].get(ref_facture, 0.0) + float(ligne.total())
-    if ligne.type_ligne == 'TITRE' and ligne.quantite == 0:
-        return
+        e['montant'] += effective_total
+        e['qty']     += effective_qty
+        if effective_qty > 0:
+            e['refs'][ref_facture] = e['refs'].get(ref_facture, 0.0) + effective_total
+
+    child_factor = (titre_factor * ligne.quantite) if ligne.type_ligne == 'TITRE' else titre_factor
     for enfant in ligne.enfants.all():
-        _agreger_deja(enfant, deja, ref_facture)
+        _agreger_deja(enfant, deja, ref_facture, child_factor)
 
 
 # ──────────────────────────────────────────
@@ -1931,6 +1936,8 @@ def facture_apercu(request, pk):
         for lf in lignes_qs:
             lf.non_facture = parent_non_facture or float(lf.quantite) == 0
             if lf.type_ligne == 'TITRE':
+                if not lf.non_facture:
+                    lf.pu_section = lf.total() / lf.quantite
                 lf.enfants_filtres = filtrer_lignes(lf.enfants.all(), lf.non_facture)
                 result.append(lf)
             else:

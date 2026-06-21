@@ -312,9 +312,9 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
           <tr class="row-titre{% if lf.non_facture %} row-nf{% endif %}">
             <td>{{ lf.description|safe }}</td>
             {% if not lf.non_facture %}
-            <td class="td-num">1</td>
+            <td class="td-num">{{ lf.quantite|floatformat:"-3" }}</td>
             <td></td>
-            <td class="td-num">{{ lf.total|floatformat:2 }} €</td>
+            <td class="td-num">{{ lf.pu_section|floatformat:2 }} €</td>
             <td class="td-total">{{ lf.total|floatformat:2 }} €</td>
             {% else %}
             <td colspan="4"></td>
