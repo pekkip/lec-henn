@@ -154,6 +154,10 @@ class ProfilUtilisateur(models.Model):
         default=list, blank=True,
         help_text="Ordre et visibilité des catégories dans la bibliothèque"
     )
+    planning_filtre_equipes = models.JSONField(
+        default=list, blank=True,
+        help_text="Ids d'équipes affichées dans le planning (filtre persistant ; vide = toutes)"
+    )
     dashboard_config = models.JSONField(
         default=dict, blank=True,
         help_text="Disposition du tableau de bord (widgets, ordre, portée)"

@@ -541,6 +541,13 @@ def planning_mois(request):
     aff_color = {aff.pk: COLORS_AFF[aff.tranche.devis_id % len(COLORS_AFF)] for aff in affectations}
     equipes_modifiables_ids = {e.pk for e in equipes if est_encadrant(request.user, e)}
 
+    # Filtre par équipe persistant (préférence utilisateur). Liste d'ids
+    # d'équipes affichées ; vide = toutes affichées. On ne garde que les ids
+    # encore valides (équipes actives du module).
+    equipes_ids = {e.pk for e in equipes}
+    filtre_ids = {pk for pk in (profil.planning_filtre_equipes or []) if pk in equipes_ids}
+    mes_equipes_ids = set(profil.equipes.values_list('pk', flat=True)) & equipes_ids
+
     # MO des seuls devis affichés sur la grille (pct_consomme, drag & drop,
     # indicateur de divergence). La liste complète des devis acceptés est
     # servie à la demande par planning_wizard_data (ouverture de la modal).
@@ -701,13 +708,31 @@ def planning_mois(request):
                     'decale': ev.decale_chantier,
                 })
 
+        # ── Voies empilées (interval partitioning, purement visuel) ──────
+        # Chaque barre reçoit un index de voie = première voie libre qui ne
+        # chevauche pas son intervalle de colonnes [col_debut, col_fin_excl[.
+        # Aucun impact modèle : on n'empile que le positionnement vertical.
+        lane_fins = []   # col_fin_excl de la dernière barre posée sur chaque voie
+        for b in sorted(barres, key=lambda x: (x['col_debut'], x['col_fin_excl'])):
+            for i, fin in enumerate(lane_fins):
+                if b['col_debut'] >= fin:
+                    b['voie'] = i
+                    lane_fins[i] = b['col_fin_excl']
+                    break
+            else:
+                b['voie'] = len(lane_fins)
+                lane_fins.append(b['col_fin_excl'])
+        nb_voies = max(len(lane_fins), 1)
+
         peut_modifier_ligne = peut_modifier_global or equipe.pk in equipes_modifiables_ids
         lignes.append({
             'equipe': equipe,
             'barres': barres,
             'ev_barres': ev_barres,
             'jours_sup': jours_sup,
+            'nb_voies': nb_voies,
             'peut_modifier': peut_modifier_ligne,
+            'masquee': bool(filtre_ids) and equipe.pk not in filtre_ids,
         })
 
     # Cibles de rechargement quand on bute sur un bord de la fenêtre :
@@ -748,6 +773,10 @@ def planning_mois(request):
         'suiv_debut': suiv_debut,
         'peut_modifier_global': peut_modifier_global,
         'equipes_modifiables_ids': list(equipes_modifiables_ids),
+        'filtre_ids': filtre_ids,
+        'mes_equipes_ids': mes_equipes_ids,
+        'filtre_actif': bool(filtre_ids),
+        'nb_equipes_affichees': len(equipes_ids) - sum(1 for l in lignes if l['masquee']),
         'devis_mo_json': devis_mo_json,
         'equipe_effectifs_json': equipe_effectifs_json,
         'devis_equipes_json': json.dumps(devis_equipes),
@@ -771,6 +800,31 @@ def planning_mois(request):
             for ev in evenements
         }),
     })
+
+
+@login_required
+@require_POST
+def planning_filtre_equipes(request):
+    """Persiste le filtre d'équipes du planning (préférence par utilisateur)."""
+    if not peut_acceder_planning(request.user):
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    ids = data.get('equipes', [])
+    if not isinstance(ids, list):
+        return json_error('Format invalide')
+    # Ne conserver que des entiers valides
+    clean = []
+    for v in ids:
+        try:
+            clean.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    profil = get_profil(request.user)
+    profil.planning_filtre_equipes = clean
+    profil.save(update_fields=['planning_filtre_equipes'])
+    return JsonResponse({'ok': True})
 
 
 @login_required

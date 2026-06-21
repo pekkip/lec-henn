@@ -9,7 +9,7 @@
 
 ## État actuel
 
-- [ ] **Phase 1 — Planning : présentation** (voies empilées, filtre équipes, édition lisible) — _Opus_
+- [x] **Phase 1 — Planning : présentation** (voies empilées, filtre équipes, édition lisible) — _Opus_
 - [ ] **Phase 2 — Émargement : permissions & codes d'événements** — _Sonnet_
 - [ ] **Phase 3 — Rangées ponctuelles** (modèle + migration) — _Opus_
 - [ ] **Phase 4 — Feuille logos + calendrier de modale commun** — _Sonnet (4b : Opus conseillé)_
@@ -118,12 +118,12 @@ positionnement vertical. Aligner sur `mockups/Planning - refonte.dc.html`.
   grisée au lancement. Ce rendu est le point d'extension pour une future restriction par équipe.
 
 **✅ Checklist Phase 1**
-- [ ] 2 chantiers concurrents sur une équipe → 2 voies, pas de chevauchement.
-- [ ] Équipe sans chevauchement → reste sur 1 voie.
-- [ ] Filtre « Mes équipes » conservé après rechargement (autre onglet/poste).
-- [ ] Lignes non modifiables grisées + cadenas (mécanisme câblé).
-- [ ] `pct_consomme` + drag&drop inchangés. `test core` + `check` verts.
-- [ ] Commit + cocher l'état + NOTES_DEV.
+- [x] 2 chantiers concurrents sur une équipe → 2 voies, pas de chevauchement. _(test `test_planning_voies_empilees`)_
+- [x] Équipe sans chevauchement → reste sur 1 voie. _(test `test_planning_voie_unique_sans_chevauchement`)_
+- [x] Filtre « Mes équipes » conservé après rechargement (autre onglet/poste). _(préf serveur `planning_filtre_equipes` + `test_planning_filtre_equipes_persiste`)_
+- [x] Lignes non modifiables grisées + cadenas (mécanisme câblé). _(classe `.tl-row.ro` + cadenas, basé sur `peut_modifier` existant — toujours `est_encadrant` en Phase 1)_
+- [x] `pct_consomme` + drag&drop inchangés. `test core` + `check` verts. _(189 tests OK ; voies = positionnement vertical uniquement, recalc client après move via `relayoutTrack`)_
+- [x] Commit + cocher l'état + NOTES_DEV.
 
 ---
 

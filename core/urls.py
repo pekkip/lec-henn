@@ -96,6 +96,7 @@ urlpatterns = [
     path('planning/equipiers/sauvegarder/',      views_planning.equipier_save,         name='equipier-save'),
     path('planning/equipiers/<int:pk>/actif/',   views_planning.equipier_toggle_actif, name='equipier-toggle-actif'),
     path('planning/',                            views_planning.planning_mois,         name='planning'),
+    path('planning/filtre-equipes/',             views_planning.planning_filtre_equipes, name='planning-filtre-equipes'),
     path('planning/emargement/',                 views_planning.emargement_view,       name='emargement'),
     path('planning/affectation/sauvegarder/',    views_planning.affectation_save,      name='affectation-save'),
     path('planning/affectation/deplacer/',       views_planning.affectation_move,      name='affectation-move'),

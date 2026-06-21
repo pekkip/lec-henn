@@ -53,8 +53,10 @@
 .tl-day.today-hd b{color:var(--teal-dk)}
 
 /* ── Team track ──────────────────────────────────────── */
-.tl-track{display:grid;grid-template-rows:18px 86px;height:104px}
-.tl-cell{grid-row:1/3;border-right:1px solid #EFEDEB}
+/* grid-template-rows posé inline : 18px (icônes jour) + nb_voies × hauteur de voie.
+   Une équipe sans chevauchement reste sur 1 voie → hauteur identique à avant. */
+.tl-track{display:grid;min-height:104px}
+.tl-cell{grid-row:1/-1;border-right:1px solid #EFEDEB}
 .tl-cell.mon-cell{border-left:2px solid var(--prune-bd)}
 .tl-cell.we-cell{background:#F5F3F1}
 /* Demi-journée : diviseur pointillé entre matin et aprem */
@@ -67,7 +69,7 @@
 .tl-day.fri-hd b{color:var(--gray-md)}
 .tl-cell.fri-cell{background:#F6F4F2}
 /* ── Barre événement négatif (formation, férié…) ─────── */
-.ev-bar{grid-row:2;z-index:3;align-self:end;margin-bottom:4px;margin-left:1px;margin-right:1px;
+.ev-bar{grid-row:2/-1;z-index:3;align-self:end;margin-bottom:4px;margin-left:1px;margin-right:1px;
   height:16px;border-radius:3px;border:1px solid #C7B8E0;color:#5b4b86;font-size:9px;
   background:repeating-linear-gradient(45deg,#ECE7F3 0 4px,#E2DAEF 4px 8px);
   display:flex;align-items:center;padding:0 4px;overflow:hidden;white-space:nowrap;cursor:pointer}
@@ -81,7 +83,7 @@
 .bar-top{display:flex;align-items:baseline;gap:5px;width:100%;min-width:0;overflow:hidden}
 .bar-ref{font-size:10px;font-weight:700;opacity:.65;flex-shrink:0;white-space:nowrap}
 .bar-lieu-inline{font-size:10px;opacity:.65;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
-.bar-name{font-size:11px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%}
+.bar-name{font-size:11px;font-weight:600;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25;width:100%}
 .bar-meta{display:flex;align-items:center;gap:5px;width:100%;font-size:10px;opacity:.85}
 .bar-days{flex-shrink:0;white-space:nowrap}
 .bar-prog{flex:1;height:4px;border-radius:2px;background:rgba(0,0,0,.15);overflow:hidden;min-width:16px}
@@ -125,6 +127,29 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .resize-l{left:2px}.resize-r{right:2px}
 /* Indicateur durée divergente de la durée calculée */
 .tl-bar.divergent{outline:2px dashed var(--amber);outline-offset:-2px}
+
+/* ── Ligne en lecture seule (équipe non modifiable) ───── */
+.tl-row.ro .tl-lbl.team{background:#FBFAF9;color:var(--gray-md)}
+.tl-row.ro .tl-lbl.team .av{background:var(--gray-lt);color:var(--gray-md)}
+.tl-row.ro .tl-bar{filter:saturate(.7);opacity:.85;box-shadow:none;cursor:pointer}
+.tl-lbl .lock-ic{flex-shrink:0;font-size:13px;color:#c4c2bd}
+
+/* ── Popover filtre équipes ──────────────────────────── */
+.eq-pick{position:relative}
+.eq-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:268px;
+  border:1px solid var(--gray-bd);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.14);
+  background:#fff;overflow:hidden}
+.eq-pop-hd{padding:9px 12px;border-bottom:1px solid var(--gray-lt);display:flex;align-items:center;justify-content:space-between}
+.eq-pop-hd span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-md)}
+.eq-pop-hd .eq-toggles{display:flex;gap:8px}
+.eq-pop-hd .eq-toggles button{background:none;border:none;cursor:pointer;font-size:11px;color:var(--teal-dk);font-weight:600;padding:0}
+.eq-pop-list{max-height:340px;overflow-y:auto}
+.eq-it{display:flex;align-items:center;gap:9px;padding:7px 12px;font-size:12px;color:var(--gray);border-bottom:1px solid var(--gray-lt);cursor:pointer;user-select:none}
+.eq-it:last-child{border-bottom:none}
+.eq-it.mine{background:var(--teal-lt)}
+.eq-it .ck{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--gray-bd);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;color:transparent}
+.eq-it.on .ck{background:var(--teal-dk);border-color:var(--teal-dk);color:#fff}
+.eq-it .av{width:20px;height:20px;border-radius:50%;background:var(--prune-lt);color:var(--prune);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0}
 /* ── Sélecteur de mois (saut direct) — même esthétique que le mini-calendrier prêt ── */
 .mois-pick{position:relative}
 .mois-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:232px;background:#fff;
@@ -267,6 +292,40 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
           <i class="ti ti-zoom-in"></i>
         </button>
       </div>
+      <!-- Filtre par équipe (multi-sélection, mémorisé par utilisateur) -->
+      <div class="eq-pick">
+        <button type="button" class="btn btn-sm" onclick="toggleEqPop()" title="Filtrer les équipes affichées">
+          <i class="ti ti-filter"></i> Équipes&nbsp;·&nbsp;<span id="eq-count">{{ nb_equipes_affichees }}/{{ equipes|length }}</span>
+          <i class="ti ti-chevron-down" style="font-size:10px"></i>
+        </button>
+        <div id="eq-pop" class="eq-pop hidden">
+          <div class="eq-pop-hd">
+            <span>Afficher les équipes</span>
+            <div class="eq-toggles">
+              <button type="button" onclick="eqFilterAll(true)">Tout</button>
+              <button type="button" onclick="eqFilterAll(false)">Aucun</button>
+            </div>
+          </div>
+          <div class="eq-pop-list">
+            {% if mes_equipes_ids %}
+            <div class="eq-it mine" onclick="eqFilterMine()">
+              <span class="ck">✓</span>
+              <i class="ti ti-user-star" style="color:var(--teal-dk)"></i>
+              <strong style="color:var(--teal-dk)">Mes équipes</strong>
+            </div>
+            {% endif %}
+            {% for e in equipes %}
+            <div class="eq-it{% if not filtre_actif or e.pk in filtre_ids %} on{% endif %}"
+                 data-eq="{{ e.pk }}"{% if e.pk in mes_equipes_ids %} data-mine="1"{% endif %}
+                 onclick="eqFilterToggle(this)">
+              <span class="ck">✓</span>
+              <span class="av">{{ e.nom|slice:":2" }}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.nom }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
       {% if peut_modifier_global %}
       <button class="btn btn-prune btn-sm" onclick="openAffModal(null)">
         <i class="ti ti-plus"></i> Assigner un chantier
@@ -326,7 +385,8 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 
         <!-- Lignes équipes -->
         {% for ligne in lignes %}
-        <div class="tl-row">
+        <div class="tl-row{% if not ligne.peut_modifier %} ro{% endif %}{% if ligne.masquee %} hidden{% endif %}"
+             data-eqrow="{{ ligne.equipe.pk }}"{% if ligne.equipe.pk in mes_equipes_ids %} data-mine="1"{% endif %}>
           <div class="tl-lbl team">
             <span class="av">{{ ligne.equipe.nom|slice:":2" }}</span>
             <div style="overflow:hidden;flex:1;min-width:0">
@@ -340,14 +400,17 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
             <button class="ico-btn add-btn" onclick="openAffModal({{ ligne.equipe.pk }})" title="Affecter un chantier à {{ ligne.equipe.nom }}">
               <i class="ti ti-plus"></i>
             </button>
+            {% else %}
+            <i class="ti ti-lock lock-ic" title="Équipe en lecture seule"></i>
             {% endif %}
           </div>
-          <div class="tl-track tl-cols" data-equipe="{{ ligne.equipe.pk }}">
+          <div class="tl-track tl-cols" data-equipe="{{ ligne.equipe.pk }}"
+               style="grid-template-rows:18px repeat({{ ligne.nb_voies }},86px)">
             {# Fond de cellules : 2 demi-colonnes par jour ouvré, 1 par weekend #}
             {% for cell in jours_cells %}
             <div class="tl-cell{% if cell.weekday == 0 and not cell.aprem %} mon-cell{% endif %}{% if cell.weekday == 4 %} fri-cell{% endif %}{% if cell.is_we %} we-cell{% endif %}{% if cell.aprem %} aprem{% endif %}{% if cell.is_today %} today-cell{% endif %}"
                  data-date="{{ cell.date|date:'Y-m-d' }}"
-                 style="grid-row:1/3;grid-column:{{ cell.col }}"></div>
+                 style="grid-row:1/-1;grid-column:{{ cell.col }}"></div>
             {% endfor %}
             {# Icônes jours travaillés exceptionnels (travaille=True) — row 1 #}
             {% for js in ligne.jours_sup %}
@@ -368,7 +431,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
             {# Barres d'affectation (positionnées explicitement) #}
             {% for barre in ligne.barres %}
             <div class="tl-bar {{ barre.color }}{% if barre.starts_before %} clip-left{% endif %}{% if barre.ends_after %} clip-right{% endif %}"
-               style="grid-column:{{ barre.col_debut }}/{{ barre.col_fin_excl }}"
+               style="grid-column:{{ barre.col_debut }}/{{ barre.col_fin_excl }};grid-row:{{ barre.voie|add:2 }}"
                title="{{ barre.label }}"
                data-devis="{{ barre.aff.tranche.devis.pk }}"
                data-url="{% url 'core:devis-detail' barre.aff.tranche.devis.pk %}"
@@ -1052,6 +1115,8 @@ document.querySelectorAll('.tl-track[data-equipe]').forEach(track => {
           if (!bar || !newTrk || !applyBarUpdate(bar, newTrk, u)) needReload = true;
         });
         if (needReload) location.reload();
+        // Re-router les voies (l'empilement a pu changer après le déplacement)
+        else document.querySelectorAll('.tl-track[data-equipe]').forEach(relayoutTrack);
       } else { alert(d.error || 'Erreur'); }
     })
     .catch(() => { alert('Erreur réseau, rechargement...'); location.reload(); });
@@ -1659,6 +1724,60 @@ function dupEv() {
   modal.querySelector('#ev-del-btn').style.display = 'none';
   modal.querySelector('#ev-dup-btn').style.display    = 'none';
 }
+
+// ── Voies empilées : re-calcul côté client après un déplacement ──
+// Même algorithme que le serveur (interval partitioning sur les colonnes de
+// grille). Purement visuel : ne touche ni les dates ni le modèle.
+function relayoutTrack(track) {
+  const items = Array.from(track.querySelectorAll('.tl-bar[data-aff]')).map(bar => {
+    const m = (bar.style.gridColumn || '').match(/(\d+)\s*\/\s*(\d+)/);
+    return { bar, s: m ? +m[1] : 1, e: m ? +m[2] : 2 };
+  }).sort((a, b) => a.s - b.s || a.e - b.e);
+  const laneFins = [];
+  items.forEach(it => {
+    let lane = laneFins.findIndex(f => it.s >= f);
+    if (lane === -1) { lane = laneFins.length; laneFins.push(it.e); }
+    else laneFins[lane] = it.e;
+    it.bar.style.gridRow = String(lane + 2);
+  });
+  const nb = Math.max(laneFins.length, 1);
+  track.style.gridTemplateRows = `18px repeat(${nb},86px)`;
+}
+
+// ── Filtre par équipe (popover, persistance serveur) ──
+const URL_FILTRE = "{% url 'core:planning-filtre-equipes' %}";
+function toggleEqPop() { document.getElementById('eq-pop').classList.toggle('hidden'); }
+document.addEventListener('click', e => {
+  if (!e.target.closest('.eq-pick')) document.getElementById('eq-pop')?.classList.add('hidden');
+});
+function eqItems() { return Array.from(document.querySelectorAll('.eq-it[data-eq]')); }
+function eqFilterToggle(el) { el.classList.toggle('on'); applyEqFilter(); }
+function eqFilterAll(on) { eqItems().forEach(it => it.classList.toggle('on', on)); applyEqFilter(); }
+function eqFilterMine() { eqItems().forEach(it => it.classList.toggle('on', it.dataset.mine === '1')); applyEqFilter(); }
+function syncMineCheckbox() {
+  const mine = eqItems().filter(it => it.dataset.mine === '1');
+  const mineEl = document.querySelector('.eq-it.mine');
+  if (mineEl) mineEl.classList.toggle('on', mine.length > 0 && mine.every(it => it.classList.contains('on')));
+}
+function applyEqFilter() {
+  const items = eqItems();
+  const checked = items.filter(it => it.classList.contains('on'));
+  const ids = checked.map(it => +it.dataset.eq);
+  const allOn = checked.length === items.length;
+  const showSet = allOn ? null : new Set(ids);
+  document.querySelectorAll('.tl-row[data-eqrow]').forEach(row => {
+    row.classList.toggle('hidden', showSet !== null && !showSet.has(+row.dataset.eqrow));
+  });
+  document.getElementById('eq-count').textContent = `${allOn ? items.length : ids.length}/${items.length}`;
+  syncMineCheckbox();
+  // Persistance (liste vide = toutes les équipes affichées)
+  fetch(URL_FILTRE, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ equipes: allOn ? [] : ids }),
+  }).catch(() => {});
+}
+syncMineCheckbox();
 
 // Flash des barres recalculées après rechargement
 (function applyFlash() {

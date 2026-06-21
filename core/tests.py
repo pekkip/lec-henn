@@ -1335,6 +1335,52 @@ class PlanningGrilleTests(TestCase):
         self.assertEqual(resp.context['cible_lundi'], date(2026, 9, 14))
         self.assertEqual(resp.context['debut_grille'], date(2026, 9, 14) - timedelta(weeks=6))
 
+    # ── voies empilées (présentation) ─────────────────────────
+
+    def test_planning_voies_empilees(self):
+        """2 chantiers qui se chevauchent sur une équipe → 2 voies."""
+        self.client.login(username='david2', password='pw')
+        t1 = TrancheDevis.objects.create(devis=self.devis, nom='T1', ordre=0)
+        t2 = TrancheDevis.objects.create(devis=self.devis, nom='T2', ordre=1)
+        Affectation.objects.create(equipe=self.equipe, tranche=t1,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 12), created_by=self.admin)
+        Affectation.objects.create(equipe=self.equipe, tranche=t2,
+            date_debut=date(2026, 6, 8), date_fin=date(2026, 6, 19), created_by=self.admin)
+        resp = self.client.get(reverse('core:planning') + '?debut=2026-06-08')
+        ligne = next(l for l in resp.context['lignes'] if l['equipe'].pk == self.equipe.pk)
+        self.assertEqual(ligne['nb_voies'], 2)
+        self.assertEqual(sorted(b['voie'] for b in ligne['barres']), [0, 1])
+
+    def test_planning_voie_unique_sans_chevauchement(self):
+        """2 chantiers séquentiels (sans chevauchement) → 1 seule voie."""
+        self.client.login(username='david2', password='pw')
+        t1 = TrancheDevis.objects.create(devis=self.devis, nom='T1', ordre=0)
+        t2 = TrancheDevis.objects.create(devis=self.devis, nom='T2', ordre=1)
+        Affectation.objects.create(equipe=self.equipe, tranche=t1,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 5), created_by=self.admin)
+        Affectation.objects.create(equipe=self.equipe, tranche=t2,
+            date_debut=date(2026, 6, 15), date_fin=date(2026, 6, 19), created_by=self.admin)
+        resp = self.client.get(reverse('core:planning') + '?debut=2026-06-08')
+        ligne = next(l for l in resp.context['lignes'] if l['equipe'].pk == self.equipe.pk)
+        self.assertEqual(ligne['nb_voies'], 1)
+        self.assertTrue(all(b['voie'] == 0 for b in ligne['barres']))
+
+    def test_planning_filtre_equipes_persiste(self):
+        """Le filtre d'équipes est mémorisé sur le profil et pré-appliqué."""
+        self.client.login(username='david2', password='pw')
+        resp = self.client.post(
+            reverse('core:planning-filtre-equipes'),
+            data=json.dumps({'equipes': [self.equipe.pk]}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.admin.profil.refresh_from_db()
+        self.assertEqual(self.admin.profil.planning_filtre_equipes, [self.equipe.pk])
+        resp = self.client.get(reverse('core:planning'))
+        self.assertEqual(resp.context['filtre_ids'], {self.equipe.pk})
+        ligne_autre = next(l for l in resp.context['lignes'] if l['equipe'].pk == self.autre.pk)
+        self.assertTrue(ligne_autre['masquee'])
+
     # ── affectation_save ──────────────────────────────────────
 
     def test_affectation_save_ok(self):
