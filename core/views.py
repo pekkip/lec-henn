@@ -1926,21 +1926,15 @@ def facture_apercu(request, pk):
     from .models import ParametresAssociation
     params = ParametresAssociation.get()
 
-    # Lignes racines avec quantite > 0 uniquement (vue client)
-    # PROTO : règle d'affichage à affiner selon retours Frédérick/Yann
-    def filtrer_lignes(lignes_qs):
+    def filtrer_lignes(lignes_qs, parent_non_facture=False):
         result = []
         for lf in lignes_qs:
+            lf.non_facture = parent_non_facture or float(lf.quantite) == 0
             if lf.type_ligne == 'TITRE':
-                if float(lf.quantite) == 0:
-                    continue
-                enfants = filtrer_lignes(lf.enfants.all())
-                if enfants:  # titre affiché seulement s'il a des enfants visibles
-                    lf.enfants_filtres = enfants
-                    result.append(lf)
+                lf.enfants_filtres = filtrer_lignes(lf.enfants.all(), lf.non_facture)
+                result.append(lf)
             else:
-                if float(lf.quantite) > 0:
-                    result.append(lf)
+                result.append(lf)
         return result
 
     # Pour un avoir, les quantités sont négatives → on garde tout (pas de filtre > 0),
@@ -2067,6 +2061,7 @@ def lignes_facture_get(request, pk):
             'reference': f.get_reference(),
             'libelle': f.libelle or '',
             'montant': float(f.montant),
+            'date': f.date_creation.strftime('%d/%m/%Y'),
             'libelle_save_url': f'/factures/{f.pk}/libelle/',
         }
         for f in factures_prec

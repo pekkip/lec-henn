@@ -37,9 +37,10 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 .tree-node{margin-bottom:2px}
 .node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:34px}
 .node-row:hover{border-color:#BBBAB8}
-.node-row.zero{opacity:.5;background:var(--gray-lt)}
+.node-row.zero{opacity:.72;background:var(--gray-lt);outline:1px dashed var(--gray-bd);outline-offset:-1px}
 .node-row.titre-row{background:var(--prune-lt);border-color:var(--prune-bd)}
-.node-row.titre-row.zero{opacity:.38}
+.node-row.titre-row.zero{opacity:.55}
+.was-invoiced{color:var(--prune);font-size:10px;line-height:1.5}
 
 .nbadge{font-size:10px;padding:2px 5px;border-radius:3px;font-weight:500;flex-shrink:0}
 .nb-TITRE{background:var(--prune-lt);color:#72243E}
@@ -393,7 +394,15 @@ function renderNode(n, parentZero) {
           <div class="prog-fill" style="width:${pctThisShow}%;left:${pctDejaShow}%"></div>
         </div>
         <div class="prog-labels">
-          <span class="${!isZero ? 'current' : ''}">${isZero ? 'Non facturé cette fois' : fmtV(totalFact) + ' cette facture'}</span>
+          <span class="${!isZero ? 'current' : refsNoeud.length > 0 ? 'was-invoiced' : ''}">${(() => {
+            if (!isZero) return fmtV(totalFact) + ' cette facture';
+            if (refsNoeud.length > 0) return refsNoeud.map(r => {
+              const fp = factures_prec.find(f => f.reference === r.ref);
+              const dateStr = fp ? ` le ${fp.date}` : '';
+              return `Facturé ${fmtV(r.montant)}${dateStr} · ${escHtml(r.ref)}`;
+            }).join('<br>');
+            return 'Non facturé cette fois';
+          })()}</span>
           <span>/ ${fmtV(totalDev)} devis${totalDeja > 0 ? ' · <span style="color:var(--prune-bd)">' + fmtV(totalDeja) + ' déjà facturé</span>' : ''}</span>
         </div>
       </div>
@@ -427,7 +436,7 @@ function renderNode(n, parentZero) {
 
   if (n.enfants && n.enfants.length) {
     const childZero = (isTitre && qf === 0) || parentZero;
-    html += `<div class="kids-wrap" style="${childZero ? 'opacity:.35' : ''}">`;
+    html += `<div class="kids-wrap" style="${childZero ? 'opacity:.55' : ''}">`;
     n.enfants.forEach(c => { html += renderNode(c, childZero); });
     html += '</div>';
   }

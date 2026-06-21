@@ -97,6 +97,9 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
 
 .row-titre td { background: var(--prune-lt); font-weight: 700; font-size: 11px; color: var(--prune); border-bottom: 1px solid var(--prune-bd); padding: 8px 10px; }
 .row-child .td-desig { padding-left: 22px; }
+.row-nf td { color: #999; font-style: italic; }
+.row-titre.row-nf td { background: #F5F4F3; color: #aaa; border-bottom-color: #ddd; font-weight: 500; }
+.row-nf .td-total { color: #ccc; }
 
 /* Lignes financement */
 .sep-fin td {
@@ -306,32 +309,44 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
           {% if lf.type_ligne == 'PAGE' %}
           <tr class="row-pagebreak"><td colspan="5">— Saut de page —</td></tr>
           {% elif lf.type_ligne == 'TITRE' %}
-          <tr class="row-titre">
+          <tr class="row-titre{% if lf.non_facture %} row-nf{% endif %}">
             <td>{{ lf.description|safe }}</td>
+            {% if not lf.non_facture %}
             <td class="td-num">1</td>
             <td></td>
             <td class="td-num">{{ lf.total|floatformat:2 }} €</td>
             <td class="td-total">{{ lf.total|floatformat:2 }} €</td>
+            {% else %}
+            <td colspan="4"></td>
+            {% endif %}
           </tr>
           {% for enfant in lf.enfants_filtres %}
           {% with pu=enfant.prix_unitaire %}
-          <tr class="row-child">
+          <tr class="row-child{% if enfant.non_facture %} row-nf{% endif %}">
             <td class="td-desig">{{ enfant.description|safe }}</td>
+            {% if not enfant.non_facture %}
             <td class="td-num">{{ enfant.quantite|floatformat:"-3" }}</td>
             <td>{{ enfant.unite }}</td>
             <td class="td-num">{% if pu %}{{ pu|floatformat:2 }} €{% endif %}</td>
             <td class="td-total">{{ enfant.total|floatformat:2 }} €</td>
+            {% else %}
+            <td colspan="4"></td>
+            {% endif %}
           </tr>
           {% endwith %}
           {% endfor %}
           {% else %}
           {% with pu=lf.prix_unitaire %}
-          <tr>
+          <tr{% if lf.non_facture %} class="row-nf"{% endif %}>
             <td class="td-desig">{{ lf.description|safe }}</td>
+            {% if not lf.non_facture %}
             <td class="td-num">{{ lf.quantite|floatformat:"-3" }}</td>
             <td>{{ lf.unite }}</td>
             <td class="td-num">{% if pu %}{{ pu|floatformat:2 }} €{% endif %}</td>
             <td class="td-total">{{ lf.total|floatformat:2 }} €</td>
+            {% else %}
+            <td colspan="4"></td>
+            {% endif %}
           </tr>
           {% endwith %}
           {% endif %}

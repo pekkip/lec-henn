@@ -190,8 +190,8 @@ class AccesDevisFactureTests(TestCase):
         f.refresh_from_db()
         self.assertEqual(float(f.montant), 0.0)
 
-    def test_apercu_titre_a_zero_non_affiche(self):
-        # Un TITRE avec quantite=0 ne doit pas apparaître dans l'aperçu.
+    def test_apercu_titre_a_zero_affiche_grise(self):
+        # Un TITRE avec quantite=0 apparaît dans l'aperçu avec class row-nf (grisé, sans montant).
         f = Facture.objects.create(
             devis=self.devis, type_doc='facture', destinataire='Client Test',
             status='validated', montant=Decimal('0'), created_by=self.user_a,
@@ -207,7 +207,9 @@ class AccesDevisFactureTests(TestCase):
         self.client.login(username='alice', password='pw')
         resp = self.client.get(reverse('core:facture-apercu', args=[f.pk]))
         self.assertEqual(resp.status_code, 200)
-        self.assertNotIn('Section exclue', resp.content.decode())
+        content = resp.content.decode()
+        self.assertIn('Section exclue', content)
+        self.assertIn('row-nf', content)
 
     def test_nouvelle_facture_titre_completement_facture_a_zero(self):
         # TITRE (qty=1) + F entièrement facturé (10/10) → TITRE=0 dans la nouvelle facture
