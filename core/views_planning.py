@@ -24,7 +24,7 @@ from django.db.models import Q, Count, Prefetch, Max
 from .models import (
     Devis, Facture, LigneDevis, LigneFacture, Equipe,
     Equipier, TrancheDevis, Affectation, Presence, Evenement, Pret,
-    FicheNote, ClotureMois,
+    FicheNote, ClotureMois, COULEURS_CHANTIER,
 )
 from .permissions import peut_acceder_planning, est_encadrant, peut_modifier_devis
 from .planning_utils import (
@@ -326,15 +326,6 @@ def emargement_view(request):
     for aff in affectations:
         aff.css_color = aff_color[aff.pk]
 
-    # Affectation active par jour (première couvrant ce jour)
-    day_aff = {}
-    for jour in jours:
-        for aff in affectations:
-            if aff.date_debut <= jour <= aff.date_fin:
-                day_aff[jour] = aff
-                break
-    aff_default = affectations[0] if affectations else None
-
     equipiers_maison = list(
         Equipier.objects.filter(equipe=equipe_sel, actif=True)
         .select_related('equipe').order_by('nom', 'prenom')
@@ -348,6 +339,26 @@ def emargement_view(request):
         ).select_related('equipier', 'affectation')
     )
     pres_map = {(p.equipier_id, p.date.isoformat(), p.creneau): p for p in presences_qs}
+
+    # Chantier imputé par demi-journée (toute l'équipe sur un seul chantier par
+    # créneau). Dérivé des présences existantes (n'importe quel équipier du
+    # créneau imputé à une affectation de l'équipe fait foi) ; à défaut, 1ʳᵉ
+    # affectation couvrant ce jour. Aucune table dédiée (cf. plan, Option A).
+    aff_by_pk = {aff.pk: aff for aff in affectations}
+    slot_pres_aff = {}   # (date_iso, creneau) -> affectation_id (présence existante)
+    for p in presences_qs:
+        if p.affectation_id in aff_by_pk:
+            slot_pres_aff.setdefault((p.date.isoformat(), p.creneau), p.affectation_id)
+
+    slot_aff = {}   # (jour, creneau) -> Affectation | None
+    for jour in jours:
+        actives = [aff for aff in affectations if aff.date_debut <= jour <= aff.date_fin]
+        for creneau, _ in CRENEAUX:
+            from_pres = slot_pres_aff.get((jour.isoformat(), creneau))
+            slot_aff[(jour, creneau)] = (
+                aff_by_pk.get(from_pres) if from_pres
+                else (actives[0] if actives else None)
+            )
 
     prets_semaine = list(
         Pret.objects.filter(
@@ -381,12 +392,12 @@ def emargement_view(request):
                     if _in_loan(jour, creneau, p):
                         pret_away_map[(p.equipier_id, jour.isoformat(), creneau)] = p.equipe_hote.nom
 
-    def _build_cren_rows(eq, is_borrowed, pret=None):
+    def _build_row_cells(eq, is_borrowed, pret=None):
+        # 1 ligne / équipier : 10 cellules ordonnées (j1-matin, j1-aprem, …).
         total_h = Decimal('0')
-        cren_rows = []
-        for creneau, label in CRENEAUX:
-            cells = []
-            for jour in jours:
+        cells = []
+        for jour in jours:
+            for creneau, label in CRENEAUX:
                 date_iso = jour.isoformat()
                 key = (eq.pk, date_iso, creneau)
                 pres = pres_map.get(key)
@@ -397,21 +408,23 @@ def emargement_view(request):
                 ferie_label    = jours_feries_ev[jour].libelle if is_ferie else ''
                 is_ferie_legal = jour in feries_legaux
                 special_code   = 'R' if is_ferie else ('F' if is_ferie_legal else None)
+                slot = slot_aff.get((jour, creneau))
                 if is_borrowed:
                     loan = _in_loan(jour, creneau, pret) and not is_off
                     is_lent = loan
                     is_away = not loan and not is_off
                     away_team_nom = None
-                    aff_c = pres.affectation if pres else (day_aff.get(jour, aff_default) if loan else None)
+                    aff_c = pres.affectation if pres else (slot if loan else None)
                 else:
                     pret_away_team = pret_away_map.get((eq.pk, date_iso, creneau))
                     is_lent = False
                     is_away = (key in away_set) or bool(pret_away_team)
                     away_team_nom = pret_away_team
-                    aff_c = pres.affectation if pres else day_aff.get(jour, aff_default)
+                    aff_c = pres.affectation if pres else slot
                 cells.append({
                     'jour': jour,
                     'date_iso': date_iso,
+                    'creneau': creneau,
                     'pres': pres,
                     'is_off': is_off,
                     'is_ferie': is_ferie,
@@ -424,26 +437,43 @@ def emargement_view(request):
                     'color': aff_color.get(aff_c.pk, '') if aff_c else '',
                     'aff_id': aff_c.pk if aff_c else '',
                     'default_h': DEF_H[creneau],
-                    'is_mon': (jour.weekday() == 0),
+                    'is_mon': (jour.weekday() == 0 and creneau == 'matin'),
                 })
-            cren_rows.append({'label': label, 'creneau': creneau, 'cells': cells})
-        return cren_rows, total_h
+        return cells, total_h
 
     grid_rows_maison = []
     for eq in equipiers_maison:
-        cren_rows, total_h = _build_cren_rows(eq, is_borrowed=False)
-        grid_rows_maison.append({'equipier': eq, 'is_borrowed': False, 'pret_id': None, 'cren_rows': cren_rows, 'total_h': total_h})
+        cells, total_h = _build_row_cells(eq, is_borrowed=False)
+        grid_rows_maison.append({'equipier': eq, 'is_borrowed': False, 'pret_id': None, 'cells': cells, 'total_h': total_h})
 
     grid_rows_empruntes = []
     for eq in equip_empruntes:
         pret = pret_map[eq.pk]
-        cren_rows, total_h = _build_cren_rows(eq, is_borrowed=True, pret=pret)
+        cells, total_h = _build_row_cells(eq, is_borrowed=True, pret=pret)
         grid_rows_empruntes.append({
             'equipier': eq, 'is_borrowed': True, 'pret_id': pret.pk,
             'pret_debut': pret.date_debut, 'pret_fin': pret.date_fin,
             'pret_debut_creneau': pret.creneau_debut, 'pret_fin_creneau': pret.creneau_fin,
-            'cren_rows': cren_rows, 'total_h': total_h,
+            'cells': cells, 'total_h': total_h,
         })
+
+    # Sélecteurs de chantier par demi-journée (en-tête de grille).
+    jour_slots = []
+    for jour in jours:
+        actives = [aff for aff in affectations if aff.date_debut <= jour <= aff.date_fin]
+        opts = [{'id': a.pk, 'color': aff_color[a.pk],
+                 'libelle': a.tranche.devis.chantier or a.tranche.devis.client.nom} for a in actives]
+        slot = {'jour': jour, 'is_off': is_jour_off(jour), 'creneaux': []}
+        for creneau, label in CRENEAUX:
+            chosen = slot_aff.get((jour, creneau))
+            slot['creneaux'].append({
+                'creneau': creneau, 'label': label,
+                'aff_id': chosen.pk if chosen else '',
+                'color': aff_color[chosen.pk] if chosen else '',
+                'choix_requis': len(actives) >= 2,
+                'options': opts,
+            })
+        jour_slots.append(slot)
 
     # Liste des devis acceptés + MO : servis à la demande par
     # planning_wizard_data (ouverture de la modal Affecter).
@@ -460,6 +490,16 @@ def emargement_view(request):
         for i, j in enumerate(jours)
     ]
 
+    # Options des sélecteurs de demi-journée pour le JS (popover de réimputation).
+    imp_slots_json = json.dumps({
+        f"{s['jour'].isoformat()}|{cr['creneau']}": {
+            'aff_id': cr['aff_id'],
+            'choix_requis': cr['choix_requis'],
+            'options': cr['options'],
+        }
+        for s in jour_slots for cr in s['creneaux']
+    })
+
     return render(request, 'core/emargement.html', {
         'equipes': equipes,
         'equipe_sel': equipe_sel,
@@ -469,7 +509,8 @@ def emargement_view(request):
         'jours_info': jours_info,
         'affectations': affectations,
         'aff_color': aff_color,
-        'aff_default': aff_default,
+        'jour_slots': jour_slots,
+        'imp_slots_json': imp_slots_json,
         'grid_rows_maison': grid_rows_maison,
         'grid_rows_empruntes': grid_rows_empruntes,
         'panel_equipes': panel_equipes_all,
@@ -1350,6 +1391,72 @@ def presence_save(request):
     if verrouille and not (saved or deleted):
         return JsonResponse({'ok': False, 'error': MSG_MOIS_CLOTURE}, status=403)
     return JsonResponse({'ok': True, 'saved': saved, 'deleted': deleted, 'verrouille': verrouille})
+
+
+@login_required
+@require_POST
+def presence_reassign(request):
+    """
+    Réimpute une demi-journée entière (toute l'équipe) à un chantier.
+    Sémantique métier : l'équipe est sur UN seul chantier par demi-journée.
+    Met à jour les présences déjà imputées à l'équipe pour ce (jour, créneau).
+    """
+    if not peut_acceder_planning(request.user):
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    try:
+        equipe_id = int(data.get('equipe_id'))
+        d = datetime.strptime(data.get('date', ''), '%Y-%m-%d').date()
+        aff_id = int(data.get('affectation_id'))
+    except (TypeError, ValueError):
+        return json_error('Paramètres invalides')
+    creneau = data.get('creneau', '')
+    if creneau not in ('matin', 'aprem'):
+        return json_error('Créneau invalide')
+
+    equipe = Equipe.objects.filter(pk=equipe_id).first()
+    if not equipe or not est_encadrant(request.user, equipe):
+        return json_error_permission()
+    if _mois_cloture(equipe_id, d):
+        return JsonResponse({'ok': False, 'error': MSG_MOIS_CLOTURE}, status=403)
+    aff = Affectation.objects.filter(pk=aff_id, equipe=equipe).first()
+    if not aff:
+        return json_error('Chantier invalide pour cette équipe')
+
+    # Toutes les présences de ce créneau déjà imputées à l'équipe (maison ET
+    # empruntés) basculent sur le chantier choisi. Les présences « away »
+    # (imputées à une autre équipe) ne sont pas touchées.
+    n = Presence.objects.filter(
+        date=d, creneau=creneau, affectation__equipe=equipe,
+    ).update(affectation=aff)
+    return JsonResponse({'ok': True, 'updated': n})
+
+
+@login_required
+@require_POST
+def affectation_couleur(request):
+    """Surcharge manuelle de la teinte d'un chantier (Affectation.couleur)."""
+    if not peut_acceder_planning(request.user):
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+    try:
+        aff_id = int(data.get('affectation_id'))
+    except (TypeError, ValueError):
+        return json_error('Paramètres invalides')
+    couleur = (data.get('couleur') or '').strip()
+    valides = {c[0] for c in COULEURS_CHANTIER}
+    if couleur and couleur not in valides:
+        return json_error('Teinte invalide')
+    aff = Affectation.objects.select_related('equipe').filter(pk=aff_id).first()
+    if not aff or not est_encadrant(request.user, aff.equipe):
+        return json_error_permission()
+    aff.couleur = couleur   # '' = retour à l'attribution automatique
+    aff.save(update_fields=['couleur'])
+    return JsonResponse({'ok': True})
 
 
 @login_required

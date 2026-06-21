@@ -1418,6 +1418,58 @@ class PlanningGrilleTests(TestCase):
         affs = list(Affectation.objects.filter(pk=a1.pk).select_related('tranche'))
         self.assertEqual(couleurs_par_equipe(affs)[a1.pk], 'chf')
 
+    # ── imputation par demi-journée ───────────────────────────
+
+    def test_presence_reassign_impute_demi_journee(self):
+        """Réimputer une demi-journée bascule les présences de l'équipe au bon chantier."""
+        self.client.login(username='laurene2', password='pw')
+        d2 = Devis.objects.create(reference='DEV-PLAN-002', client=self.client_obj, status='accepted', created_by=self.admin)
+        aA = self._aff(self.devis, date(2026, 6, 1), date(2026, 6, 12), 0)
+        aB = self._aff(d2,          date(2026, 6, 1), date(2026, 6, 12), 0)
+        Presence.objects.create(equipier=self.eq1, affectation=aA, date=date(2026, 6, 2),
+                                creneau='matin', heures=Decimal('4'), saisi_par=self.admin)
+        resp = self.client.post(
+            reverse('core:presence-reassign'),
+            data=json.dumps({'equipe_id': self.equipe.pk, 'date': '2026-06-02',
+                             'creneau': 'matin', 'affectation_id': aB.pk}),
+            content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
+        p = Presence.objects.get(equipier=self.eq1, date=date(2026, 6, 2), creneau='matin')
+        self.assertEqual(p.affectation_id, aB.pk)
+        # L'après-midi n'est pas touché (aucune présence) — pas d'effet de bord
+        self.assertFalse(Presence.objects.filter(date=date(2026, 6, 2), creneau='aprem').exists())
+
+    def test_presence_reassign_refuse_si_cloture(self):
+        """Un mois clôturé verrouille la réimputation."""
+        self.client.login(username='laurene2', password='pw')
+        aA = self._aff(self.devis, date(2026, 6, 1), date(2026, 6, 12), 0)
+        Presence.objects.create(equipier=self.eq1, affectation=aA, date=date(2026, 6, 2),
+                                creneau='matin', heures=Decimal('4'), saisi_par=self.admin)
+        ClotureMois.objects.create(equipe=self.equipe, annee=2026, mois=6)
+        resp = self.client.post(
+            reverse('core:presence-reassign'),
+            data=json.dumps({'equipe_id': self.equipe.pk, 'date': '2026-06-02',
+                             'creneau': 'matin', 'affectation_id': aA.pk}),
+            content_type='application/json')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_affectation_couleur_surcharge(self):
+        """L'endpoint écrit Affectation.couleur (et refuse une teinte invalide)."""
+        self.client.login(username='laurene2', password='pw')
+        a = self._aff(self.devis, date(2026, 6, 1), date(2026, 6, 5), 0)
+        resp = self.client.post(
+            reverse('core:affectation-couleur'),
+            data=json.dumps({'affectation_id': a.pk, 'couleur': 'chg'}),
+            content_type='application/json')
+        self.assertEqual(resp.status_code, 200)
+        a.refresh_from_db()
+        self.assertEqual(a.couleur, 'chg')
+        resp = self.client.post(
+            reverse('core:affectation-couleur'),
+            data=json.dumps({'affectation_id': a.pk, 'couleur': 'zz'}),
+            content_type='application/json')
+        self.assertEqual(resp.status_code, 400)
+
     # ── affectation_save ──────────────────────────────────────
 
     def test_affectation_save_ok(self):

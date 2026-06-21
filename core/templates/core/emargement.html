@@ -35,8 +35,11 @@
 
 /* ── grille émargement ────────────────────── */
 .egwrap{overflow:auto;border:1px solid var(--gray-bd);border-radius:var(--r);background:#fff;align-self:start;max-height:calc(100vh - 160px)}
-.eg{display:grid;grid-template-columns:172px 24px repeat(5,84px) 70px;min-width:max-content}
+/* 1 ligne/équipier ; chaque jour = 2 sous-colonnes (matin|aprem) → 10 sous-colonnes */
+.eg{display:grid;grid-template-columns:172px repeat(10,46px) 70px;min-width:max-content}
 .eg>div{border-right:1px solid var(--gray-bd);border-bottom:1px solid var(--gray-bd)}
+/* diviseur léger matin|aprem ; bordure pleine = fin de jour (sous-colonne aprem) */
+.eg .cren-matin{border-right-color:#EFEDEB}
 .h{background:var(--gray-lt);font-size:11px;font-weight:600;color:var(--gray-md);display:flex;align-items:center;justify-content:center;text-align:center;padding:5px 2px;line-height:1.2}
 .h.mois{background:var(--prune-lt);color:var(--prune-dk);text-transform:capitalize}
 .h.day{flex-direction:column}
@@ -95,6 +98,44 @@
 .plan-legend .sw.chg i{background:#B85C2E}
 .plan-legend .sw.chh i{background:#4A6B7C}
 .plan-legend .sw.off i{background:repeating-linear-gradient(45deg,#F0EEEC 0 3px,#E7E5E2 3px 6px)}
+
+/* ── teintes chantier (variable réutilisable --ct) ── */
+.cha{--ct:#00AA8D}.chb{--ct:#F7A600}.chc{--ct:#67123A}.chd{--ct:#2F6DB3}
+.che{--ct:#6C4AA6}.chf{--ct:#3E8E5A}.chg{--ct:#B85C2E}.chh{--ct:#4A6B7C}
+
+/* ── bande « Chantiers de la semaine » (clé couleur → chantier) ── */
+.cha-week{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:.75rem}
+.cw-card{position:relative;display:flex;flex-direction:column;gap:1px;min-width:158px;max-width:240px;
+  padding:5px 26px 5px 11px;background:#fff;border:1px solid var(--gray-bd);border-left:4px solid var(--ct,var(--gray-bd));border-radius:5px}
+.cw-card .r{font-size:10px;font-weight:700;opacity:.72;white-space:nowrap}
+.cw-card .n{font-size:12px;font-weight:600;color:var(--gray);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.25}
+.cw-card .d{font-size:10px;color:var(--gray-md)}
+.cw-card .pal{position:absolute;top:5px;right:6px;background:none;border:none;cursor:pointer;color:var(--gray-md);opacity:.5;font-size:14px;padding:0;line-height:1}
+.cw-card .pal:hover{opacity:1}
+.cha-week .sw.off{display:inline-flex;align-items:center;gap:5px;align-self:center;font-size:11px;color:var(--gray-md)}
+.cha-week .sw.off i{width:14px;height:8px;border-radius:2px;background:repeating-linear-gradient(45deg,#F0EEEC 0 3px,#E7E5E2 3px 6px)}
+
+/* ── sélecteurs de chantier par demi-journée (en-tête grille) ── */
+.imp-lbl{display:flex;align-items:center;justify-content:flex-end;padding:0 .5rem;font-size:10px;color:var(--gray-md);background:#FAF9F8;text-align:right;line-height:1.15}
+.imp-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px 1px;background:#FAF9F8}
+.imp-cell .cr{font-size:8px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.02em}
+.imp-sel{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--gray-bd);border-radius:5px;background:#fff;padding:2px 4px;cursor:pointer}
+.imp-sel[disabled]{cursor:default;border-style:dashed}
+.imp-dot{width:11px;height:11px;border-radius:3px;flex:none;background:var(--ct,var(--gray-lt))}
+.imp-sel i{font-size:9px;color:var(--gray-md)}
+.imp-off{display:flex;align-items:center;justify-content:center;background:#F6F4F2;font-size:8px;color:#b0aaa2;font-style:italic}
+.imp-cell.mon,.imp-off.mon{border-left:2px solid var(--prune-bd)}
+
+/* ── popovers partagés (réimputation / palette) ── */
+.imp-pop,.pal-pop{position:fixed;z-index:80;background:#fff;border:1px solid var(--gray-bd);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.16)}
+.imp-pop{min-width:178px;overflow:hidden}
+.imp-opt{display:flex;align-items:center;gap:8px;padding:7px 11px;font-size:12px;color:var(--gray);cursor:pointer;border-bottom:1px solid var(--gray-lt)}
+.imp-opt:last-child{border-bottom:none}.imp-opt:hover{background:var(--gray-lt)}
+.imp-opt .imp-dot{width:13px;height:13px}
+.pal-pop{padding:7px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:132px}
+.pal-sw{width:24px;height:24px;border-radius:6px;cursor:pointer;border:2px solid transparent}
+.pal-sw.sel{border-color:var(--gray)}
+.pal-sw.auto{grid-column:1/-1;width:auto;height:auto;display:flex;align-items:center;justify-content:center;gap:5px;background:#fff;border:1px dashed var(--gray-bd);font-size:11px;color:var(--gray-md);padding:4px}
 
 /* ── codes en bas ────────────────────────── */
 .plan-codes{font-size:11px;color:var(--gray-md);line-height:1.9;padding:.75rem 0}
@@ -246,17 +287,18 @@
 
     <!-- ══ GRILLE ══ -->
     <div>
-      <!-- Légende chantiers -->
+      <!-- Chantiers de la semaine (clé couleur → chantier) -->
       {% if affectations %}
-      <div class="plan-legend">
+      <div class="cha-week">
         {% for aff in affectations %}
-        <span class="sw {{ aff.css_color }}">
-          <i></i>
-          {{ aff.tranche.devis.chantier|default:aff.tranche.devis.client.nom }}
-          <span style="color:var(--gray-md);font-size:10px">{{ aff.date_debut|date:"j/m" }}–{{ aff.date_fin|date:"j/m" }}</span>
-        </span>
+        <div class="cw-card {{ aff.css_color }}" data-aff="{{ aff.pk }}">
+          <span class="r">{{ aff.tranche.devis.reference }}</span>
+          <span class="n">{{ aff.tranche.devis.chantier|default:aff.tranche.devis.client.nom }}</span>
+          <span class="d">{{ aff.date_debut|date:"j/m" }} – {{ aff.date_fin|date:"j/m" }}</span>
+          {% if peut_modifier %}<button class="pal" title="Changer la couleur du chantier" onclick="openPalPop(event,{{ aff.pk }})"><i class="ti ti-palette"></i></button>{% endif %}
+        </div>
         {% endfor %}
-        <span class="sw off" style="margin-left:auto"><i></i> Absent ailleurs</span>
+        <span class="sw off"><i></i> Absent ailleurs</span>
       </div>
       {% else %}
       <div class="ib ib-amber" style="margin-bottom:.75rem">
@@ -270,24 +312,48 @@
       <div class="egwrap">
         <div class="eg">
           <!-- Ligne mois -->
-          <div class="h" style="grid-column:1/3"></div>
-          <div class="h mois" style="grid-column:3/8;justify-content:center">
+          <div class="h" style="grid-column:1/2"></div>
+          <div class="h mois" style="grid-column:2/12;justify-content:center">
             {% if lundi|date:"m" == vendredi|date:"m" %}{{ lundi|date:"F Y" }}{% else %}{{ lundi|date:"F" }} – {{ vendredi|date:"F Y" }}{% endif %}
           </div>
-          <div class="h" style="grid-column:8/9"></div>
-          <!-- En-tête -->
-          <div class="h name" style="grid-column:1/3">Équipier</div>
+          <div class="h" style="grid-column:12/13"></div>
+          <!-- En-tête jours (chaque jour = 2 sous-colonnes matin|aprem) -->
+          <div class="h name" style="grid-column:1/2">Équipier</div>
           {% for ji in jours_info %}
-          <div class="h day{% if forloop.first %} mon{% endif %}{% if ji.is_off %} off{% endif %}">
+          <div class="h day{% if forloop.first %} mon{% endif %}{% if ji.is_off %} off{% endif %}" style="grid-column:span 2">
             {{ ji.label }}<b>{{ ji.jour|date:"j" }}</b>
             {% for ev in ji.events %}<span class="ev-tag ev-{{ ev.type }}" title="{{ ev.libelle|default:ev.get_type_display }}">{{ ev.libelle|default:ev.get_type_display }}</span>{% endfor %}
           </div>
           {% endfor %}
           <div class="h">Total</div>
 
+          <!-- Ligne sélecteurs de chantier (matin / ap.-m.) -->
+          <div class="imp-lbl" style="grid-column:1/2">Chantier&nbsp;· ½&nbsp;j.</div>
+          {% for s in jour_slots %}
+          {% if s.is_off %}
+          <div class="imp-off{% if forloop.first %} mon{% endif %}" style="grid-column:span 2">non travaillé</div>
+          {% else %}
+          {% for cr in s.creneaux %}
+          <div class="imp-cell cren-{{ cr.creneau }}{% if forloop.parentloop.first and cr.creneau == 'matin' %} mon{% endif %}">
+            {% if cr.aff_id and peut_modifier and cr.choix_requis %}
+            <button class="imp-sel {{ cr.color }}" data-date="{{ s.jour|date:'Y-m-d' }}" data-creneau="{{ cr.creneau }}" data-aff-id="{{ cr.aff_id }}" onclick="openImpPop(event,this)" title="Choisir le chantier de cette demi-journée">
+              <span class="imp-dot"></span><i class="ti ti-chevron-down"></i>
+            </button>
+            {% elif cr.aff_id %}
+            <span class="imp-sel {{ cr.color }}" disabled><span class="imp-dot"></span></span>
+            {% else %}
+            <span class="imp-dot" style="opacity:.25"></span>
+            {% endif %}
+            <span class="cr">{{ cr.label }}</span>
+          </div>
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+          <div class="h"></div>
+
           <!-- Lignes équipiers maison -->
           {% for row in grid_rows_maison %}
-          <div class="nm" style="grid-row:span 2">
+          <div class="nm">
             <span class="av">{{ row.equipier.prenom|slice:":1" }}{{ row.equipier.nom|slice:":1" }}</span>
             <div style="overflow:hidden">
               <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:118px">
@@ -296,11 +362,9 @@
               <small>{{ row.equipier.type_contrat|default:"" }}</small>
             </div>
           </div>
-          {% for cr in row.cren_rows %}
-          <div class="matag">{{ cr.label }}</div>
-          {% for cell in cr.cells %}
+          {% for cell in row.cells %}
           {% with code=cell.pres.code heures=cell.pres.heures %}
-          <div class="cell
+          <div class="cell cren-{{ cell.creneau }}
             {% if cell.is_away %}away
             {% elif cell.special_code and not cell.pres %}ferie
             {% elif cell.is_off %}off
@@ -311,7 +375,7 @@
             data-equipier-id="{{ row.equipier.pk }}"
             data-aff-id="{{ cell.aff_id }}"
             data-date="{{ cell.date_iso }}"
-            data-creneau="{{ cr.creneau }}">
+            data-creneau="{{ cell.creneau }}">
             {% if cell.is_away %}<span title="{% if cell.away_team_nom %}Prêté à {{ cell.away_team_nom }}{% else %}Pointé ailleurs{% endif %}" style="font-size:9px">↩{% if cell.away_team_nom %} {{ cell.away_team_nom }}{% endif %}</span>
             {% elif cell.special_code and not cell.pres %}
               {% if peut_modifier %}<input class="cinp code" type="text" value="{{ cell.special_code }}" data-init="" title="{{ cell.ferie_label }}" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
@@ -328,12 +392,9 @@
             </div>
           {% endwith %}
           {% endfor %}
-          {% if forloop.first %}
-          <div class="gtot" style="grid-row:span 2" data-equip="{{ row.equipier.pk }}">
+          <div class="gtot" data-equip="{{ row.equipier.pk }}">
             <b>{{ row.total_h|floatformat:"-2" }}</b><small>h</small>
           </div>
-          {% endif %}
-          {% endfor %}
           {% endfor %}
 
           <!-- Zone de dépôt : prêt d'équipier -->
@@ -349,7 +410,7 @@
 
           <!-- Lignes équipiers empruntés -->
           {% for row in grid_rows_empruntes %}
-          <div class="nm borrow" style="grid-row:span 2">
+          <div class="nm borrow">
             <span class="av">{{ row.equipier.prenom|slice:":1" }}{{ row.equipier.nom|slice:":1" }}</span>
             <div style="overflow:hidden">
               <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px">
@@ -361,11 +422,9 @@
             <button class="pret-del" onclick="deletePret({{ row.pret_id }})" title="Retirer ce prêt">×</button>
             {% endif %}
           </div>
-          {% for cr in row.cren_rows %}
-          <div class="matag">{{ cr.label }}</div>
-          {% for cell in cr.cells %}
+          {% for cell in row.cells %}
           {% with code=cell.pres.code heures=cell.pres.heures %}
-          <div class="cell
+          <div class="cell cren-{{ cell.creneau }}
             {% if cell.is_away %}away
             {% elif cell.special_code and not cell.pres %}ferie
             {% elif cell.is_off %}off
@@ -377,7 +436,7 @@
             data-equipier-id="{{ row.equipier.pk }}"
             data-aff-id="{{ cell.aff_id }}"
             data-date="{{ cell.date_iso }}"
-            data-creneau="{{ cr.creneau }}">
+            data-creneau="{{ cell.creneau }}">
             {% if cell.is_away %}<span title="Hors plage de prêt" style="font-size:9px">↩ {{ row.equipier.equipe.nom }}</span>
             {% elif cell.special_code and not cell.pres %}
               {% if peut_modifier %}<input class="cinp code" type="text" value="{{ cell.special_code }}" data-init="" title="{{ cell.ferie_label }}" onfocus="this.select()" oninput="onCellInput(this)" onblur="saveCell(this)">
@@ -394,12 +453,9 @@
             </div>
           {% endwith %}
           {% endfor %}
-          {% if forloop.first %}
-          <div class="gtot" style="grid-row:span 2" data-equip="{{ row.equipier.pk }}">
+          <div class="gtot" data-equip="{{ row.equipier.pk }}">
             <b>{{ row.total_h|floatformat:"-2" }}</b><small>h</small>
           </div>
-          {% endif %}
-          {% endfor %}
           {% endfor %}
 
           <!-- Pied de grille -->
@@ -514,7 +570,11 @@ const CSRF = '{{ csrf_token }}';
 const URL_PRES = '{% url "core:presence-save" %}';
 const URL_AFF  = '{% url "core:affectation-save" %}';
 const URL_PRET = '{% url "core:pret-save" %}';
+const URL_REASSIGN = '{% url "core:presence-reassign" %}';
+const URL_COULEUR  = '{% url "core:affectation-couleur" %}';
 const EQUIPE_ID = {{ equipe_sel.pk|default:'null' }};
+const IMP_SLOTS = {{ imp_slots_json|safe }};   // "date|creneau" -> {aff_id, choix_requis, options:[{id,color,libelle}]}
+const TEINTES = {cha:'#00AA8D',chb:'#F7A600',chc:'#67123A',chd:'#2F6DB3',che:'#6C4AA6',chf:'#3E8E5A',chg:'#B85C2E',chh:'#4A6B7C'};
 let DEVIS_MO    = {};   // chargé à l'ouverture de la modal (planning_wizard_data)
 const URL_WIZARD_DATA = '{% url "core:planning-wizard-data" %}';
 const EQ_EFF    = {{ equipe_effectifs_json|safe }};
@@ -939,6 +999,98 @@ function submitAff() {
     else { err.textContent = d.error || 'Erreur'; err.style.display = ''; }
   })
   .catch(() => { err.textContent = 'Erreur réseau'; err.style.display = ''; });
+}
+
+/* ── Imputation par demi-journée + surcharge couleur ─────────────── */
+function _escHtml(s){ return String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function _closePops(){ document.querySelectorAll('.imp-pop,.pal-pop').forEach(p => p.remove()); }
+document.addEventListener('click', e => {
+  if (!e.target.closest('.imp-pop,.pal-pop,.imp-sel,.cw-card .pal')) _closePops();
+});
+function _positionPop(pop, anchor){
+  const r = anchor.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let left = r.left, top = r.bottom + 4;
+  if (left + pw > window.innerWidth - 8) left = window.innerWidth - pw - 8;
+  if (top + ph > window.innerHeight - 8) top = r.top - ph - 4;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top  = Math.max(8, top) + 'px';
+}
+
+// Sélecteur de chantier d'une demi-journée (toute l'équipe).
+function openImpPop(ev, btn){
+  ev.stopPropagation();
+  _closePops();
+  const slot = IMP_SLOTS[btn.dataset.date + '|' + btn.dataset.creneau];
+  if (!slot) return;
+  const pop = document.createElement('div');
+  pop.className = 'imp-pop';
+  slot.options.forEach(o => {
+    const it = document.createElement('div');
+    it.className = 'imp-opt';
+    it.innerHTML = `<span class="imp-dot" style="background:${TEINTES[o.color] || '#ccc'}"></span><span>${_escHtml(o.libelle)}</span>`;
+    it.onclick = () => chooseImp(btn.dataset.date, btn.dataset.creneau, o);
+    pop.appendChild(it);
+  });
+  document.body.appendChild(pop);
+  _positionPop(pop, btn);
+}
+function _setColorClass(el, color, extra){
+  el.classList.remove('cha','chb','chc','chd','che','chf','chg','chh','no-aff');
+  if (color) el.classList.add(color);
+}
+function chooseImp(date, creneau, opt){
+  _closePops();
+  // MAJ visuelle : sélecteurs + cellules de la sous-colonne (data-aff-id + teinte)
+  document.querySelectorAll(`.imp-sel[data-date="${date}"][data-creneau="${creneau}"]`).forEach(sel => {
+    _setColorClass(sel, opt.color); sel.dataset.affId = opt.id;
+  });
+  document.querySelectorAll(`.cell[data-date="${date}"][data-creneau="${creneau}"]`).forEach(cell => {
+    if (cell.classList.contains('away') || cell.classList.contains('off')) return;
+    cell.dataset.affId = opt.id;
+    if (!cell.classList.contains('ferie') && !cell.classList.contains('abs')) _setColorClass(cell, opt.color);
+  });
+  if (IMP_SLOTS[date + '|' + creneau]) IMP_SLOTS[date + '|' + creneau].aff_id = opt.id;
+  // Réimputer les présences déjà saisies du créneau (toute l'équipe)
+  fetch(URL_REASSIGN, {
+    method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({equipe_id: EQUIPE_ID, date: date, creneau: creneau, affectation_id: opt.id}),
+  }).then(r => r.json()).then(d => { if (!d.ok && d.error) alert(d.error); })
+    .catch(() => {});
+}
+
+// Surcharge manuelle de la teinte d'un chantier (bande « Chantiers de la semaine »).
+function openPalPop(ev, affId){
+  ev.stopPropagation();
+  _closePops();
+  const card = ev.target.closest('.cw-card');
+  const cur  = (card.className.match(/\bch[a-h]\b/) || [''])[0];
+  const pop  = document.createElement('div');
+  pop.className = 'pal-pop';
+  Object.keys(TEINTES).forEach(c => {
+    const sw = document.createElement('div');
+    sw.className = 'pal-sw' + (c === cur ? ' sel' : '');
+    sw.style.background = TEINTES[c];
+    sw.onclick = () => chooseCouleur(affId, c);
+    pop.appendChild(sw);
+  });
+  const auto = document.createElement('div');
+  auto.className = 'pal-sw auto';
+  auto.innerHTML = '<i class="ti ti-wand"></i> Auto';
+  auto.onclick = () => chooseCouleur(affId, '');
+  pop.appendChild(auto);
+  document.body.appendChild(pop);
+  _positionPop(pop, ev.target.closest('.pal'));
+}
+function chooseCouleur(affId, couleur){
+  _closePops();
+  fetch(URL_COULEUR, {
+    method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify({affectation_id: affId, couleur: couleur}),
+  }).then(r => r.json()).then(d => {
+    if (d.ok) location.reload();   // recolore cellules + sélecteurs + planning de façon cohérente
+    else if (d.error) alert(d.error);
+  }).catch(() => {});
 }
 </script>
 {% endblock %}
