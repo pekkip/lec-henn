@@ -168,24 +168,13 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
   table.lignes th, .row-titre td, .doc-objet, .doc-footer, .doc-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .doc-signature { page-break-inside: avoid; }
   @media screen {
-    .row-pagebreak { background: #EBEBEB; }
-    .row-pagebreak td {
-      background: #EBEBEB;
-      padding: 18px 0;
-      border-top: 3px solid #d4d4d4;
-      border-bottom: 3px solid #d4d4d4;
-      box-shadow: inset 0 4px 6px -4px rgba(0,0,0,.12), inset 0 -4px 6px -4px rgba(0,0,0,.12);
-      color: #bbb;
-      font-size: 10px;
-      text-align: center;
-      font-style: italic;
-      letter-spacing: .06em;
-    }
+    .row-pagebreak td { visibility: hidden; padding: 6px 0; border: none; }
   }
   @media print {
     .row-pagebreak { break-before: page; height: 0; visibility: hidden; }
     .row-pagebreak td { padding: 0; border: none; }
   }
+  .doc-end { break-inside: avoid; page-break-inside: avoid; }
   @page { margin: 1cm; size: A4; }
 }
 </style>
@@ -307,7 +296,7 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
       <tbody>
         {% for lf in lignes %}
           {% if lf.type_ligne == 'PAGE' %}
-          <tr class="row-pagebreak"><td colspan="5">— Saut de page —</td></tr>
+          <tr class="row-pagebreak"><td colspan="5">✂ — Saut de page — ✂</td></tr>
           {% elif lf.type_ligne == 'TITRE' %}
           <tr class="row-titre{% if lf.non_facture %} row-nf{% endif %}">
             <td>{{ lf.description|safe }}</td>
@@ -443,7 +432,10 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
     </div>
     {% endif %}
 
-    {# ── CLAUSES ── #}
+  </div>{# /.doc-body #}
+
+  {# ── CLAUSES + SIGNATURE + PIED (solidaires, ne pas couper) ── #}
+  <div class="doc-end">
     <div class="doc-clauses">
       <div class="clause-block">
         <strong>Clauses de réserve de propriété</strong>
@@ -477,20 +469,19 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
       </div>
     </div>
 
-  </div>{# /.doc-body #}
-
-  {# ── PIED DE PAGE ── #}
-  <div class="doc-footer">
-    <strong>{{ params.nom }}</strong>
-    {% if params.adresse %} · {{ params.adresse }}{% endif %}
-    {% if params.telephone %} · {{ params.telephone }}{% endif %}
-    {% if params.email %} · {{ params.email }}{% endif %}
-    {% if params.site_web %} · {{ params.site_web }}{% endif %}
-    <br>
-    {% if params.siret %}SIRET {{ params.siret }}{% endif %}
-    {% if params.ape %} · APE {{ params.ape }}{% endif %}
-    {% if params.slogan %} · <em>{{ params.slogan }}</em>{% endif %}
-  </div>
+    {# ── PIED DE PAGE ── #}
+    <div class="doc-footer">
+      <strong>{{ params.nom }}</strong>
+      {% if params.adresse %} · {{ params.adresse }}{% endif %}
+      {% if params.telephone %} · {{ params.telephone }}{% endif %}
+      {% if params.email %} · {{ params.email }}{% endif %}
+      {% if params.site_web %} · {{ params.site_web }}{% endif %}
+      <br>
+      {% if params.siret %}SIRET {{ params.siret }}{% endif %}
+      {% if params.ape %} · APE {{ params.ape }}{% endif %}
+      {% if params.slogan %} · <em>{{ params.slogan }}</em>{% endif %}
+    </div>
+  </div>{# /.doc-end #}
 
 </div>{# /.page #}
 </body>
