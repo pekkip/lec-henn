@@ -493,7 +493,7 @@
     {% if peut_modifier %}
     <div class="eh-save-bar">
       <button class="btn btn-prune" id="eh-save-btn" onclick="saveEntete()">
-        <i class="ti ti-device-floppy"></i> Sauvegarder l'en-tête
+        <i class="ti ti-device-floppy"></i> Enregistrer l'en-tête
       </button>
     </div>
     {% endif %}
@@ -565,94 +565,86 @@
 
     <!-- ÉDITEUR -->
     <div class="editor-main">
-      <div class="editor-meta" id="editor-meta">
-        <div class="meta-f"><span class="meta-lbl">Réf.</span><span class="meta-val" style="font-size:11px;font-family:var(--fm,monospace)">{{ devis.reference }}</span></div>
-        <span class="badge b-{{ devis.status }}" style="align-self:center"><span class="dot dot-{{ devis.status }}"></span>{{ devis.get_status_display }}</span>
-        <div class="meta-sep"></div>
-        <div class="meta-f"><span class="meta-lbl">Client</span><span class="meta-val" id="meta-client">{{ devis.client }}</span></div>
-        <div class="meta-sep"></div>
-        <div class="meta-f"><span class="meta-lbl">Chantier</span><span class="meta-val" id="meta-chantier">{{ devis.chantier }}</span></div>
-        <div class="meta-sep"></div>
-        <div class="meta-f"><span class="meta-lbl">Date</span><span class="meta-val">{{ devis.date_creation|date:"d/m/Y" }}</span></div>
-        <div class="meta-sep"></div>
-        <div class="meta-f"><span class="meta-lbl">Taux MO</span><span class="meta-val" id="meta-taux">{{ devis.taux_mo }} €/h</span></div>
-        {% if peut_modifier %}
-        <div style="margin-left:auto">
-          <a href="#" class="btn btn-sm btn-ghost" onclick="switchTab(event,'entete');return false" style="font-size:11px">
-            <i class="ti ti-edit"></i> Modifier l'en-tête
-          </a>
-        </div>
-        {% endif %}
+      <div class="ctx-bar" id="editor-meta">
+        <div class="ctx-id"><span class="ctx-ref">{{ devis.reference }}</span></div>
+        <div class="ctx-sep"></div>
+        <div class="ctx-f" style="max-width:200px"><span class="ctx-lbl">Client</span><span class="ctx-val" id="meta-client">{{ devis.client }}</span></div>
+        <div class="ctx-f" style="max-width:260px"><span class="ctx-lbl">Chantier</span><span class="ctx-val" id="meta-chantier">{{ devis.chantier }}</span></div>
+        <div class="ctx-f"><span class="ctx-lbl">Date</span><span class="ctx-val">{{ devis.date_creation|date:"d/m/Y" }}</span></div>
+        <div class="ctx-f"><span class="ctx-lbl">Taux MO</span><span class="ctx-val" id="meta-taux">{{ devis.taux_mo }} €/h</span></div>
+        <span class="badge b-{{ devis.status }}" style="margin-left:auto"><span class="dot dot-{{ devis.status }}"></span>{{ devis.get_status_display }}</span>
       </div>
 
       {% if peut_modifier %}
-      <div class="fmt-bar" id="fmt-bar">
-        <!-- Gras / Italique / Souligné -->
-        <button class="fmt-btn" id="fmt-bold"   title="Gras (Ctrl+B)"       onmousedown="fmtCmd(event,'bold')"><b>G</b></button>
-        <button class="fmt-btn" id="fmt-italic" title="Italique (Ctrl+I)"   onmousedown="fmtCmd(event,'italic')"><i>I</i></button>
-        <button class="fmt-btn" id="fmt-under"  title="Souligné (Ctrl+U)"   onmousedown="fmtCmd(event,'underline')"><u>S</u></button>
-        <button class="fmt-btn" id="fmt-strike" title="Barré" onmousedown="fmtCmd(event,'strikeThrough')"><s>S</s></button>
-
-        <div class="fmt-sep"></div>
-        <!-- Annuler / Rétablir -->
-        <button class="fmt-btn" id="fmt-undo" title="Annuler (Ctrl+Z)" onclick="historyUndo()" disabled>
-          <i class="ti ti-arrow-back-up"></i>
-        </button>
-        <button class="fmt-btn" id="fmt-redo" title="Rétablir (Ctrl+Y)" onclick="historyRedo()" disabled>
-          <i class="ti ti-arrow-forward-up"></i>
-        </button>
-        <div class="fmt-sep"></div>
-
-        <!-- Taille -->
-        <select class="fmt-select" id="fmt-size" title="Taille du texte" onchange="fmtSize(this.value)">
-          <option value="">Taille</option>
-          <option value="1">Très petit</option>
-          <option value="2">Petit</option>
-          <option value="3" selected>Normal</option>
-          <option value="4">Grand</option>
-          <option value="5">Très grand</option>
-        </select>
-
-        <div class="fmt-sep"></div>
-
-        <!-- Couleur -->
-        <div class="fmt-color-wrap">
-          <button class="fmt-color-btn" id="fmt-color-btn" title="Couleur du texte"
-                  onmousedown="event.preventDefault()" onclick="togglePalette()">
-            <i class="ti ti-letter-a" style="font-size:13px"></i>
-            <span class="fmt-color-swatch" id="fmt-swatch"></span>
+      <div class="toolzone" id="fmt-bar">
+        <!-- Rangée Ajouter -->
+        <div class="toolrow">
+          <span class="toolrow-lbl">Ajouter</span>
+          <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Titre</button>
+          <div style="width:1px;background:var(--gray-bd);height:20px"></div>
+          <button class="btn btn-sm" onclick="addRootNode('FMO')"><i class="ti ti-plus"></i> Forfait MO</button>
+          <button class="btn btn-sm" onclick="addRootNode('FMAT')"><i class="ti ti-plus"></i> Forfait MTX</button>
+          <button class="btn btn-sm" onclick="addRootNode('S')" title="Ouvrage simple"><i class="ti ti-plus"></i> Ouvrage</button>
+          <button class="btn btn-sm" onclick="addRootNode('C')" title="Ouvrage composite"><i class="ti ti-plus"></i> Composite</button>
+          <button class="btn btn-sm" onclick="addPageBreak(null)" style="border-color:var(--gray-md);color:var(--gray-md)"><i class="ti ti-scissors"></i> Saut de page</button>
+          <div style="flex:1"></div>
+          <button class="btn btn-sm btn-fin" id="btn-zone-fin" onclick="activerZoneFinancement()" title="Aide travaux CBB">
+            <i class="ti ti-gift"></i> Aide CBB
           </button>
-          <div class="fmt-color-palette" id="fmt-palette">
-            <span class="fmt-dot" style="background:#222222" title="Noir"        onmousedown="event.preventDefault()" onclick="fmtColor('#222222')"></span>
-            <span class="fmt-dot" style="background:#6B7280" title="Gris"        onmousedown="event.preventDefault()" nclick="fmtColor('#6B7280')"></span>
-            <span class="fmt-dot" style="background:#DC2626" title="Rouge"       onmousedown="event.preventDefault()" onclick="fmtColor('#DC2626')"></span>
-            <span class="fmt-dot" style="background:#D97706" title="Orange"      onmousedown="event.preventDefault()" onclick="fmtColor('#D97706')"></span>
-            <span class="fmt-dot" style="background:#16A34A" title="Vert"        onmousedown="event.preventDefault()" onclick="fmtColor('#16A34A')"></span>
-            <span class="fmt-dot" style="background:#2563EB" title="Bleu"        onmousedown="event.preventDefault()" onclick="fmtColor('#2563EB')"></span>
-            <span class="fmt-dot" style="background:#7C3AED" title="Violet"      onmousedown="event.preventDefault()" onclick="fmtColor('#7C3AED')"></span>
-            <span class="fmt-dot" style="background:#0F766E" title="Teal"        onmousedown="event.preventDefault()" onclick="fmtColor('#0F766E')"></span>
-          </div>
+          <button class="btn btn-sm btn-finx" id="btn-zone-fin-ext" onclick="activerZoneFinancementExt()" title="Financements organismes">
+            <i class="ti ti-building-bank"></i> Financements
+          </button>
         </div>
-
-        <div class="fmt-sep"></div>
-
-        <!-- Listes -->
-        <button class="fmt-btn" id="fmt-ul" title="Liste à puces"    onmousedown="fmtCmd(event,'insertUnorderedList')"><i class="ti ti-list"></i></button>
-        <button class="fmt-btn" id="fmt-ol" title="Liste numérotée"  onmousedown="fmtCmd(event,'insertOrderedList')"><i class="ti ti-list-numbers"></i></button>
-
-        <div class="fmt-sep"></div>
-
-        <!-- Effacer la mise en forme -->
-        <button class="fmt-btn" title="Effacer la mise en forme" onmousedown="fmtCmd(event,'removeFormat')"><i class="ti ti-clear-formatting"></i></button>
-
-        <!-- Indicateur champ actif -->
-        <span id="fmt-hint" style="margin-left:auto;font-size:10px;color:var(--gray-md)">Cliquez dans une description</span>
+        <!-- Rangée Format -->
+        <div class="toolrow">
+          <span class="toolrow-lbl">Format</span>
+          <button class="fmt-btn" id="fmt-bold"   title="Gras (Ctrl+B)"       onmousedown="fmtCmd(event,'bold')"><b>G</b></button>
+          <button class="fmt-btn" id="fmt-italic" title="Italique (Ctrl+I)"   onmousedown="fmtCmd(event,'italic')"><i>I</i></button>
+          <button class="fmt-btn" id="fmt-under"  title="Souligné (Ctrl+U)"   onmousedown="fmtCmd(event,'underline')"><u>S</u></button>
+          <button class="fmt-btn" id="fmt-strike" title="Barré" onmousedown="fmtCmd(event,'strikeThrough')"><s>S</s></button>
+          <div class="fmt-sep"></div>
+          <button class="fmt-btn" id="fmt-undo" title="Annuler (Ctrl+Z)" onclick="historyUndo()" disabled><i class="ti ti-arrow-back-up"></i></button>
+          <button class="fmt-btn" id="fmt-redo" title="Rétablir (Ctrl+Y)" onclick="historyRedo()" disabled><i class="ti ti-arrow-forward-up"></i></button>
+          <div class="fmt-sep"></div>
+          <select class="fmt-select" id="fmt-size" title="Taille du texte" onchange="fmtSize(this.value)">
+            <option value="">Taille</option>
+            <option value="1">Très petit</option>
+            <option value="2">Petit</option>
+            <option value="3" selected>Normal</option>
+            <option value="4">Grand</option>
+            <option value="5">Très grand</option>
+          </select>
+          <div class="fmt-sep"></div>
+          <div class="fmt-color-wrap">
+            <button class="fmt-color-btn" id="fmt-color-btn" title="Couleur du texte"
+                    onmousedown="event.preventDefault()" onclick="togglePalette()">
+              <i class="ti ti-letter-a" style="font-size:13px"></i>
+              <span class="fmt-color-swatch" id="fmt-swatch"></span>
+            </button>
+            <div class="fmt-color-palette" id="fmt-palette">
+              <span class="fmt-dot" style="background:#222222" title="Noir"   onmousedown="event.preventDefault()" onclick="fmtColor('#222222')"></span>
+              <span class="fmt-dot" style="background:#6B7280" title="Gris"   onmousedown="event.preventDefault()" onclick="fmtColor('#6B7280')"></span>
+              <span class="fmt-dot" style="background:#DC2626" title="Rouge"  onmousedown="event.preventDefault()" onclick="fmtColor('#DC2626')"></span>
+              <span class="fmt-dot" style="background:#D97706" title="Orange" onmousedown="event.preventDefault()" onclick="fmtColor('#D97706')"></span>
+              <span class="fmt-dot" style="background:#16A34A" title="Vert"   onmousedown="event.preventDefault()" onclick="fmtColor('#16A34A')"></span>
+              <span class="fmt-dot" style="background:#2563EB" title="Bleu"   onmousedown="event.preventDefault()" onclick="fmtColor('#2563EB')"></span>
+              <span class="fmt-dot" style="background:#7C3AED" title="Violet" onmousedown="event.preventDefault()" onclick="fmtColor('#7C3AED')"></span>
+              <span class="fmt-dot" style="background:#0F766E" title="Teal"   onmousedown="event.preventDefault()" onclick="fmtColor('#0F766E')"></span>
+            </div>
+          </div>
+          <div class="fmt-sep"></div>
+          <button class="fmt-btn" id="fmt-ul" title="Liste à puces"    onmousedown="fmtCmd(event,'insertUnorderedList')"><i class="ti ti-list"></i></button>
+          <button class="fmt-btn" id="fmt-ol" title="Liste numérotée"  onmousedown="fmtCmd(event,'insertOrderedList')"><i class="ti ti-list-numbers"></i></button>
+          <div class="fmt-sep"></div>
+          <button class="fmt-btn" title="Effacer la mise en forme" onmousedown="fmtCmd(event,'removeFormat')"><i class="ti ti-clear-formatting"></i></button>
+          <span id="fmt-hint" style="margin-left:auto;font-size:10px;color:var(--gray-md)">Cliquez dans une description</span>
+        </div>
       </div>
       {% endif %}
 
       <div class="editor-body" id="editor-body">
-        <!-- EN-TÊTE COLONNES (sticky) -->
-        <div class="col-hdr">
+        <!-- EN-TÊTE COLONNES (sticky dans la zone scrollable) -->
+        <div class="col-hdr" style="border-bottom:1px solid var(--gray-bd);padding-bottom:6px;background:transparent">
           <div style="width:13px;flex-shrink:0"></div>
           <div style="width:16px;flex-shrink:0"></div>
           <div style="flex:1">Description</div>
@@ -664,24 +656,6 @@
           <div style="width:68px;text-align:right;color:var(--prune)">Total</div>
           <div style="width:44px"></div>
         </div>
-        {% if peut_modifier %}
-        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-sm" onclick="addTitre()"><i class="ti ti-folder-plus"></i> Titre</button>
-          <div style="width:1px;background:var(--gray-bd);height:20px"></div>
-          <button class="btn btn-sm" onclick="addRootNode('FMO')"><i class="ti ti-plus"></i> Forfait MO</button>
-          <button class="btn btn-sm" onclick="addRootNode('FMAT')"><i class="ti ti-plus"></i> Forfait MTX</button>
-          <button class="btn btn-sm" onclick="addRootNode('S')"><i class="ti ti-plus"></i> Ouvrage simple</button>
-          <button class="btn btn-sm" onclick="addRootNode('C')"><i class="ti ti-plus"></i> Ouvrage composite</button>
-          <button class="btn btn-sm" onclick="addPageBreak(null)" style="border-color:var(--gray-md);color:var(--gray-md)"><i class="ti ti-scissors"></i> Saut de page</button>
-          <div style="flex:1"></div>
-          <button class="btn btn-sm btn-fin" id="btn-zone-fin" onclick="activerZoneFinancement()">
-            <i class="ti ti-gift"></i> Aide travaux CBB
-          </button>
-          <button class="btn btn-sm btn-finx" id="btn-zone-fin-ext" onclick="activerZoneFinancementExt()">
-            <i class="ti ti-building-bank"></i> Financements organismes
-          </button>
-        </div>
-        {% endif %}
         {% if peut_modifier %}<div class="dz" id="root-dz">↓ Déposer ici pour ajouter au devis</div>{% endif %}
         <div id="tree"></div>
       </div>
@@ -692,7 +666,7 @@
         <div style="width:1px;background:var(--gray-bd);height:16px"></div>
         <span class="ft-lbl">Total brut HT</span><span class="ft-grand" id="ft-grand">—</span>
         <span class="ft-lbl">Net client</span><span class="ft-net" id="ft-net">—</span>
-        {% if peut_modifier %}<button class="btn btn-sm btn-prune" onclick="saveTree()"><i class="ti ti-device-floppy"></i> Sauvegarder</button>{% endif %}
+        {% if peut_modifier %}<span class="dirty-indicator" id="dirty-indicator"><span class="dot-dirty"></span>Non enregistré</span><button class="btn btn-sm btn-prune" onclick="saveTree()"><i class="ti ti-device-floppy"></i> Enregistrer les lignes</button>{% endif %}
       </div>
     </div>
   </div>
@@ -1151,6 +1125,7 @@ async function ehSubmitQuick(){
 
 let tree = [];
 let dirty = false;      // modifications de l'arbre non sauvegardées (cf. installUnloadGuard)
+function updateDirtyUI() { document.getElementById('dirty-indicator')?.classList.toggle('visible', dirty); }
 let zoneFinancement = false;
 let zoneFinancementExt = false;
 let aides = [];
@@ -1168,7 +1143,7 @@ let _historyLock = false; // empêche les snapshots récursifs
 function historySnapshot() {
   if (_historyLock) return;
   // Tout point d'édition de l'arbre passe par ici → marqueur de modifications.
-  dirty = true;
+  dirty = true; updateDirtyUI();
   // Sérialiser l'état actuel (sans _nid, ils sont réassignés au rendu)
   const snap = JSON.stringify(stripNidsHistory(tree));
   // Ne pas dupliquer si identique au dernier état
@@ -1189,7 +1164,7 @@ function historyUndo() {
   tree = JSON.parse(snap);
   assignNids(tree);
   renderTree();
-  dirty = true;
+  dirty = true; updateDirtyUI();
   _historyLock = false;
   refreshUndoRedoBtns();
 }
@@ -1202,7 +1177,7 @@ function historyRedo() {
   tree = JSON.parse(snap);
   assignNids(tree);
   renderTree();
-  dirty = true;
+  dirty = true; updateDirtyUI();
   _historyLock = false;
   refreshUndoRedoBtns();
 }
@@ -1367,7 +1342,7 @@ async function saveEntete() {
     showToast('Erreur réseau', 'err');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Sauvegarder l\'en-tête';
+    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Enregistrer l\'en-tête';
   }
 }
 
@@ -1633,6 +1608,22 @@ function renderTree() {
   if (btnZone) btnZone.style.display = (zoneFinancement || finLines.length) ? 'none' : '';
   const btnZoneExt = document.getElementById('btn-zone-fin-ext');
   if (btnZoneExt) btnZoneExt.style.display = (zoneFinancementExt || finxLines.length) ? 'none' : '';
+  setupQtyNavigation();
+}
+
+function setupQtyNavigation() {
+  const inputs = [...document.querySelectorAll('.nd-qty input')];
+  inputs.forEach((el, i) => {
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+        e.preventDefault();
+        inputs[(i + 1) % inputs.length]?.focus();
+      } else if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault();
+        inputs[(i - 1 + inputs.length) % inputs.length]?.focus();
+      }
+    });
+  });
 }
 
 function renderFinZone(finLines) {
@@ -2575,12 +2566,12 @@ async function saveTree() {
       zone_financement_ext: zoneFinancementExt,
     });
     if (data.ok) {
-      dirty = false;
+      dirty = false; updateDirtyUI();
       showToast('Sauvegardé', 'ok');
     } else {
       showToast(data.error || 'Erreur de sauvegarde', 'err');
     }
-    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Sauvegarder'; btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-device-floppy"></i> Enregistrer les lignes'; btn.disabled = false;
   } catch(err) {
     btn.innerHTML = '<i class="ti ti-device-floppy"></i> Sauvegarder';
     btn.disabled = false;
@@ -2745,7 +2736,7 @@ function syncDesc(ce) {
 
 function syncDescInline(ce, nid) {
   const n = findNode(tree, nid);
-  if (n) { n.description = ce.innerHTML; dirty = true; }
+  if (n) { n.description = ce.innerHTML; dirty = true; updateDirtyUI(); }
 }
 
 const ACOMPTE_NOTES_DEFAULT = 'Montant à régler avant le démarrage des travaux';

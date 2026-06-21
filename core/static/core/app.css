@@ -267,3 +267,18 @@ tbody tr:hover .cell-act .ico-btn{opacity:1}
 .swatch.sel{box-shadow:0 0 0 2px var(--gray)}
 .swatch.sel::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.35)}
 .page-hd .btn-teal:hover  { background:var(--teal-lt); color:var(--teal-dk); }
+
+/* ── Gabarit éditeurs harmonisés (devis + facture) ── */
+.ctx-bar{background:#fff;border-bottom:1px solid var(--gray-bd);padding:9px 1rem;display:flex;gap:14px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+.ctx-id{display:flex;align-items:center;gap:9px}
+.ctx-ref{font-family:var(--fm,monospace);font-size:12px;font-weight:600;color:var(--prune)}
+.ctx-f{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ctx-lbl{font-size:9px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.06em}
+.ctx-val{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctx-sep{width:1px;background:var(--gray-bd);height:26px;flex-shrink:0}
+.toolzone{background:var(--gray-lt);border-bottom:1px solid var(--gray-bd);padding:7px 1rem;display:flex;flex-direction:column;gap:7px;flex-shrink:0}
+.toolrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.toolrow-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-md);width:54px;flex-shrink:0}
+.dirty-indicator{display:none;align-items:center;gap:5px;font-size:11px;color:#8B5E0A}
+.dirty-indicator .dot-dirty{width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0;display:inline-block}
+.dirty-indicator.visible{display:inline-flex}

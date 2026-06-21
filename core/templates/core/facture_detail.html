@@ -2,29 +2,16 @@
 {% block title %}{{ facture.get_reference }} — Facture{% endblock %}
 {% block nav_factures %}active{% endblock %}
 
-{% block topbar_title %}
-  <span class="breadcrumb">
-    <a href="{% url 'core:devis-detail' devis.pk %}" class="breadcrumb-anc">{{ devis.reference }}</a>
-    <span class="breadcrumb-sep">/</span>
-    <span class="breadcrumb-cur">{{ facture.get_reference }}</span>
-    <span class="breadcrumb-sub">— {{ devis.client }}</span>
-  </span>
-  <span class="badge b-{{ facture.status }}" style="font-size:11px">{{ facture.get_status_display }}</span>
-{% endblock %}
-
-{% block topbar_actions %}
-  <a href="{% url 'core:facture-apercu' facture.pk %}?retour=facture" class="btn btn-ghost btn-sm">
-    <i class="ti ti-eye"></i> Aperçu
-  </a>
-{% endblock %}
+{% block topbar_title %}{% endblock %}
+{% block topbar_actions %}{% endblock %}
 
 {% block extra_css %}
 <style>
-  /* ── TABS ── */
-.tabs{background:#fff;border-bottom:1px solid var(--gray-bd);display:flex;padding:0 1.25rem;flex-shrink:0}
-.tab{padding:10px 14px;font-size:13px;color:var(--gray-md);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;text-decoration:none}
-.tab.on{color:var(--teal-dk);border-bottom:2px solid var(--teal);font-weight:600}
-.tab:hover:not(.on){color:var(--gray)}
+  /* ── TABS prune (cohérents avec devis_detail) ── */
+.tabs{background:var(--prune);border-bottom:none;display:flex;padding:0 1.25rem;flex-shrink:0}
+.tab{padding:13px 16px;font-size:14px;color:rgba(255,255,255,.72);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;text-decoration:none;display:flex;align-items:center}
+.tab.on{color:#fff;border-bottom:2px solid var(--teal);font-weight:600}
+.tab:hover:not(.on){color:#fff}
 /* ── BARRE FORMAT ── */
 .fmt-bar{display:flex;align-items:center;gap:3px;padding:5px 8px;background:#fff;border-bottom:1px solid var(--gray-bd);flex-shrink:0;flex-wrap:wrap}
 .fmt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid transparent;border-radius:4px;background:none;cursor:pointer;color:var(--gray);font-size:13px;font-family:var(--f);transition:background .1s,border-color .1s;flex-shrink:0}
@@ -79,7 +66,7 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 .nd-qty:disabled{opacity:.4;cursor:not-allowed}
 .nd-unit{font-size:11px;color:var(--gray-md);width:24px;flex-shrink:0}
 .nd-pu{width:64px;text-align:right;font-size:11px;color:var(--gray-md);flex-shrink:0;font-variant-numeric:tabular-nums}
-.nd-ref{width:56px;text-align:right;font-size:11px;color:var(--gray-md);flex-shrink:0;font-variant-numeric:tabular-nums;opacity:.7}
+.nd-ref{width:64px;text-align:right;font-size:11px;color:var(--gray-md);flex-shrink:0;font-variant-numeric:tabular-nums;opacity:.7}
 .nd-total{width:74px;text-align:right;font-size:12px;font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums;color:var(--prune)}
 .nd-total.zero{color:var(--gray-md);font-weight:400}
 
@@ -143,25 +130,37 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
 </div>
 {% endif %}
 
-{# Barre de formatage pour les descriptions #}
-<div class="fmt-bar">
-  <button class="fmt-btn" title="Gras (Ctrl+B)" onmousedown="fmtCmd(event,'bold')"><b>G</b></button>
-  <button class="fmt-btn" title="Italique (Ctrl+I)" onmousedown="fmtCmd(event,'italic')"><i>I</i></button>
-  <button class="fmt-btn" title="Souligné (Ctrl+U)" onmousedown="fmtCmd(event,'underline')"><u>S</u></button>
-  <button class="fmt-btn" title="Barré" onmousedown="fmtCmd(event,'strikethrough')"><s>S</s></button>
-  <div class="fmt-sep"></div>
-  <span style="font-size:11px;color:var(--gray-md);margin-left:4px" id="fmt-hint">
-    Cliquez dans une description pour formater
-  </span>
+{# Barre contexte #}
+<div class="ctx-bar">
+  <div class="ctx-f" style="max-width:210px"><span class="ctx-lbl">Client</span><span class="ctx-val">{{ devis.client }}</span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-f" style="max-width:260px"><span class="ctx-lbl">Chantier</span><span class="ctx-val">{{ devis.chantier }}</span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-f"><span class="ctx-lbl">Échéance</span><span class="ctx-val">{{ facture.date_echeance|date:"d/m/Y"|default:"—" }}</span></div>
+  <div style="margin-left:auto"><span class="badge b-{{ facture.status }}"><span class="dot dot-{{ facture.status }}"></span>{{ facture.get_status_display }}</span></div>
 </div>
 
-{# Zone objet / commentaire #}
-<div class="notes-bar">
-  <div class="notes-lbl">Objet / commentaire <span>(apparaît sur l'aperçu et le PDF)</span></div>
-  <textarea class="notes-input" id="facture-notes" rows="2"
-    placeholder="Ex : Acompte 1/2 — travaux cuisine et salle de bain."
-    {% if not modifiable %}disabled{% endif %}
-  >{{ facture.notes }}</textarea>
+{# Zone d'outils : Objet + Format #}
+<div class="toolzone">
+  <div class="toolrow">
+    <span class="toolrow-lbl">Objet</span>
+    <textarea class="notes-input" id="facture-notes" rows="1"
+      placeholder="Ex : Acompte 1/2 — travaux cuisine et salle de bain."
+      {% if not modifiable %}disabled{% endif %}
+      style="flex:1;resize:none"
+    >{{ facture.notes }}</textarea>
+    <span style="font-size:10px;color:var(--gray-md);flex-shrink:0">apparaît sur l'aperçu et le PDF</span>
+  </div>
+  {% if modifiable %}
+  <div class="toolrow">
+    <span class="toolrow-lbl">Format</span>
+    <button class="fmt-btn" title="Gras (Ctrl+B)" onmousedown="fmtCmd(event,'bold')"><b>G</b></button>
+    <button class="fmt-btn" title="Italique (Ctrl+I)" onmousedown="fmtCmd(event,'italic')"><i>I</i></button>
+    <button class="fmt-btn" title="Souligné (Ctrl+U)" onmousedown="fmtCmd(event,'underline')"><u>S</u></button>
+    <button class="fmt-btn" title="Barré" onmousedown="fmtCmd(event,'strikethrough')"><s>S</s></button>
+    <span style="font-size:10px;color:var(--gray-md);margin-left:6px" id="fmt-hint">S'applique à la description sélectionnée</span>
+  </div>
+  {% endif %}
 </div>
 
 {# Corps de l'éditeur — rendu par JS #}
@@ -171,12 +170,21 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
     <div class="col-hd">
       <div style="flex:1">Description</div>
       <div style="width:80px;text-align:right">Facturée</div>
-      <div style="width:56px;text-align:right">Devis</div>
+      <div style="width:64px;text-align:right">Qté devis</div>
       <div style="width:64px;text-align:right">P.U.</div>
       <div style="width:74px;text-align:right;color:var(--prune)">Total</div>
     </div>
     <div style="color:var(--gray-md);font-size:12px;padding:1rem">Chargement…</div>
   </div>
+</div>
+
+{# Section acomptes versés — au-dessus du pied #}
+<div id="acomptes-section" style="display:none;background:var(--amber-lt);border-top:1px solid #EBD9A8;border-bottom:1px solid #EBD9A8;padding:7px 14px;flex-shrink:0">
+  <div style="font-size:10px;font-weight:600;color:#8B5E0A;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
+    <i class="ti ti-receipt" style="font-size:12px"></i> Acomptes versés
+  </div>
+  <div id="acomptes-list"></div>
+  <div id="acomptes-total" style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:#8B5E0A;padding-top:4px;border-top:1px solid #EBD9A8;margin-top:4px"></div>
 </div>
 
 {# Footer totaux #}
@@ -193,19 +201,11 @@ textarea.notes-input:focus{border-color:var(--teal);background:#fff}
     <span class="ft-lbl">HT</span>
   </div>
   {% if modifiable %}
+  <span class="dirty-indicator" id="dirty-indicator"><span class="dot-dirty"></span>Non enregistré</span>
   <button onclick="saveFacture()" class="btn btn-prune btn-sm" id="btn-save">
-    <i class="ti ti-device-floppy"></i> Sauvegarder
+    <i class="ti ti-device-floppy"></i> Enregistrer
   </button>
   {% endif %}
-</div>
-
-{# Section acomptes versés #}
-<div id="acomptes-section" style="display:none;background:#fff;border-top:1px solid var(--gray-bd);padding:8px 14px">
-  <div style="font-size:10px;font-weight:600;color:var(--amber);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">
-    <i class="ti ti-receipt" style="font-size:12px"></i> Acomptes versés
-  </div>
-  <div id="acomptes-list"></div>
-  <div id="acomptes-total" style="display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--amber);padding-top:4px;border-top:1px solid var(--amber-lt);margin-top:4px"></div>
 </div>
 
 
@@ -231,6 +231,7 @@ let acomptes = [];
 let TOTAL_DEVIS = 0;
 let TOTAL_DEJA  = 0;
 let dirty = false;         // modifications non sauvegardées
+function updateDirtyUI() { document.getElementById('dirty-indicator')?.classList.toggle('visible', dirty); }
 
 
 // ═══════════════════════════════════════════════════════
@@ -436,6 +437,22 @@ function renderAll() {
   const body = document.getElementById('editor-body');
   body.innerHTML = lignes.map(n => renderNode(n, false)).join('');
   refreshFooter();
+  setupQtyNavigation();
+}
+
+function setupQtyNavigation() {
+  const inputs = [...document.querySelectorAll('input.nd-qty:not(:disabled)')];
+  inputs.forEach((el, i) => {
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+        e.preventDefault();
+        inputs[(i + 1) % inputs.length]?.focus();
+      } else if (e.key === 'Tab' && e.shiftKey) {
+        e.preventDefault();
+        inputs[(i - 1 + inputs.length) % inputs.length]?.focus();
+      }
+    });
+  });
 }
 
 function refreshFooter() {
@@ -457,7 +474,7 @@ function updQty(id, val) {
   const wasZero = parseFloat(n.quantite || 0) === 0;
   n.quantite = val;
   const isNowZero = val === 0;
-  dirty = true;
+  dirty = true; updateDirtyUI();
   if (wasZero !== isNowZero) {
     // Passage zéro ↔ non-zéro : re-rendu complet pour grisage/dégrisage
     renderAll();
@@ -484,7 +501,7 @@ function updateTotalsDisplay() {
 
 function syncDesc(ce, id) {
   const n = findNode(lignes, id);
-  if (n) { n.description = ce.innerHTML; dirty = true; }
+  if (n) { n.description = ce.innerHTML; dirty = true; updateDirtyUI(); }
 }
 
 function fmtCmd(event, cmd) {
@@ -544,7 +561,7 @@ async function saveFacture() {
   try {
     const data = await apiPost(URL_SAVE, payload);
     if (data.ok) {
-      dirty = false;
+      dirty = false; updateDirtyUI();
       showToast('Sauvegardé', 'ok');
       // Mettre à jour le montant dans le footer
       document.getElementById('ft-total').textContent = fmtV(data.montant);
