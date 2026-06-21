@@ -14,6 +14,15 @@
 - [ ] **Phase 3 — Rangées ponctuelles** (modèle + migration) — _Opus_
 - [ ] **Phase 4 — Feuille logos + calendrier de modale commun** — _Sonnet (4b : Opus conseillé)_
 
+- [x] **Complément — Imputation par demi-journée & couleurs chantiers** (hors phases 1-4) — _Opus_
+  Handoff `mockups/HANDOFF - Imputation & couleurs chantiers.md` + maquette `Imputation & couleurs
+  chantiers.dc.html`. **Imputation** : la grille d'émargement scinde chaque jour en 2 sous-colonnes
+  matin|aprem ; un sélecteur de chantier par demi-journée impute toute l'équipe au bon devis
+  (`Presence.affectation_id`, endpoint `presence_reassign`). **Couleurs** : palette de 8 teintes
+  anti-collision attribuées par équipe (`couleurs_par_equipe`), surcharge manuelle via icône palette
+  (`Affectation.couleur`). Commits `fcb7285` + `4787ad2` (22/06/2026, session 59). _Détails :
+  `NOTES_DEV.md` § session 59._
+
 À chaque phase terminée : cocher la case, commit sur `main` (pas de `Co-Authored-By`), mettre à jour
 `NOTES_DEV.md`. NB : `git push` ≠ déploiement (deploy manuel SSH OVH, cf. `DEPLOY_OVH.md`).
 
