@@ -48,14 +48,11 @@
    hostname `vps-28c76530.vps.ovh.net`. C'est l'IPv4 qu'il faut pour la demande DNS.
 2. Première connexion SSH (OVH envoie les identifiants par email) :
    ```bash
-   ssh ubuntu@51.178.24.126      # ou root@51.178.24.126 selon l'image OVH
+   ssh ubuntu@51.178.24.126      # utilisateur ubuntu (pas root ni deploy)
    ```
-3. Mises à jour + utilisateur de déploiement non-root :
+3. Mises à jour :
    ```bash
    sudo apt update && sudo apt -y upgrade
-   sudo adduser deploy
-   sudo usermod -aG sudo deploy
-   # (recopier sa clé SSH publique dans /home/deploy/.ssh/authorized_keys)
    ```
 4. Pare-feu minimal :
    ```bash
@@ -100,7 +97,7 @@ pg_dump --no-owner --no-privileges -Fc "$RAILWAY_DATABASE_URL" -f cbb_railway.du
 ```
 Copier sur le VPS puis restaurer :
 ```bash
-scp cbb_railway.dump deploy@51.178.24.126:/home/deploy/
+scp cbb_railway.dump ubuntu@51.178.24.126:/home/deploy/
 # sur le VPS :
 pg_restore --no-owner --no-privileges -d cbbretagne -U cbb -h 127.0.0.1 cbb_railway.dump
 ```
@@ -164,7 +161,7 @@ venv/bin/gunicorn cbretagne.wsgi --bind 127.0.0.1:8000 --workers 3 --timeout 60
 ```
 Depuis ta machine :
 ```bash
-ssh -L 8000:127.0.0.1:8000 deploy@51.178.24.126
+ssh -L 8000:127.0.0.1:8000 ubuntu@51.178.24.126
 # puis ouvrir http://127.0.0.1:8000  (passe par le tunnel, pas d'exposition publique)
 ```
 
@@ -301,7 +298,21 @@ Le hostname `vps-28c76530.vps.ovh.net` est déjà résolu dans le DNS OVH, pas d
 6. Mettre à jour NOTES_DEV § Infra (migration faite) + cocher les items dépendants
    (export PDF WeasyPrint, restriction email à décommenter, HSTS, demande IT Graph).
 
-## 11. Déploiements suivants (mise à jour du code)
+## 11. Copie de fichiers media (logos, uploads)
+
+Le dossier `media/` n'est **pas dans git**. Pour copier un fichier depuis la machine locale :
+```powershell
+scp "chemin/local/fichier.png" ubuntu@51.178.24.126:/srv/cbbretagne/app/media/logo/
+```
+Créer le sous-dossier si besoin (depuis le VPS) :
+```bash
+mkdir -p /srv/cbbretagne/app/media/logo
+```
+Nginx sert `/media/` directement (alias `/srv/cbbretagne/app/media/`), pas de redémarrage nécessaire.
+
+---
+
+## 12. Déploiements suivants (mise à jour du code)
 Script fourni à la racine du repo : **`deploy.sh`** (rejoue la séquence du `Procfile`
 Railway, en une commande, avec arrêt au premier échec). Après le `git clone` initial,
 le rendre exécutable une fois :
