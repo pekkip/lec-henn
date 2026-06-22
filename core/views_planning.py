@@ -22,7 +22,7 @@ from django.views.decorators.http import require_POST
 from django.db.models import Q, Count, Prefetch, Max
 
 from .models import (
-    Devis, Facture, LigneDevis, LigneFacture, Equipe,
+    Devis, Facture, LigneDevis, LigneFacture, Equipe, Service,
     Equipier, TrancheDevis, Affectation, Presence, Evenement, Pret,
     FicheNote, ClotureMois, COULEURS_CHANTIER,
 )
@@ -255,13 +255,15 @@ def emargement_view(request):
     vendredi = lundi + timedelta(days=4)
 
     profil = get_profil(request.user)
+    # Renfort & prestataire n'ont pas d'émargement ; les temporaires archivées non plus.
+    base_emarg = Equipe.objects.filter(
+        actif=True, archivee=False, service__module_planning=True
+    ).exclude(type_rangee__in=['renfort', 'prestataire'])
     if peut_modifier_insertion(request.user):
-        equipes = Equipe.objects.filter(
-            actif=True, service__module_planning=True
-        ).select_related('service').order_by('nom')
+        equipes = base_emarg.select_related('service').order_by('nom')
     else:
-        equipes = Equipe.objects.filter(
-            encadrant=request.user, actif=True, service__module_planning=True
+        equipes = base_emarg.filter(
+            encadrant=request.user
         ).select_related('service').order_by('nom')
 
     equipe_sel = equipes.filter(pk=equipe_id).first() if equipe_id else None
@@ -577,7 +579,23 @@ def planning_mois(request):
         else:
             mois_hdr.append({'date': lundi, 'span': 12})
 
-    equipes = Equipe.objects.filter(actif=True, service__module_planning=True).order_by('ordre', 'nom')
+    # Archivage paresseux des équipes temporaires dont la date de fin est passée.
+    Equipe.objects.filter(
+        type_rangee='temporaire', archivee=False, date_fin_temp__lt=today
+    ).update(archivee=True)
+
+    equipes = Equipe.objects.filter(
+        actif=True, archivee=False, service__module_planning=True
+    ).order_by('ordre', 'nom')
+
+    # Nombre d'équipiers prêtés par équipe temporaire (sous-titre de la rangée).
+    temp_ids = [e.pk for e in equipes if e.type_rangee == 'temporaire']
+    nb_prets_par_equipe = {}
+    if temp_ids:
+        for r in (Pret.objects.filter(equipe_hote_id__in=temp_ids)
+                  .values('equipe_hote_id').annotate(n=Count('id'))):
+            nb_prets_par_equipe[r['equipe_hote_id']] = r['n']
+
     affectations = list(
         Affectation.objects
         .filter(equipe__in=equipes, date_debut__lte=fin_grille, date_fin__gte=debut_grille)
@@ -780,6 +798,10 @@ def planning_mois(request):
         nb_voies = max(len(lane_fins), 1)
 
         peut_modifier_ligne = peut_modifier_global or equipe.pk in equipes_modifiables_ids
+        # Le prestataire reste toujours en lecture seule (barre informative,
+        # pas de poignées ni drag) même pour un utilisateur autorisé.
+        if equipe.type_rangee == 'prestataire':
+            peut_modifier_ligne = False
         lignes.append({
             'equipe': equipe,
             'barres': barres,
@@ -788,6 +810,9 @@ def planning_mois(request):
             'nb_voies': nb_voies,
             'peut_modifier': peut_modifier_ligne,
             'masquee': bool(filtre_ids) and equipe.pk not in filtre_ids,
+            'type_rangee': equipe.type_rangee,
+            'mo_forfait': equipe.mo_forfait,
+            'nb_prets': nb_prets_par_equipe.get(equipe.pk, 0),
         })
 
     # Cibles de rechargement quand on bute sur un bord de la fenêtre :
@@ -841,6 +866,12 @@ def planning_mois(request):
         'ev_negatifs_json': json.dumps(ev_negatifs_json_data),
         'today': timezone.localdate(),
         'equipes_json': json.dumps([{'pk': e.pk, 'nom': e.nom} for e in equipes]),
+        'equipiers_json': json.dumps([
+            {'id': eq.pk, 'nom': f'{eq.prenom} {eq.nom}'.strip(), 'equipe': eq.equipe.nom}
+            for eq in Equipier.objects.filter(
+                actif=True, equipe__actif=True, equipe__service__module_planning=True
+            ).select_related('equipe').order_by('equipe__nom', 'nom', 'prenom')
+        ]),
         'evenements_data_json': json.dumps({
             ev.pk: {
                 'type': ev.type,
@@ -1154,6 +1185,126 @@ def affectation_save(request):
         'chantier': str(devis.chantier or devis.client),
         'recalculated': recalculated,
     })
+
+
+@login_required
+@require_POST
+def rangee_save(request):
+    """
+    Crée une rangée ponctuelle (temporaire / renfort / prestataire) depuis le
+    planning, sans passer par l'admin. Une rangée = une Equipe ad-hoc portant un
+    seul chantier (une Affectation sur la tranche choisie).
+
+    - temporaire  : équipe vide peuplée par des Pret (équipiers prêtés) ; émargement
+                    normal ; archivée auto après date_fin.
+    - renfort     : équipe vide + mo_forfait (€), pas d'émargement.
+    - prestataire : ressource externe, aucune MO, barre informative.
+
+    On NE recalcule PAS les durées de la tranche (au contraire d'affectation_save) :
+    la rangée prend les dates explicites saisies et ne doit pas décaler les
+    chantiers des équipes permanentes du même devis.
+    """
+    if not peut_modifier_insertion(request.user):
+        return json_error_permission()
+    data, err = parse_json_request(request)
+    if err:
+        return err
+
+    type_rangee = (data.get('type_rangee') or '').strip()
+    if type_rangee not in ('temporaire', 'renfort', 'prestataire'):
+        return json_error('Type de rangée invalide')
+    nom = (data.get('nom') or '').strip()
+    if not nom:
+        return json_error('Nom requis')
+
+    devis = Devis.objects.prefetch_related('lignes').filter(pk=data.get('devis_id')).first()
+    if not devis:
+        return JsonResponse({'ok': False, 'error': 'Devis introuvable'}, status=404)
+
+    try:
+        date_debut = datetime.strptime((data.get('date_debut') or '').strip(), '%Y-%m-%d').date()
+        date_fin   = datetime.strptime((data.get('date_fin') or '').strip(),   '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        return JsonResponse({'ok': False, 'error': 'Dates invalides'}, status=400)
+    if date_fin < date_debut:
+        return JsonResponse({'ok': False, 'error': 'Fin < début'}, status=400)
+
+    tranche_id = data.get('tranche_id')
+    if tranche_id:
+        try:
+            tranche = TrancheDevis.objects.get(pk=tranche_id, devis=devis)
+        except TrancheDevis.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Tranche introuvable'}, status=404)
+    else:
+        tranche, _ = TrancheDevis.objects.get_or_create(
+            devis=devis, defaults={'nom': 'Chantier complet', 'ordre': 0},
+        )
+
+    # Service d'accueil : le service insertion de l'utilisateur, sinon le premier
+    # service du module planning (la rangée doit y vivre pour s'afficher).
+    profil = get_profil(request.user)
+    service = None
+    if profil.service_id and profil.service.module_planning:
+        service = profil.service
+    if service is None:
+        service = Service.objects.filter(module_planning=True).order_by('id').first()
+    if service is None:
+        return json_error('Aucun service insertion configuré')
+
+    # Équipiers prêtés (temporaire uniquement)
+    equipier_ids = data.get('equipier_ids') or []
+    equipiers = []
+    if type_rangee == 'temporaire':
+        clean_ids = []
+        for v in equipier_ids:
+            try:
+                clean_ids.append(int(v))
+            except (TypeError, ValueError):
+                continue
+        equipiers = list(Equipier.objects.filter(pk__in=clean_ids, actif=True))
+        if not equipiers:
+            return json_error('Sélectionner au moins un équipier à prêter')
+
+    # mo_forfait (renfort uniquement)
+    mo_forfait = None
+    if type_rangee == 'renfort':
+        mo_forfait = to_decimal(data.get('mo_forfait'))
+        if mo_forfait is None or mo_forfait <= 0:
+            return json_error('Montant MO forfaitaire requis')
+
+    ordre_max = Equipe.objects.filter(service=service).aggregate(m=Max('ordre'))['m'] or 0
+    equipe = Equipe.objects.create(
+        service=service,
+        nom=nom,
+        ordre=ordre_max + 1,
+        nb_equipiers=len(equipiers) if type_rangee == 'temporaire' else 0,
+        type_rangee=type_rangee,
+        date_fin_temp=date_fin if type_rangee == 'temporaire' else None,
+        mo_forfait=mo_forfait,
+        actif=True,
+    )
+
+    debut_creneau = data.get('debut_creneau', 'matin') or 'matin'
+    fin_creneau   = data.get('fin_creneau',   'aprem') or 'aprem'
+    aff = Affectation.objects.create(
+        equipe=equipe, tranche=tranche,
+        date_debut=date_debut, date_fin=date_fin,
+        debut_creneau=debut_creneau, fin_creneau=fin_creneau,
+        created_by=request.user,
+    )
+
+    # Prêts d'équipiers vers l'équipe temporaire (mécanisme existant).
+    for eq in equipiers:
+        Pret.objects.update_or_create(
+            equipier=eq, equipe_hote=equipe,
+            defaults={
+                'date_debut': date_debut, 'creneau_debut': debut_creneau,
+                'date_fin': date_fin,     'creneau_fin': fin_creneau,
+                'cree_par': request.user,
+            },
+        )
+
+    return JsonResponse({'ok': True, 'equipe_id': equipe.pk, 'affectation_id': aff.pk})
 
 
 def _aff_update_dict(aff):

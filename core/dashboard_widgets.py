@@ -381,6 +381,8 @@ def _prod_data(ctx=None):
         debut, fin = _mois_courant()
         equipe_ids = set()
 
+    # TODO dashboard insertion : agréger Equipe.mo_forfait (renfort) au MO consommé
+    # du devis, en plus des heures pointées (cf. REFONTE_PLANNING.md phase 3, différé).
     # Jours réalisés = jours distincts où l'équipe a travaillé (≥1 présence code='')
     pres_qs = Presence.objects.filter(
         affectation__isnull=False, code='', date__gte=debut, date__lte=fin)

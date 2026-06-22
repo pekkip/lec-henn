@@ -107,6 +107,7 @@ urlpatterns = [
     path('planning/presence/sauvegarder/',       views_planning.presence_save,         name='presence-save'),
     path('planning/presence/reimputer/',          views_planning.presence_reassign,     name='presence-reassign'),
     path('planning/affectation/couleur/',         views_planning.affectation_couleur,   name='affectation-couleur'),
+    path('planning/rangee/sauvegarder/',          views_planning.rangee_save,           name='rangee-save'),
     path('planning/pret/sauvegarder/',           views_planning.pret_save,             name='pret-save'),
     path('planning/tranche/creer/',           views_planning.tranche_creer,         name='tranche-creer'),
     path('planning/wizard-data/',             views_planning.planning_wizard_data,  name='planning-wizard-data'),

@@ -3250,3 +3250,160 @@ class TrancheCreerTests(TestCase):
         resp = self._creer(self.devis.pk, nom='X', username='tech_tra')
         self.assertEqual(resp.status_code, 403)
         self.assertFalse(TrancheDevis.objects.filter(devis=self.devis).exists())
+
+
+class RangeesPonctuellesTests(TestCase):
+    """
+    Phase 3 — rangées ponctuelles : équipe temporaire (prêts + émargement),
+    renfort (MO forfaitaire, sans émargement), prestataire (informatif, aucune MO).
+    Vérifie la non-régression de la rentabilité des équipes permanentes.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        terr = Territoire.objects.create(nom='Ille-et-Vilaine')
+        cls.service = Service.objects.create(
+            territoire=terr, nom='Insertion Rangées', module_planning=True)
+        # Équipe permanente + son chantier (base de rentabilité)
+        cls.perm = Equipe.objects.create(service=cls.service, nom='65-SORM', nb_equipiers=4)
+        cls.admin = User.objects.create_user('adm_rg', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin', service=cls.service)
+        cls.perm.encadrant = cls.admin
+        cls.perm.save()
+
+        cls.client_obj = Client.objects.create(nom='Ville de Rennes')
+        cls.devis = Devis.objects.create(
+            reference='DEV-RG-001', client=cls.client_obj, chantier='École Guillevic',
+            status='accepted', created_by=cls.admin,
+        )
+        cls.tranche = TrancheDevis.objects.create(devis=cls.devis, nom='T1', ordre=0)
+        cls.aff_perm = Affectation.objects.create(
+            equipe=cls.perm, tranche=cls.tranche,
+            date_debut=date(2026, 6, 1), date_fin=date(2026, 6, 12), created_by=cls.admin)
+        cls.eq_perm = Equipier.objects.create(prenom='Habtom', nom='Tekie', equipe=cls.perm)
+        # Une présence pour donner une base de pct_consomme / heures
+        Presence.objects.create(
+            equipier=cls.eq_perm, affectation=cls.aff_perm,
+            date=date(2026, 6, 2), creneau='matin', heures=Decimal('4'))
+        # Équipiers d'une autre équipe permanente, prêtables vers une temporaire
+        cls.src = Equipe.objects.create(service=cls.service, nom='65-GORM', nb_equipiers=3)
+        cls.lend1 = Equipier.objects.create(prenom='Amina', nom='Dawlatz', equipe=cls.src)
+        cls.lend2 = Equipier.objects.create(prenom='Youssef', nom='Ben', equipe=cls.src)
+
+    def _post_rangee(self, **payload):
+        self.client.login(username='adm_rg', password='pw')
+        return self.client.post(
+            reverse('core:rangee-save'),
+            data=json.dumps(payload), content_type='application/json')
+
+    def _ligne(self, resp, equipe_pk):
+        return next((l for l in resp.context['lignes'] if l['equipe'].pk == equipe_pk), None)
+
+    # ── Temporaire : prêts + émargement + heures ──────────────
+    def test_rangee_temporaire_emargement_et_heures(self):
+        # Dates futures : une temporaire dont la date de fin est passée serait
+        # archivée automatiquement (cf. test_rangee_temporaire_archivage_auto).
+        today = timezone.localdate()
+        lundi = today - timedelta(days=today.weekday()) + timedelta(weeks=2)
+        fin = lundi + timedelta(days=4)
+        resp = self._post_rangee(
+            type_rangee='temporaire', nom='Renfort Plérin', devis_id=self.devis.pk,
+            date_debut=lundi.isoformat(), date_fin=fin.isoformat(),
+            equipier_ids=[self.lend1.pk, self.lend2.pk])
+        self.assertTrue(resp.json()['ok'], resp.content)
+        eq = Equipe.objects.get(pk=resp.json()['equipe_id'])
+        self.assertEqual(eq.type_rangee, 'temporaire')
+        self.assertEqual(eq.date_fin_temp, fin)
+        # Les prêts ont été créés vers l'équipe temporaire
+        self.assertEqual(Pret.objects.filter(equipe_hote=eq).count(), 2)
+        # La temporaire a bien une grille d'émargement (équipiers prêtés visibles)
+        em = self.client.get(reverse('core:emargement') + f'?equipe={eq.pk}&debut={lundi.isoformat()}')
+        self.assertEqual(em.status_code, 200)
+        self.assertIn(eq.pk, [e.pk for e in em.context['equipes']])
+        self.assertContains(em, 'Amina')
+        # Une présence pointée sur son affectation compte dans les heures de la tranche
+        aff = Affectation.objects.get(equipe=eq)
+        Presence.objects.create(
+            equipier=self.lend1, affectation=aff,
+            date=lundi, creneau='matin', heures=Decimal('4'))
+        pl = self.client.get(reverse('core:planning') + f'?debut={lundi.isoformat()}')
+        ligne = self._ligne(pl, eq.pk)
+        self.assertIsNotNone(ligne)
+        self.assertTrue(ligne['barres'][0]['has_presences'])
+
+    # ── Renfort : barre €, pas d'émargement, pas de Presence ──
+    def test_rangee_renfort_barre_sans_emargement(self):
+        resp = self._post_rangee(
+            type_rangee='renfort', nom='Renfort Espaces verts', devis_id=self.devis.pk,
+            date_debut='2026-06-15', date_fin='2026-06-18', mo_forfait='1200')
+        self.assertTrue(resp.json()['ok'], resp.content)
+        eq = Equipe.objects.get(pk=resp.json()['equipe_id'])
+        self.assertEqual(eq.type_rangee, 'renfort')
+        self.assertEqual(eq.mo_forfait, Decimal('1200'))
+        self.assertEqual(eq.nb_equipiers, 0)
+        # Absent du sélecteur d'émargement
+        em = self.client.get(reverse('core:emargement') + '?debut=2026-06-15')
+        self.assertNotIn(eq.pk, [e.pk for e in em.context['equipes']])
+        # Aucune présence créée
+        self.assertFalse(Presence.objects.filter(affectation__equipe=eq).exists())
+        # Présent sur le planning avec son type et son montant
+        pl = self.client.get(reverse('core:planning') + '?debut=2026-06-15')
+        ligne = self._ligne(pl, eq.pk)
+        self.assertEqual(ligne['type_rangee'], 'renfort')
+        self.assertEqual(ligne['mo_forfait'], Decimal('1200'))
+
+    def test_rangee_renfort_montant_obligatoire(self):
+        resp = self._post_rangee(
+            type_rangee='renfort', nom='Sans montant', devis_id=self.devis.pk,
+            date_debut='2026-06-15', date_fin='2026-06-18')
+        self.assertFalse(resp.json()['ok'])
+
+    # ── Prestataire : informatif, exclu émargement, aucune MO ──
+    def test_rangee_prestataire_sans_mo(self):
+        resp = self._post_rangee(
+            type_rangee='prestataire', nom="Élec'Ouest", devis_id=self.devis.pk,
+            date_debut='2026-06-15', date_fin='2026-06-17')
+        self.assertTrue(resp.json()['ok'], resp.content)
+        eq = Equipe.objects.get(pk=resp.json()['equipe_id'])
+        self.assertEqual(eq.type_rangee, 'prestataire')
+        self.assertIsNone(eq.mo_forfait)
+        em = self.client.get(reverse('core:emargement') + '?debut=2026-06-15')
+        self.assertNotIn(eq.pk, [e.pk for e in em.context['equipes']])
+        pl = self.client.get(reverse('core:planning') + '?debut=2026-06-15')
+        ligne = self._ligne(pl, eq.pk)
+        self.assertEqual(ligne['type_rangee'], 'prestataire')
+        # Barre informative : toujours en lecture seule (pas de poignées)
+        self.assertFalse(ligne['peut_modifier'])
+
+    # ── Non-régression : permanente inchangée ─────────────────
+    def test_rentabilite_permanente_inchangee(self):
+        self.client.login(username='adm_rg', password='pw')
+        pl_avant = self.client.get(reverse('core:planning') + '?debut=2026-06-01')
+        b_avant = self._ligne(pl_avant, self.perm.pk)['barres'][0]
+        pct_avant, jours_avant = b_avant['pct_consomme'], b_avant['nb_jours']
+        # Ajout des 3 rangées sur le même devis
+        self._post_rangee(type_rangee='temporaire', nom='Temp', devis_id=self.devis.pk,
+                          date_debut='2026-06-15', date_fin='2026-06-19',
+                          equipier_ids=[self.lend1.pk])
+        self._post_rangee(type_rangee='renfort', nom='Renf', devis_id=self.devis.pk,
+                          date_debut='2026-06-15', date_fin='2026-06-18', mo_forfait='800')
+        self._post_rangee(type_rangee='prestataire', nom='Prest', devis_id=self.devis.pk,
+                          date_debut='2026-06-15', date_fin='2026-06-17')
+        pl_apres = self.client.get(reverse('core:planning') + '?debut=2026-06-01')
+        b_apres = self._ligne(pl_apres, self.perm.pk)['barres'][0]
+        self.assertEqual(b_apres['pct_consomme'], pct_avant)
+        self.assertEqual(b_apres['nb_jours'], jours_avant)
+
+    # ── Archivage auto des temporaires échues ─────────────────
+    def test_rangee_temporaire_archivage_auto(self):
+        eq = Equipe.objects.create(
+            service=self.service, nom='Temp échue', type_rangee='temporaire',
+            date_fin_temp=date(2020, 1, 1))
+        Affectation.objects.create(
+            equipe=eq, tranche=self.tranche,
+            date_debut=date(2020, 1, 1), date_fin=date(2020, 1, 3), created_by=self.admin)
+        self.client.login(username='adm_rg', password='pw')
+        pl = self.client.get(reverse('core:planning'))
+        eq.refresh_from_db()
+        self.assertTrue(eq.archivee)
+        self.assertIsNone(self._ligne(pl, eq.pk))

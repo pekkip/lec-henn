@@ -11,7 +11,7 @@
 
 - [x] **Phase 1 — Planning : présentation** (voies empilées, filtre équipes, édition lisible) — _Opus_
 - [x] **Phase 2 — Émargement : permissions & codes d'événements** — _Sonnet_
-- [ ] **Phase 3 — Rangées ponctuelles** (modèle + migration) — _Opus_
+- [x] **Phase 3 — Rangées ponctuelles** (modèle + migration + création + rendu) — _Opus_
 - [ ] **Phase 4 — Feuille logos + calendrier de modale commun** — _Sonnet (4b : Opus conseillé)_
 
 - [x] **Complément — Imputation par demi-journée & couleurs chantiers** (hors phases 1-4) — _Opus_
@@ -208,11 +208,12 @@ structurante — après stabilisation des phases 1-2.
 - Émargement : seules les **temporaires** ont une grille ; renfort & prestataire **n'apparaissent pas**.
 
 **✅ Checklist Phase 3**
-- [ ] Équipe temporaire (prêts) → barres + émargement + heures comptées.
-- [ ] Renfort (MO forfait) → barre € sans émargement ; forfait visible côté rentabilité.
-- [ ] Prestataire → barre hachurée sans MO ni émargement.
-- [ ] `pct_consomme`/`heures_par_tranche` des équipes permanentes **identiques**. `test core` + `check` verts.
-- [ ] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`.
+- [x] Équipe temporaire (prêts) → barres + émargement + heures comptées. _(test `test_rangee_temporaire_emargement_et_heures`)_
+- [x] Renfort (MO forfait) → barre € sans émargement ; forfait **stocké + affiché** sur la barre (agrégation rentabilité différée au chantier dashboard — TODO posé dans `dashboard_widgets._prod_data`). _(test `test_rangee_renfort_barre_sans_emargement`)_
+- [x] Prestataire → barre hachurée sans MO ni émargement (toujours lecture seule). _(test `test_rangee_prestataire_sans_mo`)_
+- [x] `pct_consomme`/`heures_par_tranche` des équipes permanentes **identiques** (renfort/prestataire ne créent aucune `Presence` ; rangée créée sans `_recalcul_durees_tranche` → pas de décalage des permanentes). `test core` (203) + `check` verts. _(test `test_rentabilite_permanente_inchangee`)_
+- [x] Création **sans admin Django** : bouton « Rangée ponctuelle » + modale (sélecteur 3 types) → endpoint `rangee_save`. Archivage auto des temporaires échues. _(test `test_rangee_temporaire_archivage_auto`)_
+- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`.
 
 ---
 

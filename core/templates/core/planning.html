@@ -140,6 +140,34 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .tl-row.ro .tl-bar{filter:saturate(.7);opacity:.85;box-shadow:none;cursor:pointer}
 .tl-lbl .lock-ic{flex-shrink:0;font-size:13px;color:#c4c2bd}
 
+/* ── Rangées ponctuelles (temporaire / renfort / prestataire) ── */
+.tl-lbl .av.av-temp{background:transparent;border:1.5px dashed var(--prune-bd);color:var(--prune)}
+.tl-lbl .av.av-amber{background:var(--amber-lt);color:#8B5E0A}
+.tl-lbl .av.av-prest{background:var(--gray-lt);color:var(--gray-md)}
+.tl-row.row-temp .tl-lbl.team{background:#FCF8FA}
+.tl-row.row-prest .tl-lbl.team{background:#FAFAF9}
+.tl-row.row-renfort .tl-lbl.team{background:#FCFAF4}
+.tl-tag{font-size:9px;font-weight:700;border-radius:99px;padding:1px 6px;flex-shrink:0;line-height:1.4;white-space:nowrap}
+.tl-tag.temp{background:var(--prune-lt);color:var(--prune)}
+.tl-tag.renfort{background:var(--amber-lt);color:#8B5E0A}
+.tl-tag.prest{background:var(--gray-lt);color:var(--gray-md)}
+.tl-lbl .nm-row{display:flex;align-items:center;gap:5px;min-width:0}
+.tl-lbl .nm-row>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* Barre renfort : ambre, montant forfaitaire au lieu d'un % */
+.tl-bar.renfort{background:var(--amber-lt);border:1px solid #F0D9A8;border-left:3px solid var(--amber);color:#8B5E0A}
+.bar-forfait{margin-left:auto;white-space:nowrap;font-weight:600}
+/* Barre prestataire : hachurée grise, informative */
+.tl-bar.prest{background:repeating-linear-gradient(45deg,#F2F0EE 0 6px,#E9E6E3 6px 12px);border:1px solid #D7D4D0;border-left:3px solid var(--gray-md);color:var(--gray-md);cursor:default;box-shadow:none}
+.tl-bar.prest:hover{box-shadow:none;filter:none}
+.bar-sub{margin-left:auto;white-space:nowrap;font-style:italic;opacity:.8}
+/* ── Modale rangée ponctuelle : sélecteur de type ── */
+.rg-types{display:flex;flex-direction:column;gap:6px}
+.rg-type-card{display:flex;flex-direction:column;gap:3px;border:1px solid var(--gray-bd);border-radius:8px;padding:8px 10px;cursor:pointer;position:relative}
+.rg-type-card:has(input:checked){border-color:var(--teal);background:var(--teal-lt)}
+.rg-type-card input{position:absolute;opacity:0;pointer-events:none}
+.rg-tc-tt{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--gray)}
+.rg-tc-d{font-size:11px;color:var(--gray-md)}
+
 /* ── Popover filtre équipes ──────────────────────────── */
 .eq-pick{position:relative}
 .eq-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:60;width:268px;
@@ -336,6 +364,9 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
       <button class="btn btn-prune btn-sm" onclick="openAffModal(null)">
         <i class="ti ti-plus"></i> Assigner un chantier
       </button>
+      <button class="btn btn-sm" onclick="openRangeeModal()" title="Monter une équipe temporaire, un renfort ou un prestataire">
+        <i class="ti ti-users-plus"></i> Rangée ponctuelle
+      </button>
       <button class="btn btn-sm" onclick="openModalEvNew()">
         <i class="ti ti-calendar-event"></i> Événement
       </button>
@@ -391,22 +422,48 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 
         <!-- Lignes équipes -->
         {% for ligne in lignes %}
-        <div class="tl-row{% if not ligne.peut_modifier %} ro{% endif %}{% if ligne.masquee %} hidden{% endif %}"
+        <div class="tl-row{% if not ligne.peut_modifier %} ro{% endif %}{% if ligne.masquee %} hidden{% endif %}{% if ligne.type_rangee == 'temporaire' %} row-temp{% elif ligne.type_rangee == 'renfort' %} row-renfort{% elif ligne.type_rangee == 'prestataire' %} row-prest{% endif %}"
              data-eqrow="{{ ligne.equipe.pk }}"{% if ligne.equipe.pk in mes_equipes_ids %} data-mine="1"{% endif %}>
           <div class="tl-lbl team">
+            {% if ligne.type_rangee == 'temporaire' %}
+            <span class="av av-temp">{{ ligne.equipe.nom|slice:":2"|upper }}</span>
+            {% elif ligne.type_rangee == 'renfort' %}
+            <span class="av av-amber"><i class="ti ti-users-group" style="font-size:11px"></i></span>
+            {% elif ligne.type_rangee == 'prestataire' %}
+            <span class="av av-prest"><i class="ti ti-tool" style="font-size:11px"></i></span>
+            {% else %}
             <span class="av">{{ ligne.equipe.nom|slice:":2" }}</span>
+            {% endif %}
             <div style="overflow:hidden;flex:1;min-width:0">
+              {% if ligne.type_rangee == 'permanente' %}
               <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ligne.equipe.nom }}</div>
               {% if ligne.equipe.encadrant %}
               <span class="enc">{{ ligne.equipe.encadrant.first_name|slice:":1" }}.&nbsp;{{ ligne.equipe.encadrant.last_name }}</span>
               {% endif %}
+              {% else %}
+              <div class="nm-row">
+                <span>{{ ligne.equipe.nom }}</span>
+                {% if ligne.type_rangee == 'temporaire' %}<span class="tl-tag temp">Temp.</span>
+                {% elif ligne.type_rangee == 'renfort' %}<span class="tl-tag renfort">MO forfait</span>
+                {% elif ligne.type_rangee == 'prestataire' %}<span class="tl-tag prest">Prest.</span>{% endif %}
+              </div>
+              {% if ligne.type_rangee == 'temporaire' %}
+              <span class="enc">{{ ligne.nb_prets }} équipier{{ ligne.nb_prets|pluralize }} prêté{{ ligne.nb_prets|pluralize }}{% if ligne.equipe.date_fin_temp %} · jusqu'au {{ ligne.equipe.date_fin_temp|date:'d/m' }}{% endif %}</span>
+              {% elif ligne.type_rangee == 'renfort' %}
+              <span class="enc">Renfort d'un autre service</span>
+              {% elif ligne.type_rangee == 'prestataire' %}
+              <span class="enc">Sous-traitant</span>
+              {% endif %}
+              {% endif %}
             </div>
+            {% if ligne.type_rangee == 'permanente' %}
             <span class="tl-eff" title="{{ ligne.equipe.nb_equipiers }} équipier{{ ligne.equipe.nb_equipiers|pluralize }}">{{ ligne.equipe.nb_equipiers }}</span>
-            {% if ligne.peut_modifier %}
+            {% endif %}
+            {% if ligne.type_rangee == 'permanente' and ligne.peut_modifier %}
             <button class="ico-btn add-btn" onclick="openAffModal({{ ligne.equipe.pk }})" title="Affecter un chantier à {{ ligne.equipe.nom }}">
               <i class="ti ti-plus"></i>
             </button>
-            {% else %}
+            {% elif not ligne.peut_modifier %}
             <i class="ti ti-lock lock-ic" title="Équipe en lecture seule"></i>
             {% endif %}
           </div>
@@ -436,7 +493,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
             {% endfor %}
             {# Barres d'affectation (positionnées explicitement) #}
             {% for barre in ligne.barres %}
-            <div class="tl-bar {{ barre.color }}{% if barre.starts_before %} clip-left{% endif %}{% if barre.ends_after %} clip-right{% endif %}"
+            <div class="tl-bar {% if ligne.type_rangee == 'renfort' %}renfort{% elif ligne.type_rangee == 'prestataire' %}prest{% else %}{{ barre.color }}{% endif %}{% if barre.starts_before %} clip-left{% endif %}{% if barre.ends_after %} clip-right{% endif %}"
                style="grid-column:{{ barre.col_debut }}/{{ barre.col_fin_excl }};grid-row:{{ barre.voie|add:2 }}"
                title="{{ barre.label }}"
                data-devis="{{ barre.aff.tranche.devis.pk }}"
@@ -459,8 +516,14 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
               <div class="bar-name">{{ barre.label }}</div>
               <div class="bar-meta">
                 <span class="bar-days">{{ barre.nb_jours }}&nbsp;j</span>
+                {% if ligne.type_rangee == 'renfort' %}
+                <span class="bar-forfait">MO forfait <strong>{{ ligne.mo_forfait|floatformat:0 }}&nbsp;€</strong></span>
+                {% elif ligne.type_rangee == 'prestataire' %}
+                <span class="bar-sub">Sous-traité</span>
+                {% else %}
                 <div class="bar-prog" title="{{ barre.pct_consomme }}% réalisé / facturable"><div class="bar-prog-fill{% if barre.over %} over{% endif %}" style="width:{{ barre.pct_bar }}%"></div></div>
                 <span class="bar-pct{% if barre.over %} over{% endif %}">{{ barre.pct_consomme }}%</span>
+                {% endif %}
               </div>
               {% if ligne.peut_modifier %}<button type="button" class="bar-del" onclick="deleteAff(event,{{ barre.aff.pk }})" title="Supprimer cette affectation">×</button>{% if barre.has_presences %}<button type="button" class="bar-lock" title="Émargements renseignés — cliquer pour déverrouiller">🔒</button>{% endif %}<span class="resize-r" draggable="true" data-side="right"></span>{% endif %}
             </div>
@@ -667,12 +730,74 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
     </div>
   </div>
 </div>
+
+<!-- Modal rangée ponctuelle (temporaire / renfort / prestataire) -->
+<div id="modal-rangee" class="modal-bg hidden">
+  <div class="modal modal-ev">
+    <div class="modal-title">Rangée ponctuelle</div>
+    <div class="field">
+      <label>Type de rangée *</label>
+      <div class="rg-types">
+        <label class="rg-type-card"><input type="radio" name="rg-type" value="temporaire" onchange="rangeeSetType('temporaire')" checked>
+          <span class="rg-tc-tt"><span class="av av-temp" style="width:20px;height:20px;font-size:8px">T</span>Équipe temporaire <span class="tl-tag temp">Temp.</span></span>
+          <span class="rg-tc-d">Équipiers prêtés · émargement normal · heures comptées</span></label>
+        <label class="rg-type-card"><input type="radio" name="rg-type" value="renfort" onchange="rangeeSetType('renfort')">
+          <span class="rg-tc-tt"><span class="av av-amber" style="width:20px;height:20px"><i class="ti ti-users-group" style="font-size:11px"></i></span>Renfort d'un autre service <span class="tl-tag renfort">MO forfait</span></span>
+          <span class="rg-tc-d">Équipe vide · montant MO forfaitaire · sans émargement</span></label>
+        <label class="rg-type-card"><input type="radio" name="rg-type" value="prestataire" onchange="rangeeSetType('prestataire')">
+          <span class="rg-tc-tt"><span class="av av-prest" style="width:20px;height:20px"><i class="ti ti-tool" style="font-size:11px"></i></span>Prestataire / sous-traitant <span class="tl-tag prest">Prest.</span></span>
+          <span class="rg-tc-d">Ressource externe · aucune MO · barre informative</span></label>
+      </div>
+    </div>
+    <div class="field">
+      <label id="rg-nom-lbl">Nom de l'équipe temporaire *</label>
+      <input class="input" type="text" id="rg-nom" placeholder="Ex. Renfort Plérin">
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>Devis / chantier *</label>
+        <select class="input" id="rg-devis" onchange="rangeeFillTranches()"><option value="">Chargement…</option></select>
+      </div>
+      <div class="field">
+        <label>Tranche</label>
+        <select class="input" id="rg-tranche"><option value="">— par défaut —</option></select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label>Date début *</label>
+        <input class="input" type="date" id="rg-debut">
+      </div>
+      <div class="field">
+        <label>Date fin *</label>
+        <input class="input" type="date" id="rg-fin">
+      </div>
+    </div>
+    <!-- Temporaire : équipiers à prêter -->
+    <div class="field" id="rg-equipiers-wrap">
+      <label>Équipiers à prêter * <small style="font-weight:400;color:var(--gray-md)">(montent l'équipe temporaire)</small></label>
+      <div id="rg-equipiers-list" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 0;max-height:150px;overflow-y:auto"></div>
+    </div>
+    <!-- Renfort : montant forfaitaire -->
+    <div class="field hidden" id="rg-forfait-wrap">
+      <label>Montant MO forfaitaire (€) *</label>
+      <input class="input" type="number" id="rg-forfait" min="0" step="0.01" placeholder="Ex. 1200">
+    </div>
+    <div id="rg-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
+    <div class="modal-acts">
+      <button type="button" class="btn" onclick="closeRangeeModal()">Annuler</button>
+      <button type="button" class="btn btn-teal" onclick="submitRangee()">Enregistrer</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const CSRF        = '{{ csrf_token }}';
 const URL_AFF     = '{% url "core:affectation-save" %}';
+const URL_RANGEE  = '{% url "core:rangee-save" %}';
+const EQUIPIERS_DISPO = {{ equipiers_json|safe }};
 const URL_MOVE    = '{% url "core:affectation-move" %}';
 const URL_DEL     = '{% url "core:affectation-delete" %}';
 const URL_EV_SAVE = '{% url "core:evenement-save" %}';
@@ -1637,8 +1762,102 @@ function submitAff() {
 }
 
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closeAffModal(); closeModalEv(); hideBarPop(); hideMoisPop(); }
+  if (e.key === 'Escape') { closeAffModal(); closeModalEv(); closeRangeeModal(); hideBarPop(); hideMoisPop(); }
 });
+
+// ── Modale rangée ponctuelle ──────────────────────────
+let _rgType = 'temporaire';
+function openRangeeModal() {
+  document.getElementById('rg-nom').value = '';
+  document.getElementById('rg-debut').value = '';
+  document.getElementById('rg-fin').value = '';
+  document.getElementById('rg-forfait').value = '';
+  document.getElementById('rg-err').style.display = 'none';
+  // Équipiers (cases à cocher, groupées par équipe d'origine)
+  const list = document.getElementById('rg-equipiers-list');
+  list.innerHTML = '';
+  if (!EQUIPIERS_DISPO.length) {
+    list.innerHTML = '<span style="font-size:11px;color:var(--gray-md)">Aucun équipier actif.</span>';
+  } else {
+    EQUIPIERS_DISPO.forEach(function(eq) {
+      const lab = document.createElement('label');
+      lab.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer';
+      lab.innerHTML = '<input type="checkbox" class="rg-eq-cb" value="' + eq.id + '"> '
+        + eq.nom + ' <small style="color:var(--gray-md)">· ' + eq.equipe + '</small>';
+      list.appendChild(lab);
+    });
+  }
+  // Devis : charge la liste à la demande (réutilise planning_wizard_data)
+  const sel = document.getElementById('rg-devis');
+  sel.innerHTML = '<option value="">Chargement…</option>';
+  fetch(URL_WIZARD_DATA).then(function(r){return r.json();}).then(function(d){
+    if (!d.ok) { sel.innerHTML = '<option value="">Erreur</option>'; return; }
+    TRANCHES_PAR_DEVIS = d.tranches || {};
+    sel.innerHTML = '<option value="">— choisir un chantier —</option>';
+    (d.devis || []).forEach(function(dv){
+      const o = document.createElement('option');
+      o.value = dv.pk;
+      o.textContent = dv.ref + ' — ' + dv.client + (dv.chantier ? ' · ' + dv.chantier : '');
+      sel.appendChild(o);
+    });
+  }).catch(function(){ sel.innerHTML = '<option value="">Erreur de chargement</option>'; });
+  document.querySelector('input[name="rg-type"][value="temporaire"]').checked = true;
+  rangeeSetType('temporaire');
+  document.getElementById('modal-rangee').classList.remove('hidden');
+}
+function closeRangeeModal() { document.getElementById('modal-rangee').classList.add('hidden'); }
+function rangeeSetType(t) {
+  _rgType = t;
+  document.getElementById('rg-equipiers-wrap').classList.toggle('hidden', t !== 'temporaire');
+  document.getElementById('rg-forfait-wrap').classList.toggle('hidden', t !== 'renfort');
+  const labels = {temporaire: "Nom de l'équipe temporaire *", renfort: 'Nom du renfort *', prestataire: 'Nom du prestataire *'};
+  document.getElementById('rg-nom-lbl').textContent = labels[t];
+}
+function rangeeFillTranches() {
+  const devisId = document.getElementById('rg-devis').value;
+  const sel = document.getElementById('rg-tranche');
+  sel.innerHTML = '<option value="">— par défaut —</option>';
+  (TRANCHES_PAR_DEVIS[devisId] || []).forEach(function(t){
+    const o = document.createElement('option');
+    o.value = t.id; o.textContent = t.nom;
+    sel.appendChild(o);
+  });
+}
+function submitRangee() {
+  const err = document.getElementById('rg-err');
+  const show = function(m){ err.textContent = m; err.style.display = ''; };
+  const nom = document.getElementById('rg-nom').value.trim();
+  const devisId = document.getElementById('rg-devis').value;
+  const debut = document.getElementById('rg-debut').value;
+  const fin = document.getElementById('rg-fin').value;
+  if (!nom) return show('Nom requis.');
+  if (!devisId) return show('Choisir un devis / chantier.');
+  if (!debut || !fin) return show('Renseigner les dates de début et de fin.');
+  if (fin < debut) return show('La date de fin précède le début.');
+  const payload = {
+    type_rangee: _rgType, nom: nom, devis_id: devisId,
+    tranche_id: document.getElementById('rg-tranche').value || null,
+    date_debut: debut, date_fin: fin,
+    debut_creneau: 'matin', fin_creneau: 'aprem',
+  };
+  if (_rgType === 'temporaire') {
+    payload.equipier_ids = Array.from(document.querySelectorAll('.rg-eq-cb:checked')).map(function(c){return c.value;});
+    if (!payload.equipier_ids.length) return show('Sélectionner au moins un équipier à prêter.');
+  }
+  if (_rgType === 'renfort') {
+    payload.mo_forfait = document.getElementById('rg-forfait').value;
+    if (!(parseFloat(payload.mo_forfait) > 0)) return show('Montant MO forfaitaire requis.');
+  }
+  err.style.display = 'none';
+  fetch(URL_RANGEE, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF},
+    body: JSON.stringify(payload),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){ if (d.ok) { location.reload(); } else { show(d.error || 'Erreur'); } })
+  .catch(function(){ show('Erreur réseau'); });
+}
 
 // ── Modale événement ──────────────────────────────────
 function openModalEv(pk) {

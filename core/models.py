@@ -52,6 +52,16 @@ class Equipe(models.Model):
         ('gros_oeuvre',   'Gros œuvre'),
         ('second_oeuvre', 'Second œuvre'),
     ]
+    # Type de rangée du planning. Une rangée ponctuelle (≠ permanente) est une
+    # Equipe ad-hoc montée pour un chantier : temporaire (équipiers prêtés,
+    # émargement normal), renfort (équipe vide + MO forfaitaire, sans émargement)
+    # ou prestataire (externe, aucune MO, barre informative).
+    TYPE_RANGEE_CHOICES = [
+        ('permanente',  'Permanente'),
+        ('temporaire',  'Temporaire'),
+        ('renfort',     'Renfort'),
+        ('prestataire', 'Prestataire'),
+    ]
     service = models.ForeignKey(
         Service, on_delete=models.PROTECT, related_name='equipes'
     )
@@ -92,6 +102,23 @@ class Equipe(models.Model):
         help_text="Afficher le tampon PLIE en en-tête de la fiche d'émargement mensuelle"
     )
     actif = models.BooleanField(default=True)
+    # ── Rangée ponctuelle (cf. TYPE_RANGEE_CHOICES) ──
+    type_rangee = models.CharField(
+        max_length=12, choices=TYPE_RANGEE_CHOICES, default='permanente',
+        help_text="Permanente (défaut) ou rangée ponctuelle (temporaire / renfort / prestataire)"
+    )
+    date_fin_temp = models.DateField(
+        null=True, blank=True,
+        help_text="Équipe temporaire : date de fin — archivée automatiquement après"
+    )
+    mo_forfait = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="Renfort : montant MO forfaitaire (€), décorrélé de la durée"
+    )
+    archivee = models.BooleanField(
+        default=False,
+        help_text="Rangée temporaire archivée (date de fin dépassée) — masquée du planning"
+    )
 
     class Meta:
         ordering = ['service', 'ordre', 'nom']
@@ -99,6 +126,16 @@ class Equipe(models.Model):
 
     def __str__(self):
         return f"{self.service} — {self.nom}"
+
+    @property
+    def est_ponctuelle(self):
+        """Rangée non permanente (temporaire / renfort / prestataire)."""
+        return self.type_rangee != 'permanente'
+
+    @property
+    def sans_emargement(self):
+        """Renfort & prestataire n'ont pas de grille d'émargement."""
+        return self.type_rangee in ('renfort', 'prestataire')
 
 
 # ══════════════════════════════════════════
