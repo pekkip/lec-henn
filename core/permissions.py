@@ -295,20 +295,39 @@ def peut_supprimer_client(user):
 def peut_acceder_planning(user):
     """
     Accès au module Planning & Émargement.
-    Réservé à l'admin et aux encadrants (= chef d'au moins une équipe) — usage
-    Ille-et-Vilaine insertion, invisible pour les autres. Gate la sidebar ET les
-    vues planning. Extensible plus tard en ajoutant des conditions ici.
+    Réservé à l'admin, aux encadrants, et aux membres du service insertion —
+    usage Ille-et-Vilaine insertion, invisible pour les autres. Gate la sidebar
+    ET les vues planning.
     """
     if not user.is_authenticated:
         return False
     profil = get_profil_or_none(user)
     if not profil:
         return False
-    # Admin / responsable (assistante) / RH : accès transverse au module.
     if profil.role in ('admin', 'responsable', 'rh'):
         return True
-    # Sinon : encadrant désigné d'au moins une équipe active.
+    # Membre du service insertion (couvre encadrants + assistante du service)
+    if profil.service_id and profil.service.module_planning:
+        return True
+    # Encadrant désigné d'au moins une équipe active.
     return Equipe.objects.filter(encadrant=user, actif=True).exists()
+
+
+def peut_modifier_insertion(user):
+    """
+    Peut modifier le planning/l'émargement du service insertion (écriture) ?
+    Admin, responsable, membre du service insertion, ou encadrant d'équipe active.
+    """
+    if not user.is_authenticated:
+        return False
+    profil = get_profil_or_none(user)
+    if not profil:
+        return False
+    if profil.role in ('admin', 'responsable'):
+        return True
+    if profil.service_id and profil.service.module_planning:
+        return True
+    return Equipe.objects.filter(encadrant=user, actif=True, service__module_planning=True).exists()
 
 
 def est_encadrant(user, equipe):

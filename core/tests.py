@@ -1626,6 +1626,56 @@ class PlanningGrilleTests(TestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
+    # ── Phase 2 : permission membre insertion ─────────────────
+
+    def test_permission_membre_insertion_peut_modifier(self):
+        """Membre du service insertion (non-encadrant) peut saisir une présence."""
+        assistante = User.objects.create_user('assistante_test', password='pw')
+        ProfilUtilisateur.objects.create(
+            user=assistante, role='technicien', service=self.equipe.service
+        )
+        aff = self._make_aff()
+        self.client.login(username='assistante_test', password='pw')
+        resp = self.client.post(
+            reverse('core:presence-save'),
+            data=json.dumps({'presences': [{
+                'equipier_id': self.eq1.pk,
+                'affectation_id': aff.pk,
+                'date': '2026-06-01',
+                'creneau': 'matin',
+                'heures': '4',
+                'code': '',
+            }]}),
+            content_type='application/json',
+        )
+        data = json.loads(resp.content)
+        self.assertTrue(data.get('ok'), f"Attendu ok=True, reçu {data}")
+        self.assertEqual(data['saved'], 1)
+
+    # ── Phase 2 : code_absence événement ─────────────────────
+
+    def test_evenement_code_absence_propagation(self):
+        """Événement avec code_absence='F' → special_code='F' dans les cellules émargement."""
+        ev = Evenement.objects.create(
+            type='formation',
+            libelle='Formation sécurité',
+            date_debut=self.lundi,
+            date_fin=self.lundi + timedelta(days=4),
+            code_absence='F',
+        )
+        ev.equipes.set([self.equipe])
+        self.client.login(username='laurene2', password='pw')
+        resp = self.client.get(
+            reverse('core:emargement') + f'?equipe={self.equipe.pk}&debut={self.lundi.isoformat()}'
+        )
+        self.assertEqual(resp.status_code, 200)
+        grid_rows = resp.context['grid_rows_maison']
+        lundi_matin = next(
+            c for row in grid_rows for c in row['cells']
+            if c['jour'] == self.lundi and c['creneau'] == 'matin'
+        )
+        self.assertEqual(lundi_matin['special_code'], 'F')
+
 
 class PlanningBarreTests(TestCase):
     """

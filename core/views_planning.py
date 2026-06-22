@@ -26,7 +26,7 @@ from .models import (
     Equipier, TrancheDevis, Affectation, Presence, Evenement, Pret,
     FicheNote, ClotureMois, COULEURS_CHANTIER,
 )
-from .permissions import peut_acceder_planning, est_encadrant, peut_modifier_devis
+from .permissions import peut_acceder_planning, est_encadrant, peut_modifier_devis, peut_modifier_insertion
 from .planning_utils import (
     _TAUX_JOUR_PLANNING,
     _planning_date, _in_loan, _half_col_creneau,
@@ -255,7 +255,7 @@ def emargement_view(request):
     vendredi = lundi + timedelta(days=4)
 
     profil = get_profil(request.user)
-    if profil.role in ('admin', 'responsable', 'rh'):
+    if peut_modifier_insertion(request.user):
         equipes = Equipe.objects.filter(
             actif=True, service__module_planning=True
         ).select_related('service').order_by('nom')
@@ -407,7 +407,12 @@ def emargement_view(request):
                 is_ferie       = jour in jours_feries_ev
                 ferie_label    = jours_feries_ev[jour].libelle if is_ferie else ''
                 is_ferie_legal = jour in feries_legaux
-                special_code   = 'R' if is_ferie else ('F' if is_ferie_legal else None)
+                ev_code = next(
+                    (ev.code_absence for ev in events_by_jour.get(jour, [])
+                     if ev.code_absence and ev.type != 'journee_ferie'),
+                    None,
+                )
+                special_code = 'R' if is_ferie else (ev_code or ('F' if is_ferie_legal else None))
                 slot = slot_aff.get((jour, creneau))
                 if is_borrowed:
                     loan = _in_loan(jour, creneau, pret) and not is_off
@@ -517,7 +522,7 @@ def emargement_view(request):
         'equipe_effectifs_json': equipe_effectifs_json,
         'semaine_prec': (lundi - timedelta(weeks=1)).isoformat(),
         'semaine_suiv': (lundi + timedelta(weeks=1)).isoformat(),
-        'peut_modifier': est_encadrant(request.user, equipe_sel),
+        'peut_modifier': peut_modifier_insertion(request.user),
         # Mois clôturés couvrant la semaine affichée (équipe sélectionnée) —
         # le serveur reste seul juge (équipe maison de chaque équipier).
         'clotures_json': json.dumps([
@@ -535,7 +540,7 @@ def planning_mois(request):
         return HttpResponseForbidden("Accès réservé au module Insertion.")
 
     profil = get_profil(request.user)
-    peut_modifier_global = profil.role in ('admin', 'responsable')
+    peut_modifier_global = peut_modifier_insertion(request.user)
 
     # Fenêtre large : 26 semaines rendues d'un coup (−6/+20 autour de la
     # semaine cible) ; la navigation se fait par scroll côté client, sans
@@ -586,7 +591,10 @@ def planning_mois(request):
         _aff_par_eq.setdefault(aff.equipe_id, []).append(aff)
     for _affs in _aff_par_eq.values():
         aff_color.update(couleurs_par_equipe(_affs))
-    equipes_modifiables_ids = {e.pk for e in equipes if est_encadrant(request.user, e)}
+    if peut_modifier_insertion(request.user):
+        equipes_modifiables_ids = {e.pk for e in equipes}
+    else:
+        equipes_modifiables_ids = {e.pk for e in equipes if e.encadrant_id == request.user.pk}
 
     # Filtre par équipe persistant (préférence utilisateur). Liste d'ids
     # d'équipes affichées ; vide = toutes affichées. On ne garde que les ids
@@ -843,6 +851,7 @@ def planning_mois(request):
                 'travaille': ev.travaille,
                 'decale_chantier': ev.decale_chantier,
                 'equipe_ids': [e.pk for e in ev.equipes.all()],
+                'code_absence': ev.code_absence,
             }
             for ev in evenements
         }),
@@ -977,6 +986,11 @@ def evenement_save(request):
     else:
         ev = Evenement()
 
+    code_absence = (data.get('code_absence') or '').strip().upper()
+    _valid_codes = {'C', 'R', 'M', 'AT', 'A', 'AJ', 'S', 'PMSMP', 'DE', 'DI', 'F', ''}
+    if code_absence not in _valid_codes:
+        code_absence = ''
+
     ev.type           = type_ev
     ev.libelle        = libelle
     ev.date_debut     = date_debut
@@ -984,6 +998,7 @@ def evenement_save(request):
     ev.creneau        = creneau
     ev.travaille      = travaille
     ev.decale_chantier = decale and not travaille  # décalage seulement si événement négatif
+    ev.code_absence   = code_absence
     ev.save()
     ev.equipes.set(equipe_ids)
 
@@ -1347,13 +1362,12 @@ def presence_save(request):
             except (ValueError, TypeError):
                 pass
 
-        # Gate permission : via l'affectation si elle existe, sinon via l'équipe maison.
-        if aff:
-            if not est_encadrant(request.user, aff.equipe):
-                continue
-        else:
-            if not equipier.equipe or not est_encadrant(request.user, equipier.equipe):
-                continue
+        # Gate permission : tout membre insertion peut saisir sur n'importe quelle équipe.
+        if not peut_modifier_insertion(request.user):
+            continue
+        if not aff and not equipier.equipe:
+            continue
+        if not aff:
             # Auto-lookup : affectation active à cette date sur l'équipe maison.
             aff = (
                 Affectation.objects.filter(
@@ -1417,7 +1431,7 @@ def presence_reassign(request):
         return json_error('Créneau invalide')
 
     equipe = Equipe.objects.filter(pk=equipe_id).first()
-    if not equipe or not est_encadrant(request.user, equipe):
+    if not equipe or not peut_modifier_insertion(request.user):
         return json_error_permission()
     if _mois_cloture(equipe_id, d):
         return JsonResponse({'ok': False, 'error': MSG_MOIS_CLOTURE}, status=403)
@@ -1733,8 +1747,23 @@ def presence_feuille(request, eq_pk, annee, mois):
     for d_sp in feries_legaux:
         if fiche_start <= d_sp <= fiche_end:
             special_map[d_sp.isoformat()] = 'F'
+    # Événements avec code_absence (Formation, etc.) — priorité sur F légal, sous R pont
+    ev_code_qs = Evenement.objects.filter(
+        code_absence__gt='',
+        date_debut__lte=fiche_end,
+    ).filter(
+        Q(date_fin__isnull=True, date_debut__gte=fiche_start) | Q(date_fin__gte=fiche_start)
+    ).filter(
+        Q(equipes=equipe) | Q(equipes__isnull=True)
+    ).exclude(type='journee_ferie').distinct()
+    for ev in ev_code_qs:
+        d_cur = max(ev.date_debut, fiche_start)
+        d_end = min(ev.date_fin or ev.date_debut, fiche_end)
+        while d_cur <= d_end:
+            special_map[d_cur.isoformat()] = ev.code_absence
+            d_cur += timedelta(days=1)
     for d_sp in pont_dates:
-        special_map[d_sp.isoformat()] = 'R'   # pont écrase légal si même jour
+        special_map[d_sp.isoformat()] = 'R'   # pont écrase légal et événement
 
     # Sérialisation JSON pour injection dans le template
     note_map_json = json.dumps({

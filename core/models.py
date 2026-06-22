@@ -1068,6 +1068,17 @@ class Evenement(models.Model):
         default=False,
         help_text="True = jour normalement non-ouvré devient ouvré (vendredi de rattrapage…)",
     )
+    code_absence = models.CharField(
+        max_length=10, blank=True,
+        choices=[
+            ('C', 'Congé'), ('R', 'Récupération'), ('M', 'Maladie'),
+            ('AT', 'Accident du travail'), ('A', 'Absence'),
+            ('AJ', 'Absence justifiée non rémunérée'), ('S', 'Suspension'),
+            ('PMSMP', 'PMSMP'), ('DE', 'Démarches externes'),
+            ('DI', 'Démarches internes'), ('F', 'Férié'),
+        ],
+        help_text="Code d'absence posé automatiquement dans l'émargement des jours couverts",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

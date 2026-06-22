@@ -10,7 +10,7 @@
 ## État actuel
 
 - [x] **Phase 1 — Planning : présentation** (voies empilées, filtre équipes, édition lisible) — _Opus_
-- [ ] **Phase 2 — Émargement : permissions & codes d'événements** — _Sonnet_
+- [x] **Phase 2 — Émargement : permissions & codes d'événements** — _Sonnet_
 - [ ] **Phase 3 — Rangées ponctuelles** (modèle + migration) — _Opus_
 - [ ] **Phase 4 — Feuille logos + calendrier de modale commun** — _Sonnet (4b : Opus conseillé)_
 
@@ -169,11 +169,11 @@ positionnement vertical. Aligner sur `mockups/Planning - refonte.dc.html`.
   `Presence` fictive. Idem `presence_feuille()` (`special_map`).
 
 **✅ Checklist Phase 2**
-- [ ] Membre insertion non-encadrant peut saisir une présence + modifier le planning.
-- [ ] Mois clôturé reste verrouillé.
-- [ ] Événement « Formation » + code `F` → jours couverts affichent `F` (émargement + feuille).
-- [ ] Tests d'accès `core/tests.py` ajustés. `test core` + `check` verts.
-- [ ] Commit + cocher l'état + NOTES_DEV.
+- [x] Membre insertion non-encadrant peut saisir une présence + modifier le planning.
+- [x] Mois clôturé reste verrouillé.
+- [x] Événement « Formation » + code `F` → jours couverts affichent `F` (émargement + feuille).
+- [x] Tests d'accès `core/tests.py` ajustés. `test core` + `check` verts. _(197 tests OK)_
+- [x] Commit + cocher l'état + NOTES_DEV.
 
 ---
 

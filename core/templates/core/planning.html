@@ -641,6 +641,23 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
         <span>Décale les chantiers</span>
       </label>
     </div>
+    <div class="field">
+      <label>Code d'absence attribué <small style="font-weight:400;color:var(--gray-md)">(posé automatiquement en émargement)</small></label>
+      <select class="input" id="ev-code">
+        <option value="">— aucun —</option>
+        <option value="C">C — Congé</option>
+        <option value="R">R — Récupération</option>
+        <option value="M">M — Maladie</option>
+        <option value="AT">AT — Accident du travail</option>
+        <option value="A">A — Absence</option>
+        <option value="AJ">AJ — Absence justifiée non rémunérée</option>
+        <option value="S">S — Suspension</option>
+        <option value="PMSMP">PMSMP</option>
+        <option value="DE">DE — Démarches externes</option>
+        <option value="DI">DI — Démarches internes</option>
+        <option value="F">F — Férié</option>
+      </select>
+    </div>
     <div id="ev-err" style="color:var(--red);font-size:11px;margin-bottom:.5rem;display:none"></div>
     <div class="modal-acts">
       <button type="button" class="btn btn-red" id="ev-del-btn" onclick="deleteEv()" style="display:none">Supprimer</button>
@@ -1634,6 +1651,7 @@ function openModalEv(pk) {
   modal.querySelector('#ev-creneau').value = 'journee';
   modal.querySelector('#ev-travaille').checked      = false;
   modal.querySelector('#ev-decale').checked         = false;
+  modal.querySelector('#ev-code').value             = '';
   modal.querySelector('#ev-err').style.display      = 'none';
   modal.querySelector('#ev-del-btn').style.display = pk ? '' : 'none';
   modal.querySelector('#ev-dup-btn').style.display    = pk ? '' : 'none';
@@ -1650,6 +1668,7 @@ function openModalEv(pk) {
       modal.querySelector('#ev-creneau').value = ev.creneau    || 'journee';
       modal.querySelector('#ev-travaille').checked = ev.travaille        || false;
       modal.querySelector('#ev-decale').checked    = ev.decale_chantier  || false;
+      modal.querySelector('#ev-code').value        = ev.code_absence     || '';
       (ev.equipe_ids || []).forEach(id => {
         const cb = modal.querySelector(`#ev-equipes-list input[value="${id}"]`);
         if (cb) cb.checked = true;
@@ -1684,6 +1703,7 @@ function submitEv() {
     creneau:          modal.querySelector('#ev-creneau').value,
     travaille:        modal.querySelector('#ev-travaille').checked,
     decale_chantier:  modal.querySelector('#ev-decale').checked,
+    code_absence:     modal.querySelector('#ev-code').value,
     equipe_ids:       equipeIds,
   };
   if (pk) body.pk = pk;
