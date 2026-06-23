@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Déploiement OVH — mise à jour de l'appli après l'installation initiale.
-# Rejoue la séquence du Procfile Railway, en manuel mais en une commande.
+# Séquence pip → migrate → collectstatic → restart, en une commande.
 # Usage (sur le VPS, depuis /srv/cbbretagne/app) :  ./deploy.sh
 #
 # set -e  : stoppe au premier échec (pas de redémarrage sur du code cassé)

@@ -37,7 +37,7 @@ if not DEBUG and os.environ.get('DATABASE_URL') and SECRET_KEY.startswith('djang
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost 127.0.0.1').split(' ')
 
 CSRF_TRUSTED_ORIGINS = os.environ.get(
-    'CSRF_TRUSTED_ORIGINS', 'https://lec-henn-production.up.railway.app'
+    'CSRF_TRUSTED_ORIGINS', 'https://vps-28c76530.vps.ovh.net'
 ).split(' ')
 
 
@@ -140,8 +140,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Prod (Railway) : noms de fichiers hashés (manifest) → cache navigateur longue
-# durée, invalidé automatiquement à chaque déploiement (collectstatic du Procfile).
+# Prod (OVH) : noms de fichiers hashés (manifest) → cache navigateur longue
+# durée, invalidé automatiquement à chaque déploiement (collectstatic de deploy.sh).
 # Dev/tests : pas de manifest (exigerait collectstatic après chaque retouche CSS) ;
 # WhiteNoise sert directement depuis core/static/ via les finders.
 _IS_PROD = not DEBUG and bool(os.environ.get('DATABASE_URL'))
@@ -173,7 +173,7 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@compagnonsbat
 ANYMAIL = {
     'BREVO_API_KEY': _brevo_key,
 }
-SITE_URL = os.environ.get('SITE_URL', 'https://lec-henn-production.up.railway.app')
+SITE_URL = os.environ.get('SITE_URL', 'https://vps-28c76530.vps.ovh.net')
 
 # Sécurité prod — activée uniquement si DATABASE_URL présente et DEBUG=False.
 # HTTPS_ONLY=False permet de tourner en HTTP sur IP nue (OVH avant domaine).

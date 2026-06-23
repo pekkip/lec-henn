@@ -1,1 +1,0 @@
-web: python manage.py collectstatic --noinput && python manage.py migrate && gunicorn cbretagne.wsgi --workers 2 --timeout 60

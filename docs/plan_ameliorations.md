@@ -28,7 +28,7 @@ indépendamment, terminée par `test core` + entrée NOTES_DEV. Un **prompt prê
 par phase est fourni en fin de document pour lancer chaque session.
 
 ### Contraintes & conventions (rappels projet)
-- **Push `main` = déploiement Railway (prod)** → committer phase par phase, vérifiée.
+- **Commit direct sur `main`** ; déploiement = SSH manuel OVH (`./deploy.sh`), le push ne déploie PAS → committer phase par phase, vérifiée.
 - Tests : `venv\Scripts\python manage.py test core` (doit rester vert, 156 tests).
 - Commits **sans** `Co-Authored-By`. Mettre à jour NOTES_DEV à chaque session.
 - Migration OVH semaine du 15/06 : les phases 1–2 sont sûres à tout moment ; phases 3–5
