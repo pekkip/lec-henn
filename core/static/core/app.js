@@ -132,6 +132,150 @@ function showToast(msg, type = 'ok') {
   _toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+/* ── CALENDRIER DE PLAGE PARTAGÉ ───────────────────────────────────────────
+ * Composant unique des 3 modales du planning/émargement (affecter un chantier,
+ * prêt d'équipier, événement). Rend une grille de mois (7 col.), gère la
+ * sélection d'une plage et la navigation de mois. Styles : `.cal*` dans app.css
+ * (plage turquoise, jours pris en ambre, aujourd'hui = point prune).
+ *
+ * opts :
+ *   grid       (élément)  conteneur de la grille                    — requis
+ *   monthLabel (élément)  reçoit « Mars 2026 »                      — requis
+ *   mode       'range' (clic-glissé début→fin) | 'start' (clic =
+ *              début, fin calculée par computeEnd)        — défaut 'range'
+ *   computeEnd (startIso) => endIso                  — requis en mode 'start'
+ *   isBusy     (iso) => false | true | 'titre'  marque .busy (+ title) — opt.
+ *   onChange   (startIso, endIso) => void   après chaque changement   — opt.
+ *
+ * API : nav(dir), goToMonth(y,m), setRange(s,e), clear(), getStart(),
+ *       getEnd(), render().
+ */
+function RangeCalendar(opts) {
+  const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet',
+                'Août','Septembre','Octobre','Novembre','Décembre'];
+  const mode = opts.mode || 'range';
+  const now  = new Date();
+  let year = now.getFullYear(), month = now.getMonth();
+  let start = null, end = null;
+  let dragging = false, anchor = null, hover = null;
+
+  function iso(y, m, d) {
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  }
+
+  function fireChange() { if (opts.onChange) opts.onChange(start, end); }
+
+  function commitDrag() {
+    if (!anchor) return;
+    const h = hover || anchor;
+    start = anchor <= h ? anchor : h;
+    end   = anchor <= h ? h : anchor;
+  }
+
+  function render() {
+    opts.monthLabel.textContent = MOIS[month] + ' ' + year;
+    const grid = opts.grid;
+    grid.innerHTML = '';
+    ['L','M','M','J','V','S','D'].forEach(function(h) {
+      const el = document.createElement('div');
+      el.className = 'cal-h'; el.textContent = h; grid.appendChild(el);
+    });
+
+    // Plage affichée : en cours de glissé, dérivée d'anchor/hover.
+    let rS = start, rE = end;
+    if (dragging && anchor) {
+      const h = hover || anchor;
+      rS = anchor <= h ? anchor : h;
+      rE = anchor <= h ? h : anchor;
+    }
+
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const firstDow = new Date(year, month, 1).getDay();
+    const off      = firstDow === 0 ? 6 : firstDow - 1;
+    const dim      = new Date(year, month + 1, 0).getDate();
+    const prevDim  = new Date(year, month, 0).getDate();
+
+    for (let i = off - 1; i >= 0; i--) {
+      const el = document.createElement('div');
+      el.className = 'cal-d out'; el.textContent = prevDim - i; grid.appendChild(el);
+    }
+    for (let day = 1; day <= dim; day++) {
+      const ds = iso(year, month, day);
+      const el = document.createElement('div');
+      el.className = 'cal-d'; el.textContent = day;
+      if (ds === todayIso) el.classList.add('today');
+      if (opts.isBusy) {
+        const b = opts.isBusy(ds);
+        if (b) { el.classList.add('busy'); if (typeof b === 'string') el.title = b; }
+      }
+      if (rS && rE) {
+        if (ds === rS && ds === rE) el.classList.add('s', 'e');
+        else if (ds === rS)         el.classList.add('s');
+        else if (ds === rE)         el.classList.add('e');
+        else if (ds > rS && ds < rE) el.classList.add('in');
+      } else if (rS && ds === rS) {
+        el.classList.add('s', 'e');
+      }
+      bindCell(el, ds);
+      grid.appendChild(el);
+    }
+    const total = off + dim;
+    const fill  = total % 7 === 0 ? 0 : 7 - total % 7;
+    for (let i = 1; i <= fill; i++) {
+      const el = document.createElement('div');
+      el.className = 'cal-d out'; el.textContent = i; grid.appendChild(el);
+    }
+  }
+
+  function bindCell(el, ds) {
+    if (mode === 'start') {
+      el.addEventListener('click', function() {
+        start = ds;
+        end   = opts.computeEnd ? opts.computeEnd(ds) : ds;
+        anchor = start; hover = end;
+        render(); fireChange();
+      });
+    } else {
+      el.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        dragging = true; anchor = ds; hover = ds; render();
+      });
+      el.addEventListener('mouseenter', function() {
+        if (dragging) { hover = ds; render(); }
+      });
+      el.addEventListener('mouseup', function() {
+        if (dragging) { dragging = false; commitDrag(); render(); fireChange(); }
+      });
+    }
+  }
+
+  // Fin de glissé relâché hors de la grille.
+  document.addEventListener('mouseup', function() {
+    if (dragging) { dragging = false; commitDrag(); render(); fireChange(); }
+  });
+
+  return {
+    el: opts.grid,
+    nav: function(dir) {
+      month += dir;
+      if (month > 11) { month = 0; year++; }
+      if (month < 0)  { month = 11; year--; }
+      render();
+    },
+    goToMonth: function(y, m) { year = y; month = m; render(); },
+    setRange: function(s, e) {
+      start = s; end = e || s;
+      anchor = s; hover = e || s;
+      if (s) { const d = new Date(s + 'T12:00:00'); year = d.getFullYear(); month = d.getMonth(); }
+      render(); fireChange();
+    },
+    clear: function() { start = end = anchor = hover = null; render(); fireChange(); },
+    getStart: function() { return start; },
+    getEnd:   function() { return end; },
+    render: render,
+  };
+}
+
 /* Garde-fou de sortie de page : avertit (boîte native du navigateur) si des
  * modifications ne sont pas sauvegardées. Couvre fermeture d'onglet,
  * rechargement ET navigation arrière/avant (Alt+←). `isDirty` est rappelé à

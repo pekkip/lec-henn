@@ -12,9 +12,9 @@
 - [x] **Phase 1 — Planning : présentation** (voies empilées, filtre équipes, édition lisible) — _Opus_
 - [x] **Phase 2 — Émargement : permissions & codes d'événements** — _Sonnet_
 - [x] **Phase 3 — Rangées ponctuelles** (modèle + migration + création + rendu) — _Opus_
-- [ ] **Phase 4 — Feuille logos + calendrier de modale commun** — _Sonnet (4b : Opus conseillé)_
+- [x] **Phase 4 — Feuille logos + calendrier de modale commun** — _Sonnet (4b : Opus conseillé)_
   - [x] **4a** — Logos financeurs téléversables sur la feuille de présence
-  - [ ] **4b** — Calendrier de plage commun aux 3 modales
+  - [x] **4b** — Calendrier de plage commun aux 3 modales (composant `RangeCalendar`)
 
 - [x] **Complément — Imputation par demi-journée & couleurs chantiers** (hors phases 1-4) — _Opus_
   Handoff `mockups/HANDOFF - Imputation & couleurs chantiers.md` + maquette `Imputation & couleurs
@@ -247,10 +247,13 @@ structurante — après stabilisation des phases 1-2.
   un cadre), 1 page A4 paysage. _(`Financeur.logo` ImageField + migration `0034`, admin téléversable,
   rendu `.logo-img`/`.logo-nom` hauteur 30 px. Tests `test_feuille_logo_image` +
   `test_feuille_logo_fallback_nom`. Prod : `/media/` déjà servi par nginx.)_
-- [ ] **4b** — Les 3 modales partagent le même calendrier ; modale événement sans `input date` natif.
-  _(reste à faire — volet le plus délicat, Opus conseillé)_
-- [x] `test core` (205) + `check` verts. _(4a uniquement ; 4b à venir)_
-- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`. _(4a)_
+- [x] **4b** — Les 3 modales partagent le même calendrier ; modale événement sans `input date` natif.
+  _(composant `RangeCalendar` dans `app.js` + styles `.cal*` dans `app.css` ; modales affectation
+  (mode `start`, durée auto + jours pris ambre), prêt (mode `range` + 2 créneaux) et événement
+  (mode `range`, remplace les 2 `<input type=date>`) rebranchées dessus. Sélection turquoise, today
+  point prune, conforme `Modales harmonisées.dc.html`. Modale rangée Phase 3 hors périmètre §5E.)_
+- [x] `test core` (205) + `check` verts.
+- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`.
 
 ---
 

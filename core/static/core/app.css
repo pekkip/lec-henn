@@ -282,3 +282,30 @@ tbody tr:hover .cell-act .ico-btn{opacity:1}
 .dirty-indicator{display:none;align-items:center;gap:5px;font-size:11px;color:#8B5E0A}
 .dirty-indicator .dot-dirty{width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0;display:inline-block}
 .dirty-indicator.visible{display:inline-flex}
+
+/* ── Calendrier de plage partagé (3 modales planning/émargement) ───────────
+ * Brique unique pilotée par RangeCalendar (app.js). Conventions (maquette
+ * « Modales harmonisées ») : plage sélectionnée en turquoise (bornes pleines
+ * .s/.e, intérieur clair .in), jours déjà pris en ambre .busy, aujourd'hui =
+ * point prune (.today::after). Markup : .cal > .cal-hd + .cal-grid (.cal-h
+ * en-têtes, .cal-d jours). */
+.cal{user-select:none;border:1px solid var(--gray-bd);border-radius:var(--r);padding:9px 11px}
+.cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.cal-hd b{font-size:13px;color:var(--gray);font-weight:600}
+.cal-nav{background:none;border:none;cursor:pointer;font-size:17px;color:var(--gray);padding:0 7px;border-radius:3px;line-height:1.2}
+.cal-nav:hover{background:var(--gray-lt)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-h{text-align:center;font-size:10px;font-weight:600;color:var(--gray-md);padding:1px 0 3px}
+.cal-d{position:relative;text-align:center;font-size:12px;padding:6px 0;border-radius:4px;cursor:pointer;color:var(--gray);font-variant-numeric:tabular-nums}
+.cal-d:not(.out):hover{background:var(--teal-lt)}
+.cal-d.out{color:#d2d0cc;cursor:default;pointer-events:none}
+.cal-d.today{font-weight:700}
+.cal-d.today::after{content:'';position:absolute;left:50%;bottom:3px;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--prune)}
+.cal-d.busy{background:var(--amber-lt)}
+.cal-d.busy:not(.s):not(.e):not(.in):hover{background:var(--amber);color:#fff}
+.cal-d.in{background:var(--teal-lt);border-radius:0}
+.cal-d.s{background:var(--teal-dk);color:#fff;font-weight:600;border-radius:4px 0 0 4px}
+.cal-d.e{background:var(--teal-dk);color:#fff;font-weight:600;border-radius:0 4px 4px 0}
+.cal-d.s.e{border-radius:4px}
+.cal-d.s.today::after,.cal-d.e.today::after{background:#fff}
+.cal-rng{font-size:11px;color:var(--gray);text-align:center;margin:7px 0 2px;min-height:16px}

@@ -256,23 +256,7 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
 .tranche-chip{display:inline-flex;align-items:center;padding:7px 15px;border-radius:99px;border:1.5px solid var(--gray-bd);cursor:pointer;font-size:13px;margin:2px 2px 2px 0;background:var(--white)}
 .tranche-chip.selected{border-color:var(--teal);background:var(--teal-lt);font-weight:600;color:var(--teal-dk)}
 .tranche-chip.new-btn{border-style:dashed;color:var(--teal)}
-/* ── calendrier affectation ── */
-.pret-cal{user-select:none;margin-bottom:.5rem}
-.pret-cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem}
-.pret-cal-nav{background:none;border:none;cursor:pointer;font-size:18px;color:var(--gray);padding:1px 7px;border-radius:3px;line-height:1}
-.pret-cal-nav:hover{background:var(--gray-lt)}
-#aff-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
-.cal-hdr{text-align:center;font-size:10px;font-weight:600;color:var(--gray-md);padding:2px 0 4px}
-.cal-day{text-align:center;font-size:12px;padding:5px 2px;border-radius:3px;line-height:1;cursor:pointer}
-.cal-day:not(.other-month):hover{background:var(--amber-lt,#fef3c7)}
-.cal-day.other-month{color:#bbb;cursor:default;pointer-events:none}
-.cal-day.today{font-weight:700}
-.cal-day.sel-start{background:var(--amber,#f59e0b);color:#fff;font-weight:600;border-radius:4px 0 0 4px}
-.cal-day.sel-end{background:var(--amber,#f59e0b);color:#fff;font-weight:600;border-radius:0 4px 4px 0}
-.cal-day.sel-start.sel-end{border-radius:4px}
-.cal-day.in-range{background:var(--amber-lt,#fef3c7);border-radius:0}
-.cal-busy{background:#fde68a}
-.cal-busy:not(.other-month):not(.sel-start):not(.sel-end):not(.in-range):hover{background:var(--amber,#f59e0b);color:#fff}
+/* calendrier affectation + événement → composant partagé `.cal*` (app.css) */
 .modal-wizard{width:540px}
 .modal-ev{width:500px}
 </style>
@@ -619,15 +603,15 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
     <div id="aff-s4" class="hidden">
       <button type="button" class="aff-back" onclick="affGoStep(3)">‹ Retour</button>
       <div id="aff-cal-recap" class="aff-recap"></div>
-      <div class="pret-cal">
-        <div class="pret-cal-hd">
-          <button type="button" class="pret-cal-nav" onclick="affCalNav(-1)">‹</button>
-          <span id="aff-cal-month-lbl" style="font-size:13px;font-weight:600"></span>
-          <button type="button" class="pret-cal-nav" onclick="affCalNav(1)">›</button>
+      <div class="cal">
+        <div class="cal-hd">
+          <button type="button" class="cal-nav" onclick="affCal.nav(-1)">‹</button>
+          <b id="aff-cal-month-lbl"></b>
+          <button type="button" class="cal-nav" onclick="affCal.nav(1)">›</button>
         </div>
-        <div id="aff-cal-grid"></div>
+        <div class="cal-grid" id="aff-cal-grid"></div>
       </div>
-      <div id="aff-cal-sel-lbl" style="font-size:11px;color:var(--gray);text-align:center;min-height:16px;margin:.3rem 0"></div>
+      <div id="aff-cal-sel-lbl" class="cal-rng"></div>
       <div style="display:flex;align-items:center;gap:12px;margin:.5rem 0">
         <div style="font-size:10px;color:var(--gray-md)">Démarrage :</div>
         <div class="cren-grp" id="aff-cren-debut-grp">
@@ -684,15 +668,17 @@ body.dragging-active .tl-lbl,body.dragging-active .tl-lbl *{pointer-events:none}
         {% endfor %}
       </div>
     </div>
-    <div class="grid-2">
-      <div class="field">
-        <label>Date début *</label>
-        <input class="input" type="date" id="ev-debut">
+    <div class="field">
+      <label>Dates * <small style="font-weight:400;color:var(--gray-md)">(clic-glissé pour une plage)</small></label>
+      <div class="cal">
+        <div class="cal-hd">
+          <button type="button" class="cal-nav" onclick="evCal.nav(-1)">‹</button>
+          <b id="ev-cal-month-lbl"></b>
+          <button type="button" class="cal-nav" onclick="evCal.nav(1)">›</button>
+        </div>
+        <div class="cal-grid" id="ev-cal-grid"></div>
       </div>
-      <div class="field">
-        <label>Date fin <small style="font-weight:400;color:var(--gray-md)">(optionnelle)</small></label>
-        <input class="input" type="date" id="ev-fin">
-      </div>
+      <div id="ev-range-lbl" class="cal-rng"></div>
     </div>
     <div style="display:flex;gap:16px;align-items:center;margin-bottom:.75rem">
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
@@ -1343,7 +1329,6 @@ let _aff = {
   dateDebut: null, dateFin: null,
   debutCreneau: 'matin',
 };
-let _affCalYear, _affCalMonth;
 
 // addWorkingDays(startStr, n, equipeId) est défini plus haut (drag & drop)
 
@@ -1482,7 +1467,7 @@ function affGoStep(n) {
   });
   if (n === 2) renderEquipeCards();
   if (n === 3) renderTrancheSection();
-  if (n === 4) { initAffCal(); renderAffCal(); }
+  if (n === 4) { initAffCal(); }
 }
 
 function filterDevisCards(q) {
@@ -1632,22 +1617,41 @@ async function creerTranche() {
   }
 }
 
-// ── Calendrier étape 4 ─────────────────────────────────────────────
+// ── Calendrier étape 4 (composant partagé RangeCalendar, app.js) ──────────
+// Affectation = clic = date de début ; la fin est calculée en jours ouvrés
+// (durée du chantier). Les jours déjà affectés à l'équipe sont marqués (ambre).
+const affCal = RangeCalendar({
+  grid:       document.getElementById('aff-cal-grid'),
+  monthLabel: document.getElementById('aff-cal-month-lbl'),
+  mode:       'start',
+  computeEnd: function(ds) {
+    return _aff.nbJours > 1 ? addWorkingDays(ds, _aff.nbJours - 1, _aff.equipeId) : ds;
+  },
+  isBusy: function(ds) {
+    const affEq = AFF_PAR_EQUIPE[String(_aff.equipeId)] || [];
+    const busy  = affEq.filter(function(a) { return ds >= a.debut && ds <= a.fin; });
+    return busy.length ? busy.map(function(a) { return a.label; }).join(', ') : false;
+  },
+  onChange: function(s, e) {
+    _aff.dateDebut = s; _aff.dateFin = e;
+    const lbl = document.getElementById('aff-cal-sel-lbl');
+    if (!s) { lbl.textContent = 'Cliquer sur un jour pour choisir la date de début'; return; }
+    const fmt = function(x) {
+      return new Date(x + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'});
+    };
+    lbl.textContent = 'Du ' + fmt(s) + ' au ' + fmt(e) + ' (' + _aff.nbJours + ' j)';
+  },
+});
+
 function initAffCal() {
   const today = new Date();
-  _affCalYear  = today.getFullYear();
-  _affCalMonth = today.getMonth();
-  _aff.dateDebut = null; _aff.dateFin = null;
-  document.getElementById('aff-cal-sel-lbl').textContent = 'Cliquer sur un jour pour choisir la date de début';
   document.getElementById('aff-err').style.display = 'none';
   setAffCreneauDebut('matin');
-}
-
-function affCalNav(dir) {
-  _affCalMonth += dir;
-  if (_affCalMonth > 11) { _affCalMonth = 0; _affCalYear++; }
-  if (_affCalMonth < 0)  { _affCalMonth = 11; _affCalYear--; }
-  renderAffCal();
+  document.getElementById('aff-cal-recap').innerHTML =
+    '<strong>' + _aff.devisRef + ' — ' + _aff.devisClient + '</strong>'
+    + ' · ' + _aff.equipeNom + ' · ' + _aff.nbJours + ' j';
+  affCal.goToMonth(today.getFullYear(), today.getMonth());
+  affCal.clear();   // réinitialise la sélection (libellé remis via onChange)
 }
 
 function setAffCreneauDebut(c) {
@@ -1655,78 +1659,6 @@ function setAffCreneauDebut(c) {
   document.querySelectorAll('#aff-cren-debut-grp button').forEach(function(b, i) {
     b.classList.toggle('active', i === (c === 'matin' ? 0 : 1));
   });
-}
-
-
-function renderAffCal() {
-  const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin',
-                'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-  document.getElementById('aff-cal-month-lbl').textContent = MOIS[_affCalMonth] + ' ' + _affCalYear;
-  const grid = document.getElementById('aff-cal-grid');
-  grid.innerHTML = '';
-  ['L','M','M','J','V','S','D'].forEach(function(h) {
-    const el = document.createElement('div');
-    el.className = 'cal-hdr'; el.textContent = h; grid.appendChild(el);
-  });
-
-  const affEq    = AFF_PAR_EQUIPE[String(_aff.equipeId)] || [];
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const firstDow = new Date(_affCalYear, _affCalMonth, 1).getDay();
-  const off      = firstDow === 0 ? 6 : firstDow - 1;
-  const dim      = new Date(_affCalYear, _affCalMonth + 1, 0).getDate();
-  const prevDim  = new Date(_affCalYear, _affCalMonth, 0).getDate();
-
-  function mkDs(y, m, d) {
-    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-  }
-
-  for (let i = off - 1; i >= 0; i--) {
-    const el = document.createElement('div');
-    el.className = 'cal-day other-month'; el.textContent = prevDim - i; grid.appendChild(el);
-  }
-
-  for (let day = 1; day <= dim; day++) {
-    const ds  = mkDs(_affCalYear, _affCalMonth, day);
-    const el  = document.createElement('div');
-    el.className = 'cal-day';
-    el.textContent = day;
-    if (ds === todayStr) el.classList.add('today');
-    if (_aff.dateDebut) {
-      if (ds === _aff.dateDebut && ds === _aff.dateFin) el.classList.add('sel-start', 'sel-end');
-      else if (ds === _aff.dateDebut) el.classList.add('sel-start');
-      else if (ds === _aff.dateFin)   el.classList.add('sel-end');
-      else if (_aff.dateFin && ds > _aff.dateDebut && ds < _aff.dateFin) el.classList.add('in-range');
-    }
-    const busy = affEq.filter(function(a) { return ds >= a.debut && ds <= a.fin; });
-    if (busy.length) {
-      el.classList.add('cal-busy');
-      el.title = busy.map(function(a) { return a.label; }).join(', ');
-    }
-    (function(capturedDs) {
-      el.addEventListener('click', function() {
-        _aff.dateDebut = capturedDs;
-        _aff.dateFin   = _aff.nbJours > 1 ? addWorkingDays(capturedDs, _aff.nbJours - 1, _aff.equipeId) : capturedDs;
-        renderAffCal();
-        const fmt = function(s) {
-          return new Date(s + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'});
-        };
-        document.getElementById('aff-cal-sel-lbl').textContent =
-          'Du ' + fmt(_aff.dateDebut) + ' au ' + fmt(_aff.dateFin) + ' (' + _aff.nbJours + ' j)';
-      });
-    })(ds);
-    grid.appendChild(el);
-  }
-
-  const total = off + dim;
-  const fill  = total % 7 === 0 ? 0 : 7 - total % 7;
-  for (let i = 1; i <= fill; i++) {
-    const el = document.createElement('div');
-    el.className = 'cal-day other-month'; el.textContent = i; grid.appendChild(el);
-  }
-
-  document.getElementById('aff-cal-recap').innerHTML =
-    '<strong>' + _aff.devisRef + ' — ' + _aff.devisClient + '</strong>'
-    + ' · ' + _aff.equipeNom + ' · ' + _aff.nbJours + ' j';
 }
 
 function submitAff() {
@@ -1860,13 +1792,30 @@ function submitRangee() {
 }
 
 // ── Modale événement ──────────────────────────────────
+// Calendrier de plage partagé (RangeCalendar, app.js) — remplace les anciens
+// <input type="date">. Sélection libre par clic-glissé (1 jour ou une plage).
+const evCal = RangeCalendar({
+  grid:       document.getElementById('ev-cal-grid'),
+  monthLabel: document.getElementById('ev-cal-month-lbl'),
+  mode:       'range',
+  onChange: function(s, e) {
+    const lbl = document.getElementById('ev-range-lbl');
+    if (!s) { lbl.textContent = 'Cliquer-glisser pour choisir la ou les dates'; return; }
+    const fmt = function(x) {
+      return new Date(x + 'T12:00:00').toLocaleDateString('fr-FR', {weekday:'short', day:'numeric', month:'short'});
+    };
+    lbl.textContent = (!e || s === e) ? fmt(s) : (fmt(s) + ' → ' + fmt(e));
+  },
+});
+
 function openModalEv(pk) {
   const modal = document.getElementById('modal-ev');
   modal.dataset.pk = pk || '';
   modal.querySelector('#ev-type').value    = 'autre';
   modal.querySelector('#ev-libelle').value = '';
-  modal.querySelector('#ev-debut').value   = '';
-  modal.querySelector('#ev-fin').value     = '';
+  const _evToday = new Date();
+  evCal.goToMonth(_evToday.getFullYear(), _evToday.getMonth());
+  evCal.clear();
   modal.querySelector('#ev-creneau').value = 'journee';
   modal.querySelector('#ev-travaille').checked      = false;
   modal.querySelector('#ev-decale').checked         = false;
@@ -1882,8 +1831,7 @@ function openModalEv(pk) {
     if (ev) {
       modal.querySelector('#ev-type').value    = ev.type    || 'autre';
       modal.querySelector('#ev-libelle').value = ev.libelle || '';
-      modal.querySelector('#ev-debut').value   = ev.date_debut || '';
-      modal.querySelector('#ev-fin').value     = ev.date_fin   || '';
+      if (ev.date_debut) evCal.setRange(ev.date_debut, ev.date_fin || ev.date_debut);
       modal.querySelector('#ev-creneau').value = ev.creneau    || 'journee';
       modal.querySelector('#ev-travaille').checked = ev.travaille        || false;
       modal.querySelector('#ev-decale').checked    = ev.decale_chantier  || false;
@@ -1899,7 +1847,7 @@ function openModalEv(pk) {
 
 function openModalEvNew(dateStr) {
   openModalEv(null);
-  document.getElementById('ev-debut').value = dateStr || TODAY_ISO;
+  evCal.setRange(dateStr || TODAY_ISO, dateStr || TODAY_ISO);
 }
 
 function closeModalEv() { document.getElementById('modal-ev').classList.add('hidden'); }
@@ -1908,8 +1856,9 @@ function submitEv() {
   const modal = document.getElementById('modal-ev');
   const pk    = modal.dataset.pk ? parseInt(modal.dataset.pk) : null;
   const err   = modal.querySelector('#ev-err');
-  const debut = modal.querySelector('#ev-debut').value;
-  if (!debut) { err.textContent = 'Renseignez la date de début.'; err.style.display = ''; return; }
+  const debut = evCal.getStart();
+  const fin   = evCal.getEnd();
+  if (!debut) { err.textContent = 'Choisissez la ou les dates sur le calendrier.'; err.style.display = ''; return; }
 
   const equipeIds = [...modal.querySelectorAll('#ev-equipes-list input[type=checkbox]:checked')]
     .map(cb => parseInt(cb.value));
@@ -1918,7 +1867,7 @@ function submitEv() {
     type:             modal.querySelector('#ev-type').value,
     libelle:          modal.querySelector('#ev-libelle').value.trim(),
     date_debut:       debut,
-    date_fin:         modal.querySelector('#ev-fin').value || null,
+    date_fin:         (fin && fin !== debut) ? fin : null,
     creneau:          modal.querySelector('#ev-creneau').value,
     travaille:        modal.querySelector('#ev-travaille').checked,
     decale_chantier:  modal.querySelector('#ev-decale').checked,
