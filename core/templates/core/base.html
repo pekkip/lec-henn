@@ -65,6 +65,7 @@
     <div class="nav-sect">Principal</div>
     <a href="{% url 'core:dashboard' %}" title="Tableau de bord" class="nav-item {% block nav_dashboard %}{% endblock %}"><i class="ti ti-layout-dashboard"></i><span class="nav-label">Tableau de bord</span></a>
     <a href="{% url 'core:devis-list' %}" title="Devis" class="nav-item {% block nav_devis %}{% endblock %}"><i class="ti ti-calculator"></i><span class="nav-label">Devis</span></a>
+    <a href="{% url 'core:import-devis' %}" title="Importer des devis PDF" class="nav-item {% block nav_import_devis %}{% endblock %}"><i class="ti ti-file-import"></i><span class="nav-label">Import PDF</span></a>
     <a href="{% url 'core:factures-list' %}" title="Factures" class="nav-item {% block nav_factures %}{% endblock %}"><i class="ti ti-cash"></i><span class="nav-label">Factures</span></a>
     <a href="{% url 'core:avoirs-list' %}" title="Avoirs" class="nav-item {% block nav_avoirs %}{% endblock %}"><i class="ti ti-receipt-refund"></i><span class="nav-label">Avoirs</span></a>
     <a href="{% url 'core:clients' %}" title="Clients" class="nav-item {% block nav_clients %}{% endblock %}"><i class="ti ti-users"></i><span class="nav-label">Clients</span></a>

@@ -42,6 +42,8 @@ urlpatterns = [
     # Devis
     path('devis/', views.devis_list, name='devis-list'),
     path('devis/nouveau/', views.devis_create, name='devis-create'),
+    path('devis/import/', views.import_devis_view, name='import-devis'),
+    path('devis/import/confirmer/', views.import_devis_confirm, name='import-devis-confirm'),
     path('devis/<int:pk>/', views.devis_detail, name='devis-detail'),
     path('devis/<int:pk>/statut/', views.devis_status, name='devis-status'),
     path('devis/<int:pk>/dupliquer/', views.devis_duplicate, name='devis-duplicate'),

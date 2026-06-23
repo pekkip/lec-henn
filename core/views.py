@@ -2879,3 +2879,130 @@ def contact_client_delete(request, pk):
     return JsonResponse({'ok': True})
 
 
+# ══════════════════════════════════════════
+#  IMPORT DEVIS PDF
+# ══════════════════════════════════════════
+
+class _ImportJSONEncoder(json.JSONEncoder):
+    """Sérialise Decimal et date pour le round-trip JSON de l'import PDF."""
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return {'__decimal__': str(obj)}
+        if isinstance(obj, date):
+            return {'__date__': obj.isoformat()}
+        return super().default(obj)
+
+
+def _import_json_decoder(d):
+    if '__decimal__' in d:
+        return Decimal(d['__decimal__'])
+    if '__date__' in d:
+        y, m, day = d['__date__'].split('-')
+        return date(int(y), int(m), int(day))
+    return d
+
+
+def _fmt_montant(val):
+    """Formate un Decimal en "1 668,00 €" (ou "?" si None)."""
+    if val is None:
+        return '?'
+    return f"{val:,.2f} €".replace(',', ' ').replace('.', ',').replace('  ', ' ')
+
+
+@login_required
+def import_devis_view(request):
+    """Étape 1 (GET) : formulaire upload — Étape 2 (POST) : prévisualisation."""
+    from .import_pdf import parse_devis_pdf
+
+    equipes = (Equipe.objects
+               .filter(type_rangee='permanente', archivee=False)
+               .select_related('service')
+               .order_by('service__nom', 'nom'))
+
+    if request.method == 'POST':
+        files = request.FILES.getlist('pdfs')
+        equipe_id = request.POST.get('equipe_id', '')
+
+        if not files:
+            messages.error(request, 'Aucun fichier PDF sélectionné.')
+            return render(request, 'core/import_devis.html', {
+                'equipes': equipes, 'step': 'upload', 'equipe_id': equipe_id,
+            })
+
+        results = []
+        for f in files:
+            parsed = parse_devis_pdf(f)
+            exists = Devis.objects.filter(reference=parsed['reference']).exists() if parsed['reference'] else False
+            results.append({
+                'filename': f.name,
+                'parsed': parsed,
+                'exists': exists,
+                'total_display': _fmt_montant(parsed.get('total_pdf')),
+            })
+
+        parsed_json = json.dumps([r['parsed'] for r in results], cls=_ImportJSONEncoder)
+
+        return render(request, 'core/import_devis.html', {
+            'equipes': equipes,
+            'equipe_id': equipe_id,
+            'step': 'preview',
+            'results': results,
+            'parsed_json': parsed_json,
+        })
+
+    return render(request, 'core/import_devis.html', {
+        'equipes': equipes, 'step': 'upload',
+    })
+
+
+@login_required
+@require_POST
+def import_devis_confirm(request):
+    """Étape 3 : création des Devis depuis les données prévisualisées."""
+    from .import_pdf import create_from_parsed
+
+    equipe_id = request.POST.get('equipe_id', '')
+    equipe = get_object_or_404(Equipe, pk=equipe_id) if equipe_id else None
+    parsed_json = request.POST.get('parsed_json', '[]')
+
+    try:
+        parsed_list = json.loads(parsed_json, object_hook=_import_json_decoder)
+    except (json.JSONDecodeError, ValueError):
+        messages.error(request, 'Données invalides — recommencez l\'import.')
+        return redirect('core:import-devis')
+
+    imported, skipped, errored = 0, 0, 0
+
+    for parsed in parsed_list:
+        ref = parsed.get('reference', '')
+        if not ref:
+            errored += 1
+            continue
+        if Devis.objects.filter(reference=ref).exists():
+            skipped += 1
+            continue
+        try:
+            devis, _ = create_from_parsed(parsed, equipe, request.user)
+            imported += 1
+        except Exception as e:
+            logger.error('import_devis_confirm: erreur sur %s : %s', ref, e)
+            errored += 1
+
+    parts = []
+    if imported:
+        parts.append(f'{imported} devis importé{"s" if imported > 1 else ""}')
+    if skipped:
+        parts.append(f'{skipped} ignoré{"s" if skipped > 1 else ""} (référence déjà existante)')
+    if errored:
+        parts.append(f'{errored} erreur{"s" if errored > 1 else ""}')
+
+    if imported:
+        messages.success(request, ' — '.join(parts))
+    elif skipped and not errored:
+        messages.warning(request, ' — '.join(parts))
+    else:
+        messages.error(request, ' — '.join(parts) or 'Aucun devis importé.')
+
+    return redirect('core:devis-list')
+
+

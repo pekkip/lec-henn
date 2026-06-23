@@ -1,0 +1,181 @@
+{% extends 'core/base.html' %}
+{% block title %}Import devis PDF{% endblock %}
+{% block nav_import_devis %}active{% endblock %}
+{% block topbar_title %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.upload-zone{border:2px dashed var(--gray-bd);border-radius:var(--r);padding:40px;text-align:center;background:var(--gray-lt);cursor:pointer;transition:border-color .2s}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--teal)}
+.upload-zone input[type=file]{display:none}
+.upload-icon{font-size:40px;color:var(--gray-md);margin-bottom:8px}
+.upload-hint{font-size:13px;color:var(--gray-md)}
+.file-list{margin-top:12px;font-size:13px;text-align:left;max-height:180px;overflow-y:auto}
+.file-item{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--gray-lt)}
+.file-item .ti{color:var(--teal)}
+.preview-tbl th,.preview-tbl td{font-size:12px}
+.badge-ok{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#d1fae5;color:#065f46}
+.badge-warn{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#fef3c7;color:#92400e}
+.badge-err{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#fee2e2;color:#991b1b}
+.badge-dup{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#e0e7ff;color:#3730a3}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <div class="page-title">Import devis PDF</div>
+    <div class="page-sub">Importer des devis historiques au format PDF (template CBB)</div>
+  </div>
+  <a href="{% url 'core:devis-list' %}" class="btn"><i class="ti ti-arrow-left"></i> Retour aux devis</a>
+</div>
+
+<div class="page-body">
+
+{% if step == 'upload' or not step %}
+{# ── Étape 1 : formulaire d'upload ─────────────────────────────────── #}
+<div class="card" style="max-width:640px">
+  <div class="card-hd">
+    <span class="card-title"><i class="ti ti-file-import" style="color:var(--teal)"></i>Sélectionner les fichiers PDF</span>
+  </div>
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" id="upload-form">
+      {% csrf_token %}
+
+      <div class="field">
+        <label>Équipe *</label>
+        <select name="equipe_id" class="sel" required style="width:100%">
+          <option value="">— Sélectionner une équipe —</option>
+          {% for e in equipes %}
+          <option value="{{ e.pk }}">{{ e.service.territoire }} — {{ e.service.nom }} — {{ e.nom }}</option>
+          {% endfor %}
+        </select>
+        <div class="field-help">L'équipe sera assignée à tous les devis importés.</div>
+      </div>
+
+      <div class="field">
+        <label>Fichiers PDF</label>
+        <div class="upload-zone" id="drop-zone" onclick="document.getElementById('pdf-input').click()">
+          <div class="upload-icon"><i class="ti ti-files"></i></div>
+          <div>Cliquer pour sélectionner des fichiers</div>
+          <div class="upload-hint">ou glisser-déposer ici — PDF uniquement</div>
+          <input type="file" id="pdf-input" name="pdfs" multiple accept=".pdf" onchange="showFiles(this.files)">
+        </div>
+        <div class="file-list" id="file-list"></div>
+        <div class="field-help" style="margin-top:6px">
+          Vous pouvez aussi utiliser <strong>Ctrl+clic</strong> / <strong>Maj+clic</strong> pour sélectionner plusieurs fichiers.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button type="submit" class="btn btn-prune" id="parse-btn" disabled>
+          <i class="ti ti-eye"></i> Prévisualiser
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% elif step == 'preview' %}
+{# ── Étape 2 : prévisualisation + confirmation ──────────────────────── #}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title"><i class="ti ti-table" style="color:var(--teal)"></i>Prévisualisation — {{ results|length }} fichier{{ results|length|pluralize }}</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="scroll-y">
+    <table class="tbl-author preview-tbl">
+      <thead><tr>
+        <th>Fichier</th>
+        <th>Référence</th>
+        <th>Client</th>
+        <th>Objet / Chantier</th>
+        <th style="text-align:right">Lignes</th>
+        <th style="text-align:right">Total PDF</th>
+        <th>Statut</th>
+      </tr></thead>
+      <tbody>
+      {% for r in results %}
+      <tr>
+        <td style="font-size:11px;color:var(--gray-md)">{{ r.filename }}</td>
+        <td><strong>{{ r.parsed.reference|default:"—" }}</strong></td>
+        <td>{{ r.parsed.client.nom|default:"—" }}</td>
+        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.parsed.objet }}">
+          {{ r.parsed.objet|default:r.parsed.chantier.nom|default:"—" }}
+        </td>
+        <td style="text-align:right">{{ r.parsed.nb_lignes }}</td>
+        <td style="text-align:right">{{ r.total_display }}</td>
+        <td>
+          {% if r.exists %}
+            <span class="badge-dup">Doublon</span>
+          {% elif r.parsed.errors %}
+            <span class="badge-err" title="{{ r.parsed.errors|join:', ' }}">Erreur</span>
+          {% else %}
+            <span class="badge-ok">OK</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:12px;padding:10px 14px;background:var(--gray-lt);border-radius:var(--r);font-size:12px;color:var(--gray-md)">
+  <i class="ti ti-info-circle"></i>
+  Les références déjà existantes seront ignorées. Les sections "Récapitulatif" ne sont pas importées (sous-totaux, pas de travail réel).
+  Si le total calculé diffère du total PDF de plus de 0,05 €, une note de vérification est ajoutée au devis.
+</div>
+
+<form method="post" action="{% url 'core:import-devis-confirm' %}">
+  {% csrf_token %}
+  <input type="hidden" name="equipe_id" value="{{ equipe_id }}">
+  <input type="hidden" name="parsed_json" value="{{ parsed_json }}">
+  <div style="display:flex;gap:10px;margin-top:16px">
+    <button type="submit" class="btn btn-prune">
+      <i class="ti ti-check"></i> Confirmer l'import
+    </button>
+    <a href="{% url 'core:import-devis' %}" class="btn">
+      <i class="ti ti-arrow-left"></i> Modifier la sélection
+    </a>
+  </div>
+</form>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showFiles(files) {
+  const list = document.getElementById('file-list');
+  const btn = document.getElementById('parse-btn');
+  list.innerHTML = '';
+  if (!files.length) { btn.disabled = true; return; }
+  Array.from(files).forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.innerHTML = '<i class="ti ti-file-type-pdf"></i><span>' + f.name + '</span>';
+    list.appendChild(div);
+  });
+  btn.disabled = false;
+}
+
+// Drag & drop
+const zone = document.getElementById('drop-zone');
+if (zone) {
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const input = document.getElementById('pdf-input');
+    const dt = new DataTransfer();
+    Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.pdf')).forEach(f => dt.items.add(f));
+    input.files = dt.files;
+    showFiles(input.files);
+  });
+}
+</script>
+{% endblock %}
