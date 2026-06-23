@@ -158,7 +158,8 @@ class AuditLogAdmin(admin.ModelAdmin):
 
 @admin.register(Financeur)
 class FinanceurAdmin(admin.ModelAdmin):
-    list_display = ['nom', 'logo_cle', 'ordre']
+    list_display = ['nom', 'logo', 'logo_cle', 'ordre']
+    fields = ['nom', 'logo', 'logo_cle', 'ordre']
     ordering = ['ordre', 'nom']
 
 

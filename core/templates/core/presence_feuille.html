@@ -56,7 +56,10 @@
 .fiche-footer{margin-top:8px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-top:1px solid #bbb;padding-top:6px}
 .legende{font-size:9px;color:#555;line-height:1.5}
 .legende strong{color:#333}
-.logos{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.logos{display:flex;gap:9px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.logo-img{height:30px;width:auto;object-fit:contain}
+.logo-nom{height:30px;display:flex;align-items:center;justify-content:center;text-align:center;
+  border:1px solid #e0e0e0;border-radius:2px;padding:0 8px;font-size:8px;color:#333;background:#fff;line-height:1.15}
 
 /* Toast */
 #toast{position:fixed;bottom:20px;right:20px;background:#1a7f6f;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
@@ -263,7 +266,11 @@
       </div>
       <div class="logos">
         {% for fin in equipe.financeurs.all %}
-        <span style="font-size:9px;border:1px solid #ddd;padding:2px 6px;border-radius:3px">{{ fin.nom }}</span>
+        {% if fin.logo %}
+        <img class="logo-img" src="{{ fin.logo.url }}" alt="{{ fin.nom }}">
+        {% else %}
+        <span class="logo-nom">{{ fin.nom }}</span>
+        {% endif %}
         {% endfor %}
       </div>
     </div>

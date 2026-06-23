@@ -892,6 +892,11 @@ class Financeur(models.Model):
         max_length=100, blank=True,
         help_text="Clé d'un logo statique embarqué (base64), comme le logo CB"
     )
+    logo = models.ImageField(
+        upload_to='financeurs/', blank=True, null=True,
+        help_text="Logo téléversé (PNG/SVG). Affiché sur la feuille de présence ; "
+                  "à défaut, le nom du financeur est affiché dans un cadre."
+    )
     ordre = models.IntegerField(default=0)
 
     class Meta:

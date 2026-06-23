@@ -13,6 +13,8 @@
 - [x] **Phase 2 — Émargement : permissions & codes d'événements** — _Sonnet_
 - [x] **Phase 3 — Rangées ponctuelles** (modèle + migration + création + rendu) — _Opus_
 - [ ] **Phase 4 — Feuille logos + calendrier de modale commun** — _Sonnet (4b : Opus conseillé)_
+  - [x] **4a** — Logos financeurs téléversables sur la feuille de présence
+  - [ ] **4b** — Calendrier de plage commun aux 3 modales
 
 - [x] **Complément — Imputation par demi-journée & couleurs chantiers** (hors phases 1-4) — _Opus_
   Handoff `mockups/HANDOFF - Imputation & couleurs chantiers.md` + maquette `Imputation & couleurs
@@ -241,10 +243,14 @@ structurante — après stabilisation des phases 1-2.
   sous-titre gris, boutons Annuler / Enregistrer (turquoise).
 
 **✅ Checklist Phase 4**
-- [ ] Feuille avec jeux de logos variables selon `equipe.financeurs` (image sinon nom), 1 page A4 paysage.
-- [ ] Les 3 modales partagent le même calendrier ; modale événement sans `input date` natif.
-- [ ] `test core` + `check` verts.
-- [ ] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`.
+- [x] **4a** — Feuille avec jeux de logos variables selon `equipe.financeurs` (image sinon nom dans
+  un cadre), 1 page A4 paysage. _(`Financeur.logo` ImageField + migration `0034`, admin téléversable,
+  rendu `.logo-img`/`.logo-nom` hauteur 30 px. Tests `test_feuille_logo_image` +
+  `test_feuille_logo_fallback_nom`. Prod : `/media/` déjà servi par nginx.)_
+- [ ] **4b** — Les 3 modales partagent le même calendrier ; modale événement sans `input date` natif.
+  _(reste à faire — volet le plus délicat, Opus conseillé)_
+- [x] `test core` (205) + `check` verts. _(4a uniquement ; 4b à venir)_
+- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`. _(4a)_
 
 ---
 

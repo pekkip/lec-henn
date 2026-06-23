@@ -1,7 +1,10 @@
 import json
+import base64
+import tempfile
 from unittest.mock import patch
 
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from django.db import connection
@@ -18,6 +21,7 @@ from .models import (
     Client, ContactClient, Devis, LigneDevis, Facture, LigneFacture,
     Equipier, TrancheDevis, Affectation, Presence, Pret,
     Evenement, FicheNote, ClotureMois, BibliothequeAides,
+    Financeur,
 )
 from .permissions import peut_acceder_planning, est_encadrant
 from .planning_utils import (
@@ -2501,6 +2505,41 @@ class FeuillesPresenceTests(TestCase):
         resp = self.client.get(
             reverse('core:presence-feuille', args=[self.sans_equipe.pk, 2026, 6]))
         self.assertEqual(resp.status_code, 403)
+
+    # ── Logos financeurs (Phase 4a) ──────────────────────────────────────
+
+    # PNG 1×1 transparent — évite la dépendance PIL pour téléverser un logo.
+    _PNG_1PX = base64.b64decode(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk'
+        '+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+    )
+
+    def test_feuille_logo_fallback_nom(self):
+        """Financeur sans logo → son nom s'affiche dans un cadre (.logo-nom)."""
+        fin = Financeur.objects.create(nom='Région Bretagne')
+        self.eq_a.financeurs.add(fin)
+        self.client.login(username='enc_a_feu', password='pw')
+        resp = self.client.get(
+            reverse('core:presence-feuille', args=[self.equipier.pk, 2026, 6]))
+        html = resp.content.decode()
+        self.assertIn('class="logo-nom"', html)
+        self.assertIn('Région Bretagne', html)
+        self.assertNotIn('<img class="logo-img"', html)
+
+    def test_feuille_logo_image(self):
+        """Financeur avec logo → balise <img class="logo-img"> pointant le média."""
+        with tempfile.TemporaryDirectory() as media:
+            with override_settings(MEDIA_ROOT=media):
+                fin = Financeur.objects.create(nom='Ille-et-Vilaine')
+                fin.logo.save('iv.png', SimpleUploadedFile(
+                    'iv.png', self._PNG_1PX, content_type='image/png'))
+                self.eq_a.financeurs.add(fin)
+                self.client.login(username='enc_a_feu', password='pw')
+                resp = self.client.get(
+                    reverse('core:presence-feuille', args=[self.equipier.pk, 2026, 6]))
+                html = resp.content.decode()
+                self.assertIn('<img class="logo-img"', html)
+                self.assertIn('financeurs/iv', html)
 
     # ── fiche_presence_save ──────────────────────────────────────────────
 
