@@ -931,6 +931,10 @@ class Equipier(models.Model):
         max_digits=5, decimal_places=2, default=Decimal('26.00'),
         help_text="Base contractuelle hebdomadaire (pour le calcul de récup)"
     )
+    date_entree_cbb = models.DateField(
+        null=True, blank=True,
+        help_text="Date d'entrée chez les Compagnons Bâtisseurs (peut précéder le contrat courant)"
+    )
     date_debut_contrat = models.DateField(null=True, blank=True)
     date_fin_contrat = models.DateField(null=True, blank=True)
     date_visite_medicale = models.DateField(null=True, blank=True)

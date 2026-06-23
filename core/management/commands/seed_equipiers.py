@@ -39,7 +39,7 @@ NOMS = [
     'MAHÉ', 'CABON', 'LE BRAS', 'QUÉMÉNER', 'SCOUARNEC', 'BERNARD', 'CADIOU',
     'KERMARREC', 'MORVAN', 'JAOUEN', 'EVEN', 'TRÉBAOL',
 ]
-TYPES_CONTRAT = ['CDDI - 26 heures', 'CDDI - 20 heures', 'CDDI - 30 heures']
+TYPE_CONTRAT = 'CDDI - 26 heures'  # uniforme (réalité des CDDI insertion 35)
 
 
 class Command(BaseCommand):
@@ -90,14 +90,17 @@ class Command(BaseCommand):
                 matricule = f"{MARKER}{equipe.pk}-{i:02d}"
                 debut = today - timedelta(days=rnd.randint(90, 540))
                 fin = debut + timedelta(days=rnd.randint(180, 730))
+                entree = debut - timedelta(days=rnd.randint(0, 400))  # entrée CBB ≤ début contrat
                 _, created = Equipier.objects.get_or_create(
                     matricule=matricule,
                     defaults=dict(
                         prenom=rnd.choice(PRENOMS),
                         nom=rnd.choice(NOMS),
                         equipe=equipe,
-                        type_contrat=rnd.choice(TYPES_CONTRAT),
+                        type_contrat=TYPE_CONTRAT,
+                        heures_contrat_hebdo=Decimal('28.00'),  # font 28h même si contrat 26h
                         actif=True,
+                        date_entree_cbb=entree,
                         date_debut_contrat=debut,
                         date_fin_contrat=fin,
                         date_visite_medicale=debut + timedelta(days=rnd.randint(0, 21)),
