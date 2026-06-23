@@ -2909,9 +2909,47 @@ def _fmt_montant(val):
     return f"{val:,.2f} €".replace(',', ' ').replace('.', ',').replace('  ', ' ')
 
 
+# Plafond du nombre de PDF par lot dans l'outil web : l'OCR du descriptif tourne
+# de façon synchrone (~1-12 s/devis) → on borne pour ne pas dépasser le timeout
+# gunicorn/nginx. En usage normal, le JS découpe le lot en une requête par fichier
+# (barre de progression), donc chaque requête reste courte ; cette borne protège le
+# repli sans-JS (un seul POST parse tout). Pour un import massif → commande CLI
+# `import_devis_pdf` (sans timeout, sur le VPS).
+MAX_IMPORT_PDFS = 5
+
+
+def _build_import_result(parsed, filename):
+    """Construit la ligne de prévisualisation à partir d'un devis parsé."""
+    ref = parsed.get('reference')
+    exists = Devis.objects.filter(reference=ref).exists() if ref else False
+    return {
+        'filename': filename,
+        'parsed': parsed,
+        'exists': exists,
+        'total_display': _fmt_montant(parsed.get('total_pdf')),
+    }
+
+
+def _render_preview(request, equipes, equipe_id, results):
+    parsed_json = json.dumps([r['parsed'] for r in results], cls=_ImportJSONEncoder)
+    return render(request, 'core/import_devis.html', {
+        'equipes': equipes,
+        'equipe_id': equipe_id,
+        'step': 'preview',
+        'results': results,
+        'parsed_json': parsed_json,
+    })
+
+
 @login_required
 def import_devis_view(request):
-    """Étape 1 (GET) : formulaire upload — Étape 2 (POST) : prévisualisation."""
+    """Étape 1 (GET) : formulaire upload — Étape 2 (POST) : prévisualisation.
+
+    Deux chemins POST vers la prévisualisation :
+      - `results_json` : devis déjà parsés un par un côté client (barre de
+        progression JS) → on affiche directement, sans re-parser ;
+      - `pdfs` : repli sans-JS, on parse tous les fichiers dans la requête.
+    """
     from .import_pdf import parse_devis_pdf
 
     equipes = (Equipe.objects
@@ -2919,40 +2957,78 @@ def import_devis_view(request):
                .select_related('service')
                .order_by('service__nom', 'nom'))
 
-    if request.method == 'POST':
-        files = request.FILES.getlist('pdfs')
-        equipe_id = request.POST.get('equipe_id', '')
-
-        if not files:
-            messages.error(request, 'Aucun fichier PDF sélectionné.')
-            return render(request, 'core/import_devis.html', {
-                'equipes': equipes, 'step': 'upload', 'equipe_id': equipe_id,
-            })
-
-        results = []
-        for f in files:
-            parsed = parse_devis_pdf(f)
-            exists = Devis.objects.filter(reference=parsed['reference']).exists() if parsed['reference'] else False
-            results.append({
-                'filename': f.name,
-                'parsed': parsed,
-                'exists': exists,
-                'total_display': _fmt_montant(parsed.get('total_pdf')),
-            })
-
-        parsed_json = json.dumps([r['parsed'] for r in results], cls=_ImportJSONEncoder)
-
+    def upload(equipe_id=''):
         return render(request, 'core/import_devis.html', {
-            'equipes': equipes,
-            'equipe_id': equipe_id,
-            'step': 'preview',
-            'results': results,
-            'parsed_json': parsed_json,
+            'equipes': equipes, 'step': 'upload', 'equipe_id': equipe_id,
+            'max_pdfs': MAX_IMPORT_PDFS,
         })
 
-    return render(request, 'core/import_devis.html', {
-        'equipes': equipes, 'step': 'upload',
-    })
+    if request.method == 'POST':
+        equipe_id = request.POST.get('equipe_id', '')
+
+        # Chemin JS : devis déjà parsés (un fetch par fichier) → preview directe.
+        results_json = request.POST.get('results_json', '')
+        if results_json:
+            try:
+                raw = json.loads(results_json, object_hook=_import_json_decoder)
+            except (json.JSONDecodeError, ValueError):
+                messages.error(request, 'Données invalides — recommencez l\'import.')
+                return upload(equipe_id)
+            if not isinstance(raw, list) or not raw:
+                messages.error(request, 'Aucun devis à prévisualiser.')
+                return upload(equipe_id)
+            results = [_build_import_result(item.get('parsed', {}), item.get('filename', ''))
+                       for item in raw[:MAX_IMPORT_PDFS]]
+            return _render_preview(request, equipes, equipe_id, results)
+
+        # Repli sans-JS : parse synchrone de tous les fichiers.
+        files = request.FILES.getlist('pdfs')
+        if not files:
+            messages.error(request, 'Aucun fichier PDF sélectionné.')
+            return upload(equipe_id)
+
+        if len(files) > MAX_IMPORT_PDFS:
+            messages.error(
+                request,
+                f'{len(files)} fichiers sélectionnés — maximum {MAX_IMPORT_PDFS} par lot '
+                f'(l\'OCR des descriptions est lent). Pour un import plus important, créez '
+                f'un dossier sur le SharePoint, mettez-y les devis et envoyez le lien à '
+                f'Denis Pekkip.'
+            )
+            return upload(equipe_id)
+
+        results = [_build_import_result(parse_devis_pdf(f), f.name) for f in files]
+        return _render_preview(request, equipes, equipe_id, results)
+
+    return upload()
+
+
+@login_required
+@require_POST
+def import_devis_parse_one(request):
+    """Parse UN seul PDF et renvoie son résultat en JSON (pour la barre de progression).
+
+    Le client enchaîne un appel par fichier afin d'afficher la progression et de
+    garder chaque requête courte (sous le timeout) malgré la lenteur de l'OCR.
+    """
+    from .import_pdf import parse_devis_pdf
+
+    f = request.FILES.get('pdf')
+    if not f:
+        return JsonResponse({'ok': False, 'error': 'Aucun fichier reçu.'}, status=400)
+
+    parsed = parse_devis_pdf(f)
+    result = _build_import_result(parsed, f.name)
+    return JsonResponse(
+        {
+            'ok': True,
+            'filename': result['filename'],
+            'parsed': parsed,
+            'exists': result['exists'],
+            'total_display': result['total_display'],
+        },
+        encoder=_ImportJSONEncoder,
+    )
 
 
 @login_required

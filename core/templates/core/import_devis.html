@@ -18,6 +18,12 @@
 .badge-warn{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#fef3c7;color:#92400e}
 .badge-err{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#fee2e2;color:#991b1b}
 .badge-dup{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#e0e7ff;color:#3730a3}
+.prog-box{margin-top:18px}
+.prog-head{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.prog-file{color:var(--gray-md);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%}
+.prog-track{height:10px;background:var(--gray-lt);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;width:0;background:var(--teal-dk);border-radius:99px;transition:width .3s ease}
+.prog-hint{font-size:12px;color:var(--gray-md);margin-top:6px}
 </style>
 {% endblock %}
 
@@ -64,14 +70,31 @@
         <div class="file-list" id="file-list"></div>
         <div class="field-help" style="margin-top:6px">
           Vous pouvez aussi utiliser <strong>Ctrl+clic</strong> / <strong>Maj+clic</strong> pour sélectionner plusieurs fichiers.
+          Les descriptions sont lues par OCR (lent) — <strong>maximum {{ max_pdfs }} PDF par lot</strong> ; pour un import plus important, créer un dossier sur le SharePoint, y mettre les devis et envoyer le lien à Denis Pekkip.
         </div>
       </div>
 
-      <div style="display:flex;gap:10px;margin-top:20px">
+      <div style="display:flex;gap:10px;margin-top:20px" id="parse-actions">
         <button type="submit" class="btn btn-prune" id="parse-btn" disabled>
           <i class="ti ti-eye"></i> Prévisualiser
         </button>
       </div>
+
+      <div class="prog-box" id="prog-box" style="display:none">
+        <div class="prog-head">
+          <span id="prog-file" class="prog-file"></span>
+          <span id="prog-count"></span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+        <div class="prog-hint">Lecture des descriptions par OCR — cela peut prendre quelques secondes par devis.</div>
+      </div>
+    </form>
+
+    {# Repli JS : envoie les devis déjà parsés (un par un) pour l'affichage #}
+    <form method="post" id="results-form" style="display:none">
+      {% csrf_token %}
+      <input type="hidden" name="equipe_id" id="rf-equipe">
+      <input type="hidden" name="results_json" id="rf-results">
     </form>
   </div>
 </div>
@@ -110,6 +133,8 @@
             <span class="badge-dup">Doublon</span>
           {% elif r.parsed.errors %}
             <span class="badge-err" title="{{ r.parsed.errors|join:', ' }}">Erreur</span>
+          {% elif r.parsed.warnings %}
+            <span class="badge-warn" title="{{ r.parsed.warnings|join:', ' }}">OK · sans descriptions</span>
           {% else %}
             <span class="badge-ok">OK</span>
           {% endif %}
@@ -175,6 +200,74 @@ if (zone) {
     Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.pdf')).forEach(f => dt.items.add(f));
     input.files = dt.files;
     showFiles(input.files);
+  });
+}
+
+// ── Prévisualisation avec barre de progression ──────────────────────────────
+// Chaque PDF est parsé via une requête dédiée (OCR lent) → on avance la barre
+// au fil des fichiers, puis on poste les résultats pour afficher l'aperçu.
+const MAX_PDFS = {{ max_pdfs }};
+const PARSE_URL = "{% url 'core:import-devis-parse-one' %}";
+const uploadForm = document.getElementById('upload-form');
+
+if (uploadForm) {
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const equipe = document.querySelector('[name=equipe_id]').value;
+    if (!equipe) { alert('Sélectionnez une équipe.'); return; }
+
+    const files = Array.from(document.getElementById('pdf-input').files);
+    if (!files.length) return;
+    if (files.length > MAX_PDFS) {
+      alert(files.length + ' fichiers — maximum ' + MAX_PDFS + ' par lot.\n'
+            + 'Pour un import plus important, créez un dossier sur le SharePoint, '
+            + 'mettez-y les devis et envoyez le lien à Denis Pekkip.');
+      return;
+    }
+
+    const csrf = uploadForm.querySelector('[name=csrfmiddlewaretoken]').value;
+    const btn = document.getElementById('parse-btn');
+    const box = document.getElementById('prog-box');
+    const fill = document.getElementById('prog-fill');
+    const count = document.getElementById('prog-count');
+    const fileLbl = document.getElementById('prog-file');
+
+    btn.disabled = true;
+    box.style.display = 'block';
+
+    const results = [];
+    for (let i = 0; i < files.length; i++) {
+      fileLbl.textContent = files[i].name;
+      count.textContent = (i + 1) + ' / ' + files.length;
+      fill.style.width = Math.round((i / files.length) * 100) + '%';
+
+      const fd = new FormData();
+      fd.append('pdf', files[i]);
+      try {
+        const resp = await fetch(PARSE_URL, {
+          method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd,
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          results.push({ filename: data.filename, parsed: data.parsed });
+        } else {
+          results.push({ filename: files[i].name,
+                         parsed: { reference: '', errors: [data.error || 'Échec'], warnings: [] } });
+        }
+      } catch (err) {
+        results.push({ filename: files[i].name,
+                       parsed: { reference: '', errors: ['Erreur réseau : ' + err], warnings: [] } });
+      }
+    }
+
+    fill.style.width = '100%';
+    count.textContent = files.length + ' / ' + files.length;
+    fileLbl.textContent = 'Préparation de l\'aperçu…';
+
+    document.getElementById('rf-equipe').value = equipe;
+    document.getElementById('rf-results').value = JSON.stringify(results);
+    document.getElementById('results-form').submit();
   });
 }
 </script>

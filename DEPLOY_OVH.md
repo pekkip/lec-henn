@@ -68,9 +68,15 @@
 ```bash
 sudo apt -y install python3 python3-venv python3-pip \
                     postgresql postgresql-contrib \
-                    nginx git
+                    nginx git \
+                    tesseract-ocr tesseract-ocr-fra   # OCR import devis PDF (descriptions EBP)
 # (libs WeasyPrint plus tard, quand on attaquera l'export PDF — pas nécessaire ici)
 ```
+> **Tesseract** est requis par l'import de devis PDF (`core/import_pdf.py`) : EBP
+> exporte la colonne « Descriptif » en images, lues par OCR. Le paquet `tesseract-ocr-fra`
+> installe le modèle français dans l'emplacement par défaut → aucune variable d'env à
+> régler sur le VPS (binaire sur le PATH). Vérifier : `tesseract --list-langs` doit lister `fra`.
+> Si Tesseract manque, l'import fonctionne quand même mais sans les descriptions (warning).
 
 ---
 
@@ -192,6 +198,11 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now cbbretagne
 sudo systemctl status cbbretagne
 ```
+> Note : l'import de devis PDF fait de l'OCR **synchrone** (~1-12 s/devis). En usage
+> normal le JS découpe le lot en **une requête par fichier** (barre de progression),
+> donc chaque requête reste courte. Le lot web est plafonné à 5 fichiers
+> (`MAX_IMPORT_PDFS`) ; pour un import massif, utiliser la commande `import_devis_pdf`
+> (sans timeout) sur le serveur.
 
 ### nginx — `/etc/nginx/sites-available/cbbretagne`
 ```nginx

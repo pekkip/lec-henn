@@ -1,8 +1,10 @@
 import json
 import base64
 import tempfile
+from unittest import skipUnless
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
@@ -3446,3 +3448,217 @@ class RangeesPonctuellesTests(TestCase):
         eq.refresh_from_db()
         self.assertTrue(eq.archivee)
         self.assertIsNone(self._ligne(pl, eq.pk))
+
+
+# ─── Import devis PDF — OCR du descriptif ─────────────────────────────────────
+
+_OCR_FIXTURE = (settings.BASE_DIR / 'docs' / 'exempledevis'
+                / 'DE04026 ARASS Mobilier chambres - DPH.pdf')
+
+
+def _ocr_fixture_available():
+    """Vrai si le PDF d'exemple existe ET que Tesseract est utilisable."""
+    try:
+        from .import_pdf import _tesseract_available
+        return _OCR_FIXTURE.exists() and _tesseract_available()
+    except Exception:
+        return False
+
+
+class ImportDevisOcrTests(TestCase):
+    """Import devis PDF : rattachement OCR ligne↔image + chemin de prévisualisation."""
+
+    def test_assign_boxes_titres_alignes(self):
+        from .import_pdf import _assign_boxes_to_rows
+        # tops réels relevés sur DE04026 (ligne ↔ image alignées à ~2 px près)
+        rows = [(420.0, '1'), (436.0, '1.1'), (503.0, '2')]
+        boxes = [(418.0, 'A'), (434.0, 'B'), (500.0, 'C')]
+        self.assertEqual(
+            _assign_boxes_to_rows(rows, boxes, total_tops=[], tol=12),
+            {'1': ['A'], '1.1': ['B'], '2': ['C']},
+        )
+
+    def test_assign_boxes_exclut_recapitulatifs(self):
+        from .import_pdf import _assign_boxes_to_rows
+        # l'image « TOTAL … » (top 475, ligne TOTAL en texte à 477) est écartée
+        rows = [(436.0, '1.1'), (503.0, '2')]
+        boxes = [(434.0, 'body'), (475.0, 'TOTAL'), (500.0, 'titre2')]
+        assigned = _assign_boxes_to_rows(rows, boxes, total_tops=[477.0], tol=12)
+        self.assertEqual(assigned, {'1.1': ['body'], '2': ['titre2']})
+
+    def test_assign_boxes_corps_orphelin_rattache_au_dessus(self):
+        """Un corps sans numéro (ex. NOTA) est rattaché à la ligne numérotée au-dessus."""
+        from .import_pdf import _assign_boxes_to_rows
+        rows = [(598.0, '3')]
+        boxes = [(596.0, 'NOTA'), (612.0, 'corps'), (643.0, 'TOTALimg')]
+        assigned = _assign_boxes_to_rows(rows, boxes, total_tops=[645.0], tol=12)
+        # titre + corps rattachés à « 3 » (dans l'ordre vertical), récap écarté
+        self.assertEqual(assigned, {'3': ['NOTA', 'corps']})
+
+    def test_apply_descriptions_recursif(self):
+        from .import_pdf import _apply_descriptions
+        tree = [{'num': '1', 'label': '', 'children': [
+                    {'num': '1.1', 'label': '', 'children': []}]}]
+        _apply_descriptions(tree, {'1': 'Table de chevet', '1.1': 'Réalisation'})
+        self.assertEqual(tree[0]['label'], 'Table de chevet')
+        self.assertEqual(tree[0]['children'][0]['label'], 'Réalisation')
+
+    def test_preview_depuis_results_json(self):
+        """Chemin JS : devis déjà parsés postés → prévisualisation sans re-parser."""
+        User.objects.create_user('imp_ocr', password='pw')
+        self.client.login(username='imp_ocr', password='pw')
+        parsed = {
+            'reference': 'DE-TEST-1', 'date': None, 'date_validite': None,
+            'objet': 'Réfection toiture', 'nb_lignes': 2,
+            'client': {'nom': 'Mairie'}, 'chantier': {'nom': ''},
+            'total_pdf': {'__decimal__': '1234.00'},
+            'tree': [], 'errors': [], 'warnings': [],
+        }
+        payload = json.dumps([{'filename': 'DE-TEST-1.pdf', 'parsed': parsed}])
+        resp = self.client.post(reverse('core:import-devis'),
+                                {'equipe_id': '', 'results_json': payload})
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'DE-TEST-1')
+        self.assertContains(resp, 'Réfection toiture')
+        self.assertContains(resp, '1 234,00')
+
+    def test_parse_amount_conserve_le_signe(self):
+        from .import_pdf import _parse_amount
+        self.assertEqual(_parse_amount('1 668,00'), Decimal('1668.00'))
+        self.assertEqual(_parse_amount('-2 248,00'), Decimal('-2248.00'))
+        self.assertEqual(_parse_amount('-900,00'), Decimal('-900.00'))
+        self.assertEqual(_parse_amount('0,00'), Decimal('0'))
+
+    def test_ecart_total_marque_objet(self):
+        """Un écart total calculé vs PDF → marqueur dans l'objet (chantier) + note."""
+        from .import_pdf import create_from_parsed
+        terr = Territoire.objects.create(nom='Tc')
+        serv = Service.objects.create(territoire=terr, nom='Sc')
+        eq = Equipe.objects.create(service=serv, nom='Ec')
+        user = User.objects.create_user('imp_ec', password='pw')
+        parsed = {
+            'reference': 'TST-ECART', 'objet': 'Mon chantier', 'date_validite': None,
+            'client': {'nom': 'Client'}, 'chantier': {'nom': '', 'adresse': '', 'cp': '', 'ville': ''},
+            'total_pdf': Decimal('50.00'),  # PDF annonce 50, lignes valent 100 → écart
+            'tree': [{'num': '1', 'label': 'Ligne', 'children': [],
+                      'qty_str': '1,00', 'unite': '', 'mat_str': '100,00',
+                      'mo_str': '', 'desc_extra': ''}],
+            'errors': [], 'warnings': [],
+        }
+        devis, warnings = create_from_parsed(parsed, eq, user)
+        self.assertEqual(devis.total_brut(), Decimal('100.00'))
+        self.assertTrue(devis.chantier.startswith('⚠ ÉCART'))
+        self.assertIn('Mon chantier', devis.chantier)
+        self.assertTrue(devis.notes)
+        self.assertTrue(warnings)
+
+    def test_ecart_un_centime_marque_objet(self):
+        """Seuil = 0 : même un écart de 0,01 € est signalé (sommes identiques exigées)."""
+        from .import_pdf import create_from_parsed
+        terr = Territoire.objects.create(nom='Tc1')
+        serv = Service.objects.create(territoire=terr, nom='Sc1')
+        eq = Equipe.objects.create(service=serv, nom='Ec1')
+        user = User.objects.create_user('imp_ec1', password='pw')
+        parsed = {
+            'reference': 'TST-CENT', 'objet': 'Chantier', 'date_validite': None,
+            'client': {'nom': 'Client'}, 'chantier': {'nom': '', 'adresse': '', 'cp': '', 'ville': ''},
+            'total_pdf': Decimal('100.00'),
+            'tree': [{'num': '1', 'label': 'Ligne', 'children': [],
+                      'qty_str': '1,00', 'unite': '', 'mat_str': '100,01',
+                      'mo_str': '', 'desc_extra': ''}],
+            'errors': [], 'warnings': [],
+        }
+        devis, _ = create_from_parsed(parsed, eq, user)
+        self.assertTrue(devis.chantier.startswith('⚠ ÉCART'))
+
+    @skipUnless(_ocr_fixture_available(), 'Tesseract+fra ou PDF exemple absent')
+    def test_montant_negatif_soustrait_du_total(self):
+        """Les financements négatifs (-2 248 €) viennent en soustraction (DE03065)."""
+        from .import_pdf import parse_devis_pdf, create_from_parsed
+        fixture = (settings.BASE_DIR / 'docs' / 'exempledevis'
+                   / 'MURUGANANTHAN 2 - DE03065 - Plomb+Elec 655€.pdf')
+        if not fixture.exists():
+            self.skipTest('PDF DE03065 absent')
+        terr = Territoire.objects.create(nom='Tn')
+        serv = Service.objects.create(territoire=terr, nom='Sn')
+        eq = Equipe.objects.create(service=serv, nom='En')
+        user = User.objects.create_user('imp_neg', password='pw')
+        parsed = parse_devis_pdf(str(fixture))
+        self.assertEqual(parsed['total_pdf'], Decimal('655.00'))
+        devis, warnings = create_from_parsed(parsed, eq, user)
+        self.assertEqual(devis.total_brut().quantize(Decimal('0.01')), Decimal('655.00'))
+        self.assertFalse(devis.chantier.startswith('⚠'))  # pas d'écart
+
+    def test_ligne_ecart_marque_descriptif(self):
+        """Une ligne dont le total calculé ≠ total EBP imprimé est marquée devant son descriptif."""
+        from .import_pdf import create_from_parsed
+        from .models import LigneDevis
+        terr = Territoire.objects.create(nom='Tl')
+        serv = Service.objects.create(territoire=terr, nom='Sl')
+        eq = Equipe.objects.create(service=serv, nom='El')
+        user = User.objects.create_user('imp_lg', password='pw')
+        parsed = {
+            'reference': 'TST-LIGNE', 'objet': 'Obj', 'date_validite': None,
+            'client': {'nom': 'C'}, 'chantier': {'nom': '', 'adresse': '', 'cp': '', 'ville': ''},
+            'total_pdf': Decimal('100.00'),
+            'tree': [{'num': '1', 'label': 'Ma ligne', 'children': [],
+                      'qty_str': '1,00', 'unite': '', 'mat_str': '100,00',
+                      'mo_str': '', 'total_str': '105,00', 'desc_extra': ''}],
+            'errors': [], 'warnings': [],
+        }
+        devis, _ = create_from_parsed(parsed, eq, user)
+        s = LigneDevis.objects.filter(devis=devis, type_ligne='S').first()
+        self.assertTrue(s.description.startswith('⚠ ÉCART'))
+        self.assertIn('Total calculé = 100,00 €', s.description)
+        self.assertIn('Montant EBP = 105,00 €', s.description)
+        self.assertIn('Ma ligne', s.description)
+
+    def test_import_page_affiche_barre_progression(self):
+        """L'étape upload rend la barre de progression + le cap (template OK)."""
+        User.objects.create_user('imp_pg', password='pw')
+        self.client.login(username='imp_pg', password='pw')
+        resp = self.client.get(reverse('core:import-devis'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'id="prog-box"')
+        self.assertContains(resp, 'maximum 5 PDF')
+
+    @skipUnless(_ocr_fixture_available(), 'Tesseract+fra ou PDF exemple absent')
+    def test_parse_one_endpoint_ocr(self):
+        """Endpoint un-PDF : JSON OK + descriptions dans l'arbre sérialisé."""
+        User.objects.create_user('imp_one', password='pw')
+        self.client.login(username='imp_one', password='pw')
+        with open(_OCR_FIXTURE, 'rb') as fh:
+            up = SimpleUploadedFile('DE04026.pdf', fh.read(),
+                                    content_type='application/pdf')
+        resp = self.client.post(reverse('core:import-devis-parse-one'), {'pdf': up})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertEqual(data['filename'], 'DE04026.pdf')
+        labels = []
+
+        def walk(nodes):
+            for n in nodes:
+                labels.append(n['label'])
+                walk(n['children'])
+
+        walk(data['parsed']['tree'])
+        self.assertIn('Table de chevet', ' | '.join(labels))
+
+    @skipUnless(_ocr_fixture_available(), 'Tesseract+fra ou PDF exemple absent')
+    def test_parse_de04026_descriptions_ocr(self):
+        """Bout en bout : les libellés du descriptif sont lus et rattachés."""
+        from .import_pdf import parse_devis_pdf
+        parsed = parse_devis_pdf(str(_OCR_FIXTURE))
+        labels = []
+
+        def walk(nodes):
+            for n in nodes:
+                labels.append(n['label'])
+                walk(n['children'])
+
+        walk(parsed['tree'])
+        joined = ' | '.join(labels)
+        self.assertIn('Table de chevet', joined)
+        self.assertIn('Armoire', joined)
+        self.assertEqual(parsed['warnings'], [])

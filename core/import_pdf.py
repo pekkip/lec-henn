@@ -9,11 +9,213 @@ Fonctions principales :
   create_from_parsed(parsed, equipe, user) → (Devis, warnings)
 """
 import io
+import os
+import logging
 import re
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date as date_type
 
 import pdfplumber
+
+logger = logging.getLogger(__name__)
+
+_CENTS = Decimal('0.01')
+
+
+def _fmt_eur(v):
+    """Decimal → "1 234,56" (format français, sans symbole)."""
+    return f'{v:.2f}'.replace('.', ',')
+
+
+# ─── OCR de la colonne « Descriptif » ─────────────────────────────────────────
+#
+# EBP exporte la colonne « Descriptif » en images raster (une bitmap par cellule,
+# 1-bit DeviceGray ~300 DPI) : la couche texte du PDF ne contient QUE les nombres.
+# On récupère donc les libellés par OCR (Tesseract), en rattachant chaque image à
+# la ligne numérotée de la même rangée (alignement vertical par `top`).
+#
+# Prérequis : binaire `tesseract` + langue `fra`.
+#   - VPS Ubuntu : apt install tesseract-ocr tesseract-ocr-fra (sur le PATH).
+#   - Dev Windows : installer Tesseract puis renseigner les variables d'env
+#       TESSERACT_CMD = chemin de tesseract.exe (si absent du PATH)
+#       TESSDATA_DIR  = dossier tessdata contenant fra.traineddata (optionnel)
+# Si l'OCR est indisponible, l'import continue sans descriptions (warning remonté).
+
+_OCR_LANG = 'fra'
+_TESSERACT_CMD = os.environ.get('TESSERACT_CMD', '').strip()
+_TESSDATA_DIR = os.environ.get('TESSDATA_DIR', '').strip()
+
+# Géométrie de la colonne descriptif (points PDF, template EBP).
+_DESC_X0_MAX = 110     # x0 d'une cellule descriptif (colonne de gauche)
+_DESC_X1_MAX = 320     # x1 < seuil (avant la colonne Qté) — exclut chiffres/logo à droite
+_ROW_MATCH_TOL = 12    # tolérance verticale (px) ligne numérotée ↔ image
+
+_tesseract_checked = False
+_tesseract_ok = False
+
+
+def _tesseract_available():
+    """Vérifie (une fois) que pytesseract + le binaire tesseract sont utilisables."""
+    global _tesseract_checked, _tesseract_ok
+    if _tesseract_checked:
+        return _tesseract_ok
+    _tesseract_checked = True
+    try:
+        import pytesseract
+        if _TESSERACT_CMD:
+            pytesseract.pytesseract.tesseract_cmd = _TESSERACT_CMD
+        if _TESSDATA_DIR:
+            # Tesseract lit le dossier des langues via cette variable d'env
+            # (préférée à --tessdata-dir : pas de souci d'espaces/guillemets).
+            os.environ['TESSDATA_PREFIX'] = _TESSDATA_DIR
+        pytesseract.get_tesseract_version()
+        _tesseract_ok = True
+    except Exception as e:  # ImportError, TesseractNotFoundError, …
+        logger.warning('OCR Tesseract indisponible : %s', e)
+        _tesseract_ok = False
+    return _tesseract_ok
+
+
+def _ocr_cell(pil_image):
+    """OCR d'une cellule descriptif → texte normalisé (blancs ramenés à 1 espace)."""
+    import pytesseract
+    cfg = '--psm 6'  # bloc de texte uniforme (cellule multi-lignes)
+    txt = pytesseract.image_to_string(pil_image, lang=_OCR_LANG, config=cfg)
+    return re.sub(r'\s+', ' ', txt or '').strip()
+
+
+def _number_row_positions(page):
+    """Position verticale de chaque ligne numérotée → [(top, num), …].
+
+    Le N°/Ordre est le token le plus à gauche (x0 < 100) et purement numérique
+    (« 1 », « 1.1 », « 2.1 »…). Les montants (« 720,00 ») ont une virgule → exclus.
+    """
+    result = []
+    seen = set()
+    for w in sorted(page.extract_words(), key=lambda w: w['top']):
+        if w['x0'] < 100 and re.fullmatch(r'\d+(?:\.\d+)*', w['text']):
+            num = w['text']
+            if num not in seen:
+                seen.add(num)
+                result.append((float(w['top']), num))
+    return result
+
+
+def _descriptif_image_boxes(page):
+    """Bboxes des images de la colonne descriptif → [(top, bbox), …].
+
+    Filtre par colonne (x) + exclut le logo (DeviceRGB). Le rattachement par
+    tolérance verticale écarte de toute façon le logo (top ≈ 35, loin du tableau)
+    et les images « TOTAL … » des récapitulatifs (≈25 px de toute ligne numérotée).
+    """
+    boxes = []
+    for im in page.images:
+        if im['x0'] >= _DESC_X0_MAX or im['x1'] >= _DESC_X1_MAX:
+            continue
+        if 'RGB' in str(im.get('colorspace', '')):
+            continue
+        boxes.append((float(im['top']), (im['x0'], im['top'], im['x1'], im['bottom'])))
+    return boxes
+
+
+_OCR_DPI = 300
+
+
+def _total_row_tops(page):
+    """Positions verticales des lignes « TOTAL » (récapitulatifs)."""
+    tops = []
+    for w in page.extract_words():
+        if w['text'].upper() == 'TOTAL' and w['x0'] < 150:
+            tops.append(float(w['top']))
+    return tops
+
+
+def _assign_boxes_to_rows(rows, boxes, total_tops=(), tol=_ROW_MATCH_TOL):
+    """Rattache les images descriptif aux lignes numérotées → {num: [payloads]}.
+
+    rows : [(top, num)] ; boxes : [(top, payload)] ; total_tops : tops des lignes « TOTAL ».
+    Trois cas, dans l'ordre :
+      1. image alignée (≤ tol) à une ligne numérotée → titre/ligne de cette ligne ;
+      2. sinon, image alignée à une ligne « TOTAL » → récapitulatif, ignorée ;
+      3. sinon, texte orphelin (corps sans numéro, ex. NOTA) → rattaché à la ligne
+         numérotée juste au-dessus.
+    Les payloads d'une même ligne sont renvoyés triés du haut vers le bas (titre
+    puis corps). Fonction pure → testable sans OCR.
+    """
+    rows_sorted = sorted(rows)
+    acc = {}
+    for btop, payload in sorted(boxes):
+        # 1) aligné à une ligne numérotée
+        best, best_d = None, None
+        for rtop, num in rows_sorted:
+            d = abs(rtop - btop)
+            if best_d is None or d < best_d:
+                best_d, best = d, num
+        if best is not None and best_d <= tol:
+            acc.setdefault(best, []).append((btop, payload))
+            continue
+        # 2) récapitulatif (aligné à une ligne TOTAL) → ignoré
+        if any(abs(btop - tt) <= tol for tt in total_tops):
+            continue
+        # 3) texte orphelin → ligne numérotée au-dessus
+        above = [(rtop, num) for rtop, num in rows_sorted if rtop <= btop]
+        if above:
+            _, num = max(above, key=lambda x: x[0])
+            acc.setdefault(num, []).append((btop, payload))
+    return {num: [p for _, p in sorted(lst)] for num, lst in acc.items()}
+
+
+def _extract_descriptions(pdf):
+    """OCR des descriptions → (dict {num: texte}, ocr_disponible: bool).
+
+    Chaque page n'est rendue qu'une seule fois (puis recadrée en mémoire avec
+    Pillow) — bien plus rapide que `page.crop(...).to_image()` par cellule.
+    """
+    descriptions = {}
+    if not _tesseract_available():
+        return descriptions, False
+
+    scale = _OCR_DPI / 72.0
+    for page in pdf.pages:
+        rows = _number_row_positions(page)
+        boxes = _descriptif_image_boxes(page)
+        if not rows or not boxes:
+            continue
+        assigned = _assign_boxes_to_rows(rows, boxes, _total_row_tops(page))
+        if not assigned:
+            continue
+
+        try:
+            page_img = page.to_image(resolution=_OCR_DPI).original
+        except Exception as e:
+            logger.warning('Rendu page échoué pour OCR : %s', e)
+            continue
+
+        for num, bbox_list in assigned.items():
+            parts = []
+            for x0, top, x1, bottom in bbox_list:
+                px = (int(x0 * scale), int(top * scale),
+                      int(x1 * scale), int(bottom * scale))
+                try:
+                    txt = _ocr_cell(page_img.crop(px))
+                except Exception as e:
+                    logger.warning('OCR cellule échouée (num=%s) : %s', num, e)
+                    continue
+                if txt:
+                    parts.append(txt)
+            if parts:
+                descriptions[num] = '\n'.join(parts)
+
+    return descriptions, True
+
+
+def _apply_descriptions(nodes, descriptions):
+    """Pose le libellé OCR sur chaque nœud de l'arbre (par num)."""
+    for n in nodes:
+        txt = descriptions.get(n['num'])
+        if txt:
+            n['label'] = txt
+        _apply_descriptions(n['children'], descriptions)
 
 
 # ─── Helpers bas niveau ───────────────────────────────────────────────────────
@@ -26,22 +228,25 @@ def _parse_date_str(s):
         return None
 
 
-# Nombre format français : "1 668,00" ou "57,78"
-_NUMBER_RE = re.compile(r'\d[\d ]*,\d{2}')
+# Nombre format français, signe optionnel : "1 668,00", "57,78", "-2 248,00"
+# (les lignes de financement sont négatives — le signe doit être conservé)
+_NUMBER_RE = re.compile(r'-?\d[\d ]*,\d{2}')
 # Token alphabétique = unité (M2, F, U, Ml, J, KG, …)
 _UNIT_RE = re.compile(r'\b([A-Za-z][A-Za-z0-9/]*)\b')
 
 
 def _parse_amount(s):
-    """"1 668,00" → Decimal("1668.00")."""
+    """"1 668,00" → Decimal("1668.00") ; "-2 248,00" → Decimal("-2248.00")."""
     if not s:
         return Decimal('0')
     s = str(s).strip().replace('\xa0', '').replace(' ', '').replace(',', '.')
+    neg = s.startswith('-')
     s = re.sub(r'[^\d.]', '', s)
     if not s:
         return Decimal('0')
     try:
-        return Decimal(s)
+        d = Decimal(s)
+        return -d if neg else d
     except InvalidOperation:
         return Decimal('0')
 
@@ -200,25 +405,28 @@ def _extract_total(pdf):
 # ─── Parsing du texte du tableau ──────────────────────────────────────────────
 
 def _parse_amounts_from_text(rest):
-    """Extrait (qty, unite, mat_str, mo_str) depuis la partie données d'une ligne.
+    """Extrait (qty, unite, mat_str, mo_str, total_str) depuis la partie données.
+
+    `total_str` = « Total Net de Taxes » imprimé par EBP (dernière colonne), utilisé
+    pour recouper chaque ligne (cf. _create_node) ; '' si la ligne ne l'affiche pas.
 
     Exemples :
-      "57,78 M2 14,24 822,79"           → qty=57,78  unit=M2 mat=14,24  mo=''
-      "1,00 J 0,00 420,00 420,00"       → qty=1,00   unit=J  mat=0,00   mo=420,00
-      "1,00 1 668,00 2 040,00 3 708,00" → qty=1,00   unit='' mat=1668   mo=2040
-      "0,00"                             → qty=''    unit='' mat=0,00   mo=''
+      "57,78 M2 14,24 822,79"           → qty=57,78 unit=M2 mat=14,24 mo='' total=822,79
+      "1,00 J 0,00 420,00 420,00"       → qty=1,00  unit=J  mat=0,00  mo=420,00 total=420,00
+      "1,00 1 668,00 2 040,00 3 708,00" → qty=1,00  unit=''  mat=1668 mo=2040 total=3708
+      "0,00"                             → qty=''   unit=''  mat=0,00 mo='' total=''
     """
     numbers = _NUMBER_RE.findall(rest)
 
     if not numbers:
-        return '', '', '', ''
+        return '', '', '', '', ''
 
     # Cas particulier : une seule valeur → forfait ou Pour Mémoire
     if len(numbers) == 1:
         val = numbers[0]
         if val == '0,00':
-            return '', '', '0,00', ''
-        return val, '', '', ''
+            return '', '', '0,00', '', ''
+        return val, '', '', '', ''
 
     # Cherche une unité alphabétique immédiatement après le premier nombre
     first_num_m = _NUMBER_RE.search(rest)
@@ -236,6 +444,7 @@ def _parse_amounts_from_text(rest):
         unit = ''
         amounts = numbers[1:]
 
+    total = ''
     if len(amounts) == 0:
         mat, mo = '', ''
     elif len(amounts) == 1:
@@ -245,12 +454,14 @@ def _parse_amounts_from_text(rest):
         # [mat, total] — la colonne MO n'est pas affichée si = 0
         mat = amounts[0]
         mo = ''
+        total = amounts[1]
     else:
-        # [mat, mo, total, …] → prend antépénultième et avant-dernier
+        # [mat, mo, total, …] → prend antépénultième, avant-dernier, dernier
         mat = amounts[-3]
         mo = amounts[-2]
+        total = amounts[-1]
 
-    return qty, unit, mat, mo
+    return qty, unit, mat, mo, total
 
 
 def _collect_text_lines(pdf):
@@ -282,7 +493,7 @@ def _collect_text_lines(pdf):
                 if (all_lines
                         and not re.match(r'TOTAL\b', line, re.IGNORECASE)
                         and _parse_text_row(line) is None
-                        and re.match(r'^\d[\d ]*,\d{2}', line)):
+                        and re.match(r'^-?\d[\d ]*,\d{2}', line)):
                     prev = _parse_text_row(all_lines[-1])
                     if prev and prev['qty_str'] and not prev['mat_str'] and not prev['mo_str']:
                         all_lines[-1] += ' ' + line
@@ -309,14 +520,14 @@ def _parse_text_row(line):
     if not rest:
         return {
             'num': num, 'depth': num.count('.') + 1, 'label': '',
-            'qty_str': '', 'unite': '', 'mat_str': '', 'mo_str': '',
+            'qty_str': '', 'unite': '', 'mat_str': '', 'mo_str': '', 'total_str': '',
             'children': [], 'desc_extra': '',
         }
 
-    qty, unit, mat, mo = _parse_amounts_from_text(rest)
+    qty, unit, mat, mo, total = _parse_amounts_from_text(rest)
     return {
         'num': num, 'depth': num.count('.') + 1, 'label': '',
-        'qty_str': qty, 'unite': unit, 'mat_str': mat, 'mo_str': mo,
+        'qty_str': qty, 'unite': unit, 'mat_str': mat, 'mo_str': mo, 'total_str': total,
         'children': [], 'desc_extra': '',
     }
 
@@ -367,7 +578,8 @@ def parse_devis_pdf(path_or_fp):
 
     Accepte un chemin (str/Path) ou un objet fichier.
     """
-    errors = []
+    errors = []      # bloquants (réf introuvable, lecture impossible)
+    warnings = []    # non bloquants (OCR indisponible…) — l'import a quand même lieu
 
     try:
         if hasattr(path_or_fp, 'read'):
@@ -380,6 +592,8 @@ def parse_devis_pdf(path_or_fp):
             total_pdf = _extract_total(pdf)
             lines = _collect_text_lines(pdf)
             tree = _build_tree(lines)
+            descriptions, ocr_ok = _extract_descriptions(pdf)
+            _apply_descriptions(tree, descriptions)
 
     except Exception as e:
         errors.append(f'Erreur lecture PDF : {e}')
@@ -388,11 +602,17 @@ def parse_devis_pdf(path_or_fp):
             'equipe_hint': '', 'objet': '',
             'client': {}, 'chantier': {},
             'tree': [], 'total_pdf': None, 'nb_lignes': 0,
-            'errors': errors,
+            'errors': errors, 'warnings': warnings,
         }
 
     if not meta['reference']:
         errors.append('Référence du devis introuvable dans le PDF.')
+
+    if not ocr_ok:
+        warnings.append(
+            'OCR indisponible — descriptions de lignes non importées '
+            '(seuls les numéros figurent). Installer Tesseract pour les récupérer.'
+        )
 
     nb_lignes = _count_leaves(tree)
 
@@ -418,6 +638,7 @@ def parse_devis_pdf(path_or_fp):
         'total_pdf': total_pdf,
         'nb_lignes': nb_lignes,
         'errors': errors,
+        'warnings': warnings,
     }
 
 
@@ -463,6 +684,20 @@ def _create_node(devis, node, parent_ligne, ordre):
         mat = _parse_amount(node.get('mat_str', ''))
         mo = _parse_amount(node.get('mo_str', ''))
 
+        # Recoupement par ligne : total calculé (qté × coûts) vs « Total Net de
+        # Taxes » imprimé par EBP. En cas d'écart au centime, on marque la ligne
+        # DEVANT son descriptif → on repère la ligne mal lue dans le devis.
+        printed = node.get('total_str', '')
+        if printed:
+            calc = (qty * (mat + mo)).quantize(_CENTS, rounding=ROUND_HALF_UP)
+            pdf_total = _parse_amount(printed).quantize(_CENTS, rounding=ROUND_HALF_UP)
+            if calc != pdf_total:
+                description = (
+                    f'⚠ ÉCART {_fmt_eur(abs(calc - pdf_total))} € — '
+                    f'Total calculé = {_fmt_eur(calc)} € / Montant EBP = '
+                    f'{_fmt_eur(pdf_total)} €\n{description}'
+                )
+
         ligne = LigneDevis.objects.create(
             devis=devis,
             parent=parent_ligne,
@@ -475,7 +710,8 @@ def _create_node(devis, node, parent_ligne, ordre):
         )
         ordre[0] += 1
 
-        if mat > 0:
+        # != 0 (et non > 0) : les lignes de financement portent des coûts négatifs
+        if mat != 0:
             LigneDevis.objects.create(
                 devis=devis, parent=ligne,
                 type_ligne='FMAT', description='Matériaux',
@@ -484,7 +720,7 @@ def _create_node(devis, node, parent_ligne, ordre):
             )
             ordre[0] += 1
 
-        if mo > 0:
+        if mo != 0:
             LigneDevis.objects.create(
                 devis=devis, parent=ligne,
                 type_ligne='FMO', description="Main d'œuvre",
@@ -503,7 +739,7 @@ def create_from_parsed(parsed, equipe, user):
     from .models import Client, Devis
     from decimal import ROUND_HALF_UP
 
-    warnings = list(parsed.get('errors', []))
+    warnings = list(parsed.get('warnings', [])) + list(parsed.get('errors', []))
 
     client_data = parsed.get('client', {})
     client, _ = Client.objects.get_or_create(
@@ -536,23 +772,38 @@ def create_from_parsed(parsed, equipe, user):
     for root_node in parsed.get('tree', []):
         _create_node(devis, root_node, None, ordre)
 
+    # Contrôle systématique : total calculé vs « Montant Net de Taxes » du PDF.
+    # En cas d'anomalie, on marque l'OBJET du devis (visible en liste) + une note.
     total_pdf = parsed.get('total_pdf')
-    if total_pdf is not None:
-        total_calc = devis.total_brut()
-        cents = Decimal('0.01')
-        ecart = abs(
-            total_calc.quantize(cents, rounding=ROUND_HALF_UP) -
-            Decimal(str(total_pdf)).quantize(cents, rounding=ROUND_HALF_UP)
+    total_calc = devis.total_brut()
+    flag = note = ''
+
+    if total_pdf is None:
+        flag = '⚠ TOTAL PDF INTROUVABLE'
+        note = (
+            f'⚠ Import PDF — le « Montant Net de Taxes » est introuvable dans le PDF : '
+            f'total non vérifié (calculé : {_fmt_eur(total_calc)} €).'
         )
-        if ecart > Decimal('0.01'):
-            msg = (
-                f'⚠ Import PDF — Différence de {ecart:.2f} €, '
-                f'probable erreur d\'arrondi venant d\'EBP. '
-                f'À vérifier si cela semble anormal '
-                f'(calculé : {total_calc:.2f} € / PDF : {total_pdf:.2f} €).'
+    else:
+        ecart = abs(
+            total_calc.quantize(_CENTS, rounding=ROUND_HALF_UP) -
+            Decimal(str(total_pdf)).quantize(_CENTS, rounding=ROUND_HALF_UP)
+        )
+        # Les totaux doivent être identiques au centime → toute différence est signalée.
+        if ecart > Decimal('0'):
+            flag = f'⚠ ÉCART TOTAL {_fmt_eur(ecart)} €'
+            note = (
+                f'⚠ Import PDF — Écart de {_fmt_eur(ecart)} € entre le total calculé '
+                f'({_fmt_eur(total_calc)} €) et le Montant Net de Taxes du PDF '
+                f'({_fmt_eur(total_pdf)} €). À vérifier : ligne(s) marquées « ⚠ ÉCART » '
+                f'dans le devis, ou arrondi EBP.'
             )
-            devis.notes = msg
-            devis.save(update_fields=['notes'])
-            warnings.append(msg)
+
+    if flag:
+        devis.chantier = (flag if not devis.chantier
+                          else f'{flag} — {devis.chantier}')[:300]
+        devis.notes = note
+        devis.save(update_fields=['chantier', 'notes'])
+        warnings.append(note)
 
     return devis, warnings
