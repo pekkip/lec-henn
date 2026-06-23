@@ -55,6 +55,7 @@
             data-equipe="{{ e.equipe.pk|default:'' }}"
             data-matricule="{{ e.matricule }}" data-contrat="{{ e.type_contrat }}"
             data-heures="{{ e.heures_contrat_hebdo|floatformat:'-2' }}"
+            data-entree="{{ e.date_entree_cbb|date:'Y-m-d' }}"
             data-debut="{{ e.date_debut_contrat|date:'Y-m-d' }}"
             data-fin="{{ e.date_fin_contrat|date:'Y-m-d' }}"
             data-visite="{{ e.date_visite_medicale|date:'Y-m-d' }}"
@@ -105,13 +106,16 @@
         <div class="field"><label>Heures / semaine</label><input class="input" name="heures_contrat_hebdo" id="eq-heures" inputmode="decimal" placeholder="26"/></div>
       </div>
       <div class="grid-3">
+        <div class="field"><label>Entrée CBB</label><input class="input" type="date" name="date_entree_cbb" id="eq-entree"/></div>
         <div class="field"><label>Début contrat</label><input class="input" type="date" name="date_debut_contrat" id="eq-debut"/></div>
         <div class="field"><label>Fin contrat</label><input class="input" type="date" name="date_fin_contrat" id="eq-fin"/></div>
-        <div class="field"><label>Visite médicale</label><input class="input" type="date" name="date_visite_medicale" id="eq-visite"/></div>
       </div>
       <div class="grid-3">
+        <div class="field"><label>Visite médicale</label><input class="input" type="date" name="date_visite_medicale" id="eq-visite"/></div>
         <div class="field"><label>Récup. de départ (h)</label><input class="input" name="recup_base_heures" id="eq-recup" inputmode="decimal" placeholder="0"/></div>
         <div class="field"><label>… à la date</label><input class="input" type="date" name="recup_base_date" id="eq-recupdate"/></div>
+      </div>
+      <div class="grid-3">
         <div class="field"><label>Droit congés (j)</label><input class="input" name="droit_conges_jours" id="eq-conges" inputmode="decimal" placeholder="0"/></div>
       </div>
       <div class="modal-acts">
@@ -141,6 +145,7 @@ function openEdit(btn){
   document.getElementById('eq-matricule').value = d.matricule || '';
   document.getElementById('eq-contrat').value   = d.contrat || '';
   document.getElementById('eq-heures').value    = d.heures || '';
+  document.getElementById('eq-entree').value    = d.entree || '';
   document.getElementById('eq-debut').value     = d.debut || '';
   document.getElementById('eq-fin').value       = d.fin || '';
   document.getElementById('eq-visite').value    = d.visite || '';

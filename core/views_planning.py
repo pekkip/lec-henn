@@ -196,6 +196,7 @@ def equipier_save(request):
         matricule=request.POST.get('matricule', '').strip(),
         type_contrat=request.POST.get('type_contrat', '').strip() or 'CDDI - 26 heures',
         heures_contrat_hebdo=to_decimal(request.POST.get('heures_contrat_hebdo'), Decimal('26.00')),
+        date_entree_cbb=_planning_date(request.POST.get('date_entree_cbb')),
         date_debut_contrat=_planning_date(request.POST.get('date_debut_contrat')),
         date_fin_contrat=_planning_date(request.POST.get('date_fin_contrat')),
         date_visite_medicale=_planning_date(request.POST.get('date_visite_medicale')),
