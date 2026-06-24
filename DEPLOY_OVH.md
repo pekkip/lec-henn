@@ -345,3 +345,51 @@ Il fait : `git pull` → `pip install -r requirements.txt` → `migrate` →
 > ```
 > deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart cbbretagne
 > ```
+
+---
+
+## 13. Dépannage déploiement (problèmes rencontrés & solutions)
+
+> Journal des pépins de déploiement déjà vus sur le VPS, pour ne pas les re-chercher.
+
+### `git pull` → « Your local changes to deploy.sh would be overwritten by merge »
+**Cause :** `deploy.sh` avait été rendu exécutable sur le serveur (`chmod +x`, mode `100755`)
+alors que le dépôt le suivait en `100644` (commité depuis Windows, où le bit exécutable
+n'existe pas). Git voit une « modification locale » (juste le bit de permission) et refuse
+d'écraser. Le `git diff deploy.sh` ne montre que `old mode 100644 / new mode 100755`.
+
+**Corrigé durablement (session 67)** : `deploy.sh` est désormais suivi en `100755` dans
+le dépôt (commit `ace9284`) **et** `git config core.fileMode false` a été posé sur le VPS
+→ git ignore les différences de bit exécutable. Le souci ne devrait plus se reproduire.
+
+**Si ça revient** (sur `deploy.sh` ou un autre fichier, alors que le `diff` ne montre qu'un
+changement de mode) :
+```bash
+git config core.fileMode false      # ignorer les bits de permission (à faire une fois)
+git pull
+# ou, si la modif d'index persiste (aucun vrai changement local à part le mode) :
+git reset --hard HEAD && git pull
+```
+
+### `./deploy.sh: Permission denied`
+**Cause :** un `git pull` qui réécrit `deploy.sh` le recrée avec le mode du dépôt ; s'il
+était encore suivi en `100644`, le fichier perd son bit exécutable. (`core.fileMode false`
+n'ignore le bit que pour les diffs, il ne le restaure pas quand git réécrit le fichier.)
+
+**Solution :** lancer via `bash` (pas besoin du bit exécutable), ou remettre le bit :
+```bash
+bash deploy.sh
+# ou
+chmod +x deploy.sh && ./deploy.sh
+```
+(Depuis le commit `ace9284`, `deploy.sh` arrive exécutable via `git pull`, donc plus besoin.)
+
+### Impossible de committer/pusher depuis le VPS
+Symptômes : `Author identity unknown` (pas d'identité git configurée) puis
+`Password authentication is not supported` / `Authentication failed` (GitHub n'accepte
+plus le mot de passe, il faut un token ou une clé SSH).
+
+**Ce n'est pas un bug : le serveur ne doit JAMAIS committer/pusher.** Le VPS sert
+uniquement à **recevoir des `git pull`**. Toute modification du code (y compris un bit
+exécutable) se fait sur la **machine de dev (Windows)** puis `git push` ; le serveur
+récupère ensuite avec `git pull`. Donc inutile d'y configurer une identité git ou un token.
