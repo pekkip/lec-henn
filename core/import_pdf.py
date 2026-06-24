@@ -765,6 +765,7 @@ def create_from_parsed(parsed, equipe, user):
         chantier_ville=chantier_data.get('ville', ''),
         date_validite=parsed.get('date_validite'),
         status='draft',
+        importe_pdf=True,
         created_by=user,
     )
 

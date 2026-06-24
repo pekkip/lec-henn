@@ -407,6 +407,7 @@ table.lignes .td-total {
       <div class="doc-bloc-sub">
         {% if devis.client.contact %}{{ devis.client.contact }}<br>{% endif %}
         {% if devis.client.adresse %}{{ devis.client.adresse|linebreaksbr }}<br>{% endif %}
+        {% if devis.client.code_postal or devis.client.ville %}{{ devis.client.code_postal }} {{ devis.client.ville }}<br>{% endif %}
         {% if devis.client.email %}{{ devis.client.email }}<br>{% endif %}
         {% if devis.client.telephone %}{{ devis.client.telephone }}{% endif %}
       </div>
@@ -437,7 +438,7 @@ table.lignes .td-total {
           <th class="num" style="width:9%">Qté</th>
           <th style="width:8%">Unité</th>
           <th class="num" style="width:14%">Prix unit.</th>
-          <th class="num" style="width:17%">Total HT</th>
+          <th class="num" style="width:17%">Total</th>
         </tr>
       </thead>
       <tbody>
@@ -483,7 +484,7 @@ table.lignes .td-total {
     {# ── TOTAUX ── #}
     <div class="doc-totaux">
       <div class="tot-row tot-grand">
-        <span class="tot-lbl">Total HT prestations</span>
+        <span class="tot-lbl">Montant net de taxes</span>
         <span class="tot-val">{{ devis.total_brut|floatformat:2 }} €</span>
       </div>
       {% if lignes_fin %}
@@ -497,10 +498,6 @@ table.lignes .td-total {
         <span class="tot-val">{{ devis.net_client|floatformat:2 }} €</span>
       </div>
       {% endif %}
-      <div class="tot-row tot-tva" style="margin-top:6px">
-        <span class="tot-lbl" style="font-size:10px;color:var(--gray-md)">Association non soumise à la TVA — Art. 261-7-1° du CGI</span>
-        <span class="tot-val" style="font-size:10px;color:var(--gray-md)">0,00 €</span>
-      </div>
     </div>
 
     {# ── FACTURES ÉMISES ── #}

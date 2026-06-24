@@ -527,6 +527,11 @@ class Devis(models.Model):
     )
     zone_financement = models.BooleanField(default=False)
     zone_financement_ext = models.BooleanField(default=False)
+    importe_pdf = models.BooleanField(
+        default=False,
+        help_text="Devis importé depuis un PDF EBP : conserve sa référence d'origine "
+                  "(exclu de la renumérotation de la bascule)."
+    )
     created_by = models.ForeignKey(
         User, on_delete=models.SET_NULL,
         null=True, related_name='devis_crees'
@@ -559,9 +564,16 @@ class Devis(models.Model):
     def total_facture(self):
         # Somme directe : un avoir porte un montant négatif (quantités inversées),
         # il se déduit donc naturellement du total.
+        #
+        # Les ACOMPTES sont volontairement EXCLUS : ce sont des avances de
+        # trésorerie, pas une facturation du devis. La facture de solde porte le
+        # montant PLEIN du devis et déduit l'acompte de son « solde à régler »
+        # (cf. facture_apercu). Les compter ici en plus revenait à les facturer
+        # deux fois (ex. DE04026 : brut 2670 + acompte 400 → « Facturé » 3070,
+        # reste -400). Le suivi des acomptes versés se fait à part.
         return sum(
             f.montant for f in self.factures.exclude(status='cancelled')
-            if f.type_doc in ('facture', 'acompte', 'avoir')
+            if f.type_doc in ('facture', 'avoir')
         )
 
     def reste_a_facturer(self):

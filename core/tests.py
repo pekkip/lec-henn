@@ -740,7 +740,8 @@ class FactureComptaTests(TestCase):
         )
 
     def test_structure_partage_sequence_fac(self):
-        # Une facture de devis et une facture structure partagent la séquence FAC.
+        # Facture chantier, acompte et structure partagent le compteur FA
+        # (préfixes d'affichage distincts), à partir du plancher 7054.
         devis = Devis.objects.create(
             reference=f'DEV-{self.year}-001',
             client=self.client_compta, chantier='Chantier', created_by=self.admin,
@@ -752,12 +753,12 @@ class FactureComptaTests(TestCase):
         self.client.login(username='compta', password='pw')
         self.client.post(reverse('core:facture-valider', args=[fac_devis.pk]))
         fac_devis.refresh_from_db()
-        self.assertEqual(fac_devis.numero, f'FAC-{self.year}-001')
+        self.assertEqual(fac_devis.numero, 'FA07054')
 
         struct = self._struct()
         self.client.post(reverse('core:compta-facture-valider', args=[struct.pk]))
         struct.refresh_from_db()
-        self.assertEqual(struct.numero, f'FAC-{self.year}-002')
+        self.assertEqual(struct.numero, 'FACTURE-ST07055')
 
     def test_appel_prefixe_app(self):
         appel = Facture.objects.create(
@@ -768,6 +769,40 @@ class FactureComptaTests(TestCase):
         self.client.post(reverse('core:compta-facture-valider', args=[appel.pk]))
         appel.refresh_from_db()
         self.assertEqual(appel.numero, f'APP-{self.year}-001')
+
+    def test_acompte_partage_sequence_fa(self):
+        # L'acompte partage le compteur FA (préfixe d'affichage AC).
+        devis = Devis.objects.create(
+            reference=f'DEV-{self.year}-AC2', client=self.client_compta,
+            chantier='C', created_by=self.admin,
+        )
+        fac = Facture.objects.create(
+            devis=devis, type_doc='facture', destinataire='X',
+            status='draft', created_by=self.admin,
+        )
+        acompte = Facture.objects.create(
+            devis=devis, type_doc='acompte', destinataire='X',
+            status='draft', montant=Decimal('100'), created_by=self.admin,
+        )
+        self.client.login(username='compta', password='pw')
+        self.client.post(reverse('core:facture-valider', args=[fac.pk]))
+        self.client.post(reverse('core:facture-valider', args=[acompte.pk]))
+        fac.refresh_from_db()
+        acompte.refresh_from_db()
+        self.assertEqual(fac.numero, 'FA07054')
+        self.assertEqual(acompte.numero, 'AC07055')
+
+    def test_devis_numero_nouveau_format(self):
+        from core.views import gen_numero_devis
+        # Premier numéro attribué = plancher DE07022.
+        self.assertEqual(gen_numero_devis(), 'DE07022')
+        Devis.objects.create(reference='DE07022', client=self.client_compta,
+                             chantier='C', created_by=self.admin)
+        self.assertEqual(gen_numero_devis(), 'DE07023')
+        # Un devis importé (réf EBP sous le plancher) n'avance pas le compteur.
+        Devis.objects.create(reference='DE04124', client=self.client_compta,
+                             chantier='C', created_by=self.admin)
+        self.assertEqual(gen_numero_devis(), 'DE07023')
 
     def test_proforma_reference_client_pf(self):
         f = self._struct()
@@ -848,7 +883,8 @@ class FactureComptaTests(TestCase):
         self.client.login(username='admin', password='pw')
         self.client.post(reverse('core:compta-facture-valider', args=[avoir.pk]))
         avoir.refresh_from_db()
-        self.assertEqual(avoir.numero, f'AV-{self.year}-001')
+        # Nouveau format : AV##### (compteur propre, plancher 1).
+        self.assertEqual(avoir.numero, 'AV00001')
 
     def test_total_facture_avec_avoir(self):
         devis = Devis.objects.create(
@@ -864,6 +900,59 @@ class FactureComptaTests(TestCase):
             status='validated', montant=-30, created_by=self.admin,
         )
         self.assertEqual(float(devis.total_facture()), 70.0)
+
+    def test_total_facture_acompte_non_double_compte(self):
+        # Régression DE04026 : un acompte est une avance déduite du solde de la
+        # facture (qui porte le montant PLEIN du devis), pas une facturation en
+        # plus. Avant le fix : brut 2670 + acompte 400 + facture 2670 → « Facturé »
+        # 3070, reste -400.
+        from core.models import LigneDevis
+        devis = Devis.objects.create(
+            reference=f'DEV-{self.year}-ACO',
+            client=self.client_compta, chantier='Chantier', created_by=self.admin,
+        )
+        LigneDevis.objects.create(
+            devis=devis, type_ligne='F', description='Travaux',
+            quantite=1, cout_unitaire=Decimal('2670'),
+        )
+        Facture.objects.create(
+            devis=devis, type_doc='acompte', destinataire='X',
+            status='paid', montant=Decimal('400'), created_by=self.admin,
+        )
+        Facture.objects.create(
+            devis=devis, type_doc='facture', destinataire='X',
+            status='validated', montant=Decimal('2670'), created_by=self.admin,
+        )
+        self.assertEqual(devis.total_facture(), Decimal('2670'))
+        self.assertEqual(devis.reste_a_facturer(), Decimal('0.00'))
+
+    def test_validation_solde_bloquee_si_acompte_non_paye(self):
+        # La facture de solde ne déduit l'acompte que s'il est 'paid'. La valider
+        # alors qu'un acompte émis (envoyé) n'est pas encore payé facturerait le
+        # client deux fois → la validation doit être bloquée jusqu'au versement.
+        devis = Devis.objects.create(
+            reference=f'DEV-{self.year}-BLK',
+            client=self.client_compta, chantier='Chantier', created_by=self.admin,
+        )
+        acompte = Facture.objects.create(
+            devis=devis, type_doc='acompte', destinataire='X',
+            status='sent', montant=Decimal('400'), created_by=self.admin,
+        )
+        solde = Facture.objects.create(
+            devis=devis, type_doc='facture', destinataire='X',
+            status='draft', montant=Decimal('2670'), created_by=self.admin,
+        )
+        self.client.login(username='compta', password='pw')
+        self.client.post(reverse('core:facture-valider', args=[solde.pk]))
+        solde.refresh_from_db()
+        self.assertEqual(solde.status, 'draft', "Validation non bloquée malgré l'acompte impayé")
+
+        # Acompte marqué payé → la validation passe.
+        acompte.status = 'paid'
+        acompte.save(update_fields=['status'])
+        self.client.post(reverse('core:facture-valider', args=[solde.pk]))
+        solde.refresh_from_db()
+        self.assertEqual(solde.status, 'validated')
 
     # ── Typologie client ─────────────────────────────────────
 
@@ -3662,3 +3751,53 @@ class ImportDevisOcrTests(TestCase):
         self.assertIn('Table de chevet', joined)
         self.assertIn('Armoire', joined)
         self.assertEqual(parsed['warnings'], [])
+
+
+# ─── Renumérotation des devis (bascule définitive) ────────────────────────────
+
+class RenumeroterDevisTests(TestCase):
+    """Commande renumeroter_devis : renumérote l'outil, exclut les imports, dry-run."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.client_obj = Client.objects.create(nom='X')
+        cls.user = User.objects.create_user('renum', password='pw')
+
+    def _devis(self, ref, importe=False):
+        return Devis.objects.create(
+            reference=ref, client=self.client_obj, chantier='C',
+            created_by=self.user, importe_pdf=importe)
+
+    def _run(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        call_command('renumeroter_devis', *args, stdout=StringIO())
+
+    def test_renumerote_outil_et_exclut_imports(self):
+        d2 = self._devis('DEV-2026-002')
+        d1 = self._devis('DEV-2026-001')
+        imp = self._devis('DE04124', importe=True)
+        Facture.objects.create(devis=d1, type_doc='facture', destinataire='X',
+                               status='draft', created_by=self.user)
+        self._run('--start', '4022', '--confirm')
+        d1.refresh_from_db(); d2.refresh_from_db(); imp.refresh_from_db()
+        self.assertEqual(d1.reference, 'DE04022')  # 001 traité avant 002
+        self.assertEqual(d2.reference, 'DE04023')
+        self.assertEqual(imp.reference, 'DE04124')  # import inchangé
+        self.assertFalse(Facture.objects.filter(devis=d1).exists())
+
+    def test_saute_numero_reserve_par_import(self):
+        d1 = self._devis('DEV-2026-001')
+        self._devis('DE04022', importe=True)  # occupe DE04022
+        self._run('--start', '4022', '--confirm')
+        d1.refresh_from_db()
+        self.assertEqual(d1.reference, 'DE04023')
+
+    def test_dry_run_ne_change_rien(self):
+        d1 = self._devis('DEV-2026-001')
+        f = Facture.objects.create(devis=d1, type_doc='facture', destinataire='X',
+                                   status='draft', created_by=self.user)
+        self._run('--start', '4022')  # pas de --confirm
+        d1.refresh_from_db()
+        self.assertEqual(d1.reference, 'DEV-2026-001')
+        self.assertTrue(Facture.objects.filter(pk=f.pk).exists())

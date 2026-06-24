@@ -57,11 +57,13 @@ def total_facture_devis(devis):
     """`total_facture` d'un devis depuis ses factures **préchargées**.
 
     Nécessite `prefetch_related('factures')`. Même règle que
-    `Devis.total_facture()` (un avoir porte un montant négatif → se déduit).
+    `Devis.total_facture()` (un avoir porte un montant négatif → se déduit ;
+    les acomptes sont exclus — ce sont des avances déduites du solde de la
+    facture, pas une facturation du devis).
     """
     return sum(
         (f.montant for f in devis.factures.all()
-         if f.status != 'cancelled' and f.type_doc in ('facture', 'acompte', 'avoir')),
+         if f.status != 'cancelled' and f.type_doc in ('facture', 'avoir')),
         Decimal('0'),
     )
 

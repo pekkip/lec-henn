@@ -422,8 +422,10 @@ def _prod_data(ctx=None):
         eq_noms[e_id] = aff.equipe.nom
 
     # Montant facturé par devis (validé dans la période)
+    # Acomptes exclus : ce sont des avances déduites du solde de la facture, pas
+    # une facturation en plus (sinon le €/jour est gonflé). Cf. Devis.total_facture.
     fac_qs = Facture.objects.filter(
-        devis__isnull=False, type_doc__in=('facture', 'acompte'),
+        devis__isnull=False, type_doc__in=('facture',),
         status__in=('validated', 'sent', 'paid'),
         validated_at__isnull=False,
         validated_at__date__gte=debut, validated_at__date__lte=fin)

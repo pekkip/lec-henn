@@ -297,8 +297,8 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
           <th style="width:52%">Désignation</th>
           <th class="num" style="width:9%">Qté</th>
           <th style="width:8%">Unité</th>
-          <th class="num" style="width:14%">P.U. HT</th>
-          <th class="num" style="width:17%">Total HT</th>
+          <th class="num" style="width:14%">P.U.</th>
+          <th class="num" style="width:17%">Total</th>
         </tr>
       </thead>
       <tbody>
@@ -379,9 +379,9 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
     {# ── TOTAUX ── #}
     <div class="doc-totaux">
 
-      {# Montant brut travaux #}
+      {# Montant net de taxes #}
       <div class="tot-row {% if not has_acomptes %}tot-grand{% endif %}">
-        <span class="tot-lbl">{% if has_acomptes %}Montant total travaux HT{% else %}Montant net de taxes{% endif %}</span>
+        <span class="tot-lbl">Montant net de taxes</span>
         <span class="tot-val">{{ facture.montant|floatformat:2 }} €</span>
       </div>
 
@@ -403,22 +403,6 @@ table.lignes .td-desig { font-family: 'Courier New', monospace; font-size: 11px;
           <span class="tot-lbl">Solde à régler</span>
           <span class="tot-val">{{ solde|floatformat:2 }} €</span>
         </div>
-      {% else %}
-        <div class="tot-sep"></div>
-      {% endif %}
-
-      {# TVA #}
-      <div class="tot-row" style="margin-top:{% if has_acomptes %}4{% else %}0{% endif %}px">
-        <span class="tot-lbl" style="font-size:10px;color:var(--gray-md)">TVA non applicable — art. 293B du CGI</span>
-        <span class="tot-val" style="font-size:10px;color:var(--gray-md)">0,00 €</span>
-      </div>
-
-      {# Total TTC = solde si acomptes, sinon montant brut #}
-      {% if not has_acomptes %}
-      <div class="tot-row tot-grand" style="margin-top:4px">
-        <span class="tot-lbl">Total TTC</span>
-        <span class="tot-val">{{ facture.montant|floatformat:2 }} €</span>
-      </div>
       {% endif %}
 
       {# Date paiement acompte #}

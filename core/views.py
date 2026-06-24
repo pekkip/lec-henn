@@ -106,30 +106,89 @@ def gen_numero_sequence(prefix, model, field, queryset=None):
     return f"{prefix}-{year}-{str(next_num).zfill(3)}"
 
 
-# Numérotation des factures : découple le préfixe AFFICHÉ de la SÉQUENCE de comptage.
-# Pour basculer les appels sur la séquence FAC (en gardant le préfixe APP), il suffit
-# de passer 'appel' -> {'prefix': 'APP', 'sequence': 'FAC'} (une ligne).
-# ⚠️ Stratégie de numérotation (séquences partagées vs séparées, format) = point
-# d'incertitude : arbitrage légal à venir (direction + conseil de l'association).
-# Voir NOTES_DEV § Dette technique. Tant que ce n'est pas tranché, on conserve le
-# découplage prefix/sequence (gen_numero_facture scanne par groupe de séquence).
+# ── Numérotation NOUVEAU FORMAT (arbitrage acté, sessions 67) ──────────────────
+# Format : préfixe collé + numéro à NUM_WIDTH chiffres, SANS année, compteur CONTINU
+# (jamais de remise à zéro). Le `sequence` partage un compteur entre plusieurs types
+# (préfixes d'affichage distincts) ; `SEQUENCE_FLOOR` est le PREMIER numéro attribué
+# tant qu'aucune pièce du nouveau format n'existe pour cette séquence.
+#
+# ⚠️ SEEDS DE TEST (jeu volontaire pour éviter toute collision avec les devis
+# importés du PDF, dont les réf EBP sont ~02xxx–04xxx, pendant la phase d'imports) :
+#   devis → DE07022, factures (séquence FA) → FA07054.
+# À RECALER à la bascule définitive (devis 4022, factures 2965) en ajustant ces
+# constantes ; la commande `renumeroter_devis` gère la renumérotation des devis.
+#
+# Les devis IMPORTÉS gardent le numéro figurant sur leur PDF (réf EBP) : l'import
+# pose `reference` directement et n'appelle pas le générateur. Comme ces réf restent
+# sous le plancher (7022/7054), le scan max+1 ci-dessous les ignore naturellement.
+NUM_WIDTH = 5
+
+# Factures au nouveau format (préfixe d'affichage : sequence de comptage partagée).
 NUMEROTATION_FACTURE = {
-    'facture':   {'prefix': 'FAC', 'sequence': 'FAC'},
-    'acompte':   {'prefix': 'FAC', 'sequence': 'FAC'},
-    'structure': {'prefix': 'FAC', 'sequence': 'FAC'},  # partage la séquence FAC
-    'appel':     {'prefix': 'APP', 'sequence': 'APP'},  # séquence propre (pour l'instant)
-    'avoir':     {'prefix': 'AV',  'sequence': 'AV'},
+    'facture':   {'prefix': 'FA',         'sequence': 'FA'},
+    'acompte':   {'prefix': 'AC',         'sequence': 'FA'},  # partage le compteur FA
+    'structure': {'prefix': 'FACTURE-ST', 'sequence': 'FA'},  # partage le compteur FA
+    'avoir':     {'prefix': 'AV',         'sequence': 'AV'},
+}
+SEQUENCE_FLOOR = {'FA': 7054, 'AV': 1}
+
+DEVIS_PREFIX = 'DE'
+DEVIS_FLOOR = 7022
+
+# Appel de convention : format HISTORIQUE conservé tel quel (aucune donnée réelle
+# avant la bascule, ces pièces seront purgées/recalées). Géré par gen_numero_sequence.
+NUMEROTATION_FACTURE_LEGACY = {
+    'appel': {'prefix': 'APP', 'sequence': 'APP'},
 }
 
 
+def _prochain_numero_nouveau(prefix, model, field, *, group_prefixes, floor):
+    """Prochain numéro au nouveau format `{prefix}{NNNNN}`.
+
+    Scanne, parmi toutes les valeurs de `model.field`, celles au nouveau format
+    (`^{p}\\d+$` pour chaque préfixe `p` du groupe de séquence) et prend max+1,
+    jamais en dessous de `floor` (= premier numéro attribué). L'ancien format
+    (DEV-2026-…, FAC-2026-…) ne matche aucun motif → ignoré.
+    """
+    patterns = [re.compile(rf'^{re.escape(p)}(\d+)$') for p in group_prefixes]
+    nums = []
+    for val in model.objects.filter(**{f'{field}__isnull': False}).values_list(field, flat=True):
+        for pat in patterns:
+            m = pat.match(val or '')
+            if m:
+                nums.append(int(m.group(1)))
+                break
+    prochain = max([floor] + [n + 1 for n in nums])
+    return f"{prefix}{str(prochain).zfill(NUM_WIDTH)}"
+
+
+def gen_numero_devis():
+    """Prochain numéro de devis au nouveau format (DE#####, compteur propre)."""
+    return _prochain_numero_nouveau(
+        DEVIS_PREFIX, Devis, 'reference',
+        group_prefixes=[DEVIS_PREFIX], floor=DEVIS_FLOOR)
+
+
 def gen_numero_facture(type_doc):
-    """Génère le prochain numéro de facture selon le type_doc (préfixe + séquence).
-    Le scan porte sur tous les type_docs partageant la séquence (compteur commun),
-    l'affichage utilise le préfixe — préserve le découplage NUMEROTATION_FACTURE."""
+    """Génère le prochain numéro de facture selon le type_doc.
+
+    Nouveau format pour facture/acompte/structure (compteur FA partagé) et avoir
+    (compteur AV propre) : préfixe d'affichage distinct, séquence de comptage
+    commune. L'appel de convention reste sur le format historique (legacy)."""
+    if type_doc in NUMEROTATION_FACTURE_LEGACY:
+        cfg = NUMEROTATION_FACTURE_LEGACY[type_doc]
+        group = [td for td, c in NUMEROTATION_FACTURE_LEGACY.items()
+                 if c['sequence'] == cfg['sequence']]
+        qs = Facture.objects.filter(type_doc__in=group, numero__isnull=False)
+        return gen_numero_sequence(cfg['prefix'], Facture, 'numero', queryset=qs)
+
     cfg = NUMEROTATION_FACTURE.get(type_doc, NUMEROTATION_FACTURE['facture'])
-    group = [td for td, c in NUMEROTATION_FACTURE.items() if c['sequence'] == cfg['sequence']]
-    qs = Facture.objects.filter(type_doc__in=group, numero__isnull=False)
-    return gen_numero_sequence(cfg['prefix'], Facture, 'numero', queryset=qs)
+    seq = cfg['sequence']
+    group_prefixes = [c['prefix'] for c in NUMEROTATION_FACTURE.values()
+                      if c['sequence'] == seq]
+    return _prochain_numero_nouveau(
+        cfg['prefix'], Facture, 'numero',
+        group_prefixes=group_prefixes, floor=SEQUENCE_FLOOR.get(seq, 1))
 
 
 def add_audit(user, action, devis=None, facture=None, bypass=False):
@@ -814,7 +873,7 @@ def devis_create(request):
         except (InvalidOperation, TypeError, ValueError):
             taux_mo = profil.taux_mo_defaut
         devis = Devis.objects.create(
-            reference=gen_numero_sequence('DEV', Devis, 'reference'),
+            reference=gen_numero_devis(),
             client=client,
             chantier=chantier,
             equipe_id=equipe_id,
@@ -907,7 +966,7 @@ def devis_duplicate(request, pk):
         return redirect('core:devis-list')
     profil = get_profil(request.user)
     new_devis = Devis.objects.create(
-        reference=gen_numero_sequence('DEV', Devis, 'reference'),
+        reference=gen_numero_devis(),
         client=src.client,
         chantier=src.chantier + ' (copie)',
         equipe=src.equipe,
@@ -1703,12 +1762,50 @@ def facture_date_versement(request, pk):
     facture.save(update_fields=['date_versement'])
     return JsonResponse({'ok': True})
 
+def _acomptes_non_payes_bloquants(facture):
+    """Acomptes émis (validés/envoyés) mais pas encore « payés » qui devraient être
+    déduits de cette facture de solde.
+
+    Les acomptes ne sont déduits que sur la PREMIÈRE facture non-acompte du devis
+    et seulement lorsqu'ils sont au statut `paid` (cf. facture_apercu). Si on valide
+    cette première solde alors qu'un acompte déjà émis n'est pas encore marqué payé,
+    il ne sera jamais déduit → le client serait facturé deux fois. On bloque donc la
+    validation tant que le versement n'est pas confirmé. Renvoie [] si rien à bloquer.
+    """
+    devis = facture.devis
+    if devis is None or facture.type_doc != 'facture':
+        return []
+    # Même définition de la « première solde » que l'aperçu.
+    premiere = (devis.factures.exclude(type_doc='acompte')
+                .exclude(status='cancelled').order_by('created_at').first())
+    if not premiere or premiere.pk != facture.pk:
+        return []
+    return list(devis.factures.filter(
+        type_doc='acompte', status__in=('validated', 'sent')
+    ).order_by('created_at'))
+
+
+def _msg_acomptes_bloquants(acomptes):
+    """Message d'erreur listant les acomptes en attente de paiement."""
+    refs = ', '.join(f"{a.get_reference()} ({_fmt_montant(a.montant)})" for a in acomptes)
+    if len(acomptes) > 1:
+        return (f"Cette facture mentionne les acomptes {refs} qui ne sont pas encore "
+                "marqués « payés ». Confirmez leur versement (icône ✓ sur la ligne) "
+                "avant de valider.")
+    return (f"Cette facture mentionne l'acompte {refs} qui n'est pas encore marqué "
+            "« payé ». Confirmez son versement (icône ✓ sur la ligne) avant de valider.")
+
+
 @login_required
 @require_POST
 def facture_valider(request, pk):
     facture = get_object_or_404(Facture, pk=pk)
     if not peut_valider_facture(request.user, facture):
         messages.error(request, 'Validation réservée au comptable.')
+        return redirect('core:devis-detail', pk=facture.devis.pk)
+    acomptes_bloquants = _acomptes_non_payes_bloquants(facture)
+    if acomptes_bloquants:
+        messages.error(request, _msg_acomptes_bloquants(acomptes_bloquants))
         return redirect('core:devis-detail', pk=facture.devis.pk)
     if not facture.numero:
         facture.numero = gen_numero_facture(facture.type_doc)
@@ -1760,6 +1857,9 @@ def facture_bypass(request, pk):
     stored = request.session.get(f'bypass_code_{pk}')
     if not stored or code != stored:
         return json_error('Code incorrect')
+    acomptes_bloquants = _acomptes_non_payes_bloquants(facture)
+    if acomptes_bloquants:
+        return json_error(_msg_acomptes_bloquants(acomptes_bloquants))
     if not facture.numero:
         facture.numero = gen_numero_facture(facture.type_doc)
     facture.status = 'validated'
