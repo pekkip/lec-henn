@@ -261,11 +261,41 @@ def _extract_shape_metadata(content):
     objet_matches = list(re.finditer(rb'Objet\s*:\s+([^\x00<\n\r]{3,200})', content))
     if objet_matches:
         raw = objet_matches[-1].group(1)
-        # Filtrer les bytes non imprimables parasites (bytes BIFF de fin de record)
         clean = bytes(b for b in raw if 0x20 <= b <= 0x7e or b >= 0xa0)
         objet = clean.decode('latin-1', errors='replace').strip()
         if objet and len(objet) >= 3:
             result['objet'] = objet
+
+    # Client : text box avec label "Client:", "Habitant:" ou "Adresse  :"
+    # Structure : \x3c\x00 + LE_length + \x00 + label\n + nom\n + adresse\n + cp_ville\n
+    result.update({'client_nom': '', 'client_adresse': '', 'client_cp': '', 'client_ville': ''})
+    for label_pat in (rb'Client', rb'Habitant', rb'Adresse'):
+        cm = re.search(b'\x3c\x00[\x01-\xff]\x00\x00' + label_pat + rb'[^\x0a]*\x0a', content)
+        if not cm:
+            continue
+        pos = cm.start()
+        length = content[pos + 2] + content[pos + 3] * 256
+        record = content[pos + 4: pos + 4 + length]  # inclut le null initial
+        lines = record.split(b'\x0a')
+
+        def _clean_line(raw):
+            return bytes(b for b in raw if b >= 0x20 or b == 0x09).decode('latin-1', errors='replace').strip().strip('\t')
+
+        nom = _clean_line(lines[1]) if len(lines) > 1 else ''
+        adr = _clean_line(lines[2]) if len(lines) > 2 else ''
+        cp_ville = _clean_line(lines[3]) if len(lines) > 3 else ''
+
+        if not nom:
+            continue
+        result['client_nom'] = nom
+        result['client_adresse'] = adr
+        cpm = re.match(r'^(\d{5})\s+(.+)$', cp_ville)
+        if cpm:
+            result['client_cp'] = cpm.group(1)
+            result['client_ville'] = cpm.group(2).strip()
+        elif cp_ville:
+            result['client_ville'] = cp_ville
+        break
 
     return result
 
@@ -539,7 +569,8 @@ def parse_devis_xls(path_or_fp):
     # Pour les fichiers XLS, fusionner les métadonnées extraites des zones de texte
     if not is_xlsx:
         shape_meta = _extract_shape_metadata(content)
-        for key in ('reference', 'date', 'date_validite', 'equipe_hint', 'objet'):
+        for key in ('reference', 'date', 'date_validite', 'equipe_hint', 'objet',
+                    'client_nom', 'client_adresse', 'client_cp', 'client_ville'):
             if shape_meta.get(key) and not meta.get(key):
                 meta[key] = shape_meta[key]
 
