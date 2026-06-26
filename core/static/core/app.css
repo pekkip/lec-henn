@@ -223,6 +223,8 @@ select.btn-ghost option { color:var(--gray); background:#fff; }
 .page-hd { background:var(--prune); border-bottom:none; }
 .page-title { color:#fff; }
 .page-sub   { color:rgba(255,255,255,.72); }
+.page-sub-link { color:rgba(255,255,255,.72); text-decoration:none; }
+.page-sub-link:hover { color:#fff; text-decoration:underline; }
 .page-hd .btn         { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.3); color:#fff; }
 .page-hd .btn:hover   { background:rgba(255,255,255,.18); }
 .page-hd .btn-prune   { background:#fff; color:var(--prune); border-color:#fff; }

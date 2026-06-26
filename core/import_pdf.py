@@ -12,6 +12,7 @@ import io
 import os
 import logging
 import re
+import unicodedata
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import date as date_type
 
@@ -322,6 +323,78 @@ def _is_recapitulatif(label):
             bool(re.match(r'co[uû]t total (mat[eé]riaux|main|intervention)', low)))
 
 
+# ─── Extraction des blocs adresse par coordonnées ────────────────────────────
+
+def _parse_addr_block(lines):
+    """Convertit une liste de lignes texte en dict {nom, adresse, cp, ville}."""
+    if not lines:
+        return {}
+    result = {'nom': _dedup_line(lines[0]), 'adresse': '', 'cp': '', 'ville': ''}
+    if len(lines) > 1:
+        cp, ville = _parse_cp_ville(lines[-1])
+        result['cp'] = cp
+        result['ville'] = ville
+        mid = [_dedup_line(l) for l in lines[1:-1]]
+        result['adresse'] = ' '.join(mid)
+    return result
+
+
+def _extract_address_blocks(page):
+    """Sépare les blocs adresse chantier (colonne gauche) et MO (colonne droite)
+    en utilisant les coordonnées x des mots. Retourne (chantier_lines, mo_lines).
+
+    Si la colonne chantier est vide (cas particulier sans adresse chantier distincte),
+    chantier_lines est vide — l'appelant doit alors utiliser mo_lines pour les deux.
+    """
+    words = page.extract_words()
+
+    # Trouver la ligne d'en-tête : "Coordonnées du Maître d'Ouvrage" donne le x de la col droite
+    header_y = None
+    coord_x = None
+    for w in words:
+        if 'coordonn' in w['text'].lower():
+            same_line = [ww for ww in words if abs(ww['top'] - w['top']) < 6]
+            if any('ouvrage' in ww['text'].lower() or 'ma' in ww['text'].lower()
+                   for ww in same_line):
+                coord_x = w['x0']
+                header_y = w['top']
+                break
+
+    if header_y is None or coord_x is None:
+        return [], []
+
+    # Trouver la limite basse : "Contact" (ou "Secteur") après la ligne d'en-tête
+    end_y = None
+    for w in words:
+        if w['top'] > header_y + 6 and w['text'].lower().startswith('contact'):
+            end_y = w['top']
+            break
+    if end_y is None:
+        end_y = header_y + 200  # fallback : 200px sous l'en-tête
+
+    # Collecter les mots entre header_y et end_y, séparer par x
+    chantier_by_y = {}
+    mo_by_y = {}
+    for w in words:
+        if w['top'] <= header_y + 3 or w['top'] >= end_y:
+            continue
+        bucket = round(w['top'] / 4) * 4
+        entry = (w['x0'], w['text'])
+        if w['x0'] < coord_x - 5:
+            chantier_by_y.setdefault(bucket, []).append(entry)
+        else:
+            mo_by_y.setdefault(bucket, []).append(entry)
+
+    def to_lines(by_y):
+        lines = []
+        for y in sorted(by_y):
+            words_sorted = sorted(by_y[y], key=lambda e: e[0])
+            lines.append(' '.join(t for _, t in words_sorted).strip())
+        return [l for l in lines if l]
+
+    return to_lines(chantier_by_y), to_lines(mo_by_y)
+
+
 # ─── Extraction des métadonnées ───────────────────────────────────────────────
 
 def _extract_metadata(pdf):
@@ -369,25 +442,22 @@ def _extract_metadata(pdf):
     if m:
         result['objet'] = m.group(1).strip()
 
-    # Bloc adresses : entre "Adresse du chantier ... Maître d'Ouvrage" et "Contact téléphonique"
-    # Le "." après "d" couvre toutes les formes d'apostrophe (ASCII, curly quote…)
-    m = re.search(
-        r'Adresse du chantier.+?Coordonn[eé]es du Ma[iî]tre d.Ouvrage\s*\n'
-        r'(.*?)(?=Contact t[eé]l[eé]phonique)',
-        text, re.DOTALL | re.IGNORECASE
-    )
-    if m:
-        block = m.group(1).strip()
-        addr_lines = [l.strip() for l in block.split('\n') if l.strip()]
-        if addr_lines:
-            result['client_nom'] = _dedup_line(addr_lines[0])
-            result['chantier_nom'] = result['client_nom']
-        if len(addr_lines) > 1:
-            cp, ville = _parse_cp_ville(addr_lines[-1])
-            result['client_cp'] = result['chantier_cp'] = cp
-            result['client_ville'] = result['chantier_ville'] = ville
-            mid = [_dedup_line(l) for l in addr_lines[1:-1]]
-            result['client_adresse'] = result['chantier_adresse'] = ' '.join(mid)
+    # Blocs adresses : colonne gauche = chantier, colonne droite = MO
+    # On utilise les coordonnées x des mots pour séparer les deux colonnes.
+    # Si la colonne chantier est vide (particulier sans adresse chantier distincte),
+    # le chantier reprend les coordonnées du MO.
+    chantier_lines, mo_lines = _extract_address_blocks(pdf.pages[0])
+    mo = _parse_addr_block(mo_lines)
+    chantier = _parse_addr_block(chantier_lines) if chantier_lines else mo
+
+    result['client_nom'] = mo.get('nom', '')
+    result['client_adresse'] = mo.get('adresse', '')
+    result['client_cp'] = mo.get('cp', '')
+    result['client_ville'] = mo.get('ville', '')
+    result['chantier_nom'] = chantier.get('nom', result['client_nom'])
+    result['chantier_adresse'] = chantier.get('adresse', result['client_adresse'])
+    result['chantier_cp'] = chantier.get('cp', result['client_cp'])
+    result['chantier_ville'] = chantier.get('ville', result['client_ville'])
 
     return result
 
@@ -734,6 +804,29 @@ def _create_node(devis, node, parent_ligne, ordre):
             ligne.save(update_fields=['cout_unitaire'])
 
 
+def _normalise_nom(s):
+    """Minuscules + suppression des accents pour comparaison souple."""
+    s = s.strip().lower()
+    return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode('ascii')
+
+
+def _find_or_create_client(client_data, user):
+    """Recherche un client par nom normalisé (casse + accents), le crée si absent."""
+    from .models import Client
+    nom = (client_data.get('nom') or 'Inconnu').strip()
+    nom_cible = _normalise_nom(nom)
+    for c in Client.objects.only('id', 'nom'):
+        if _normalise_nom(c.nom) == nom_cible:
+            return c
+    return Client.objects.create(
+        nom=nom,
+        adresse=client_data.get('adresse', ''),
+        code_postal=client_data.get('cp', ''),
+        ville=client_data.get('ville', ''),
+        created_by=user,
+    )
+
+
 def create_from_parsed(parsed, equipe, user):
     """Crée un Devis + ses LigneDevis depuis les données parsées. Retourne (devis, warnings)."""
     from .models import Client, Devis
@@ -742,15 +835,7 @@ def create_from_parsed(parsed, equipe, user):
     warnings = list(parsed.get('warnings', [])) + list(parsed.get('errors', []))
 
     client_data = parsed.get('client', {})
-    client, _ = Client.objects.get_or_create(
-        nom=client_data.get('nom') or 'Inconnu',
-        defaults={
-            'adresse': client_data.get('adresse', ''),
-            'code_postal': client_data.get('cp', ''),
-            'ville': client_data.get('ville', ''),
-            'created_by': user,
-        }
-    )
+    client = _find_or_create_client(client_data, user)
 
     chantier_data = parsed.get('chantier', {})
     chantier_nom = parsed.get('objet') or chantier_data.get('nom', '')
@@ -765,7 +850,7 @@ def create_from_parsed(parsed, equipe, user):
         chantier_ville=chantier_data.get('ville', ''),
         date_validite=parsed.get('date_validite'),
         status='draft',
-        importe_pdf=True,
+        importe_pdf=parsed.get('importe_pdf', True),
         created_by=user,
     )
 

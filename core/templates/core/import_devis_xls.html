@@ -1,5 +1,6 @@
 {% extends 'core/base.html' %}
-{% block title %}Import devis PDF{% endblock %}
+{% block title %}Import devis XLS{% endblock %}
+{% block nav_devis %}active{% endblock %}
 {% block topbar_title %}{% endblock %}
 
 {% block extra_css %}
@@ -29,8 +30,8 @@
 {% block content %}
 <div class="page-hd">
   <div>
-    <div class="page-title">Import devis PDF</div>
-    <div class="page-sub">Importer des devis historiques au format PDF (template CBB)</div>
+    <div class="page-title">Import devis XLS / XLSX</div>
+    <div class="page-sub">Importer des devis historiques au format tableur (XLS / XLSX)</div>
   </div>
   <a href="{% url 'core:devis-list' %}" class="btn"><i class="ti ti-arrow-left"></i> Retour aux devis</a>
 </div>
@@ -41,7 +42,7 @@
 {# ── Étape 1 : formulaire d'upload ─────────────────────────────────── #}
 <div class="card" style="max-width:640px">
   <div class="card-hd">
-    <span class="card-title"><i class="ti ti-file-import" style="color:var(--teal)"></i>Sélectionner les fichiers PDF</span>
+    <span class="card-title"><i class="ti ti-table-import" style="color:var(--teal)"></i>Sélectionner les fichiers XLS / XLSX</span>
   </div>
   <div class="card-body">
     <form method="post" enctype="multipart/form-data" id="upload-form">
@@ -59,17 +60,18 @@
       </div>
 
       <div class="field">
-        <label>Fichiers PDF</label>
-        <div class="upload-zone" id="drop-zone" onclick="document.getElementById('pdf-input').click()">
-          <div class="upload-icon"><i class="ti ti-files"></i></div>
+        <label>Fichiers XLS / XLSX</label>
+        <div class="upload-zone" id="drop-zone" onclick="document.getElementById('xls-input').click()">
+          <div class="upload-icon"><i class="ti ti-table-import"></i></div>
           <div>Cliquer pour sélectionner des fichiers</div>
-          <div class="upload-hint">ou glisser-déposer ici — PDF uniquement</div>
-          <input type="file" id="pdf-input" name="pdfs" multiple accept=".pdf" onchange="showFiles(this.files)">
+          <div class="upload-hint">ou glisser-déposer ici — XLS et XLSX uniquement</div>
+          <input type="file" id="xls-input" name="xlss" multiple accept=".xls,.xlsx" onchange="showFiles(this.files)">
         </div>
         <div class="file-list" id="file-list"></div>
         <div class="field-help" style="margin-top:6px">
-          Vous pouvez aussi utiliser <strong>Ctrl+clic</strong> / <strong>Maj+clic</strong> pour sélectionner plusieurs fichiers.
-          Les descriptions sont lues par OCR (lent) — <strong>maximum {{ max_pdfs }} PDF par lot</strong> ; pour un import plus important, créer un dossier sur le SharePoint, y mettre les devis et envoyer le lien à Denis Pekkip.
+          Maximum {{ max_xls }} fichiers par lot.
+          Les fichiers sans référence recevront un numéro DE##### automatique.
+          Les sous-totaux, aides financières et conditions générales ne sont pas importés.
         </div>
       </div>
 
@@ -85,11 +87,10 @@
           <span id="prog-count"></span>
         </div>
         <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
-        <div class="prog-hint">Lecture des descriptions par OCR — cela peut prendre quelques secondes par devis.</div>
+        <div class="prog-hint">Lecture en cours…</div>
       </div>
     </form>
 
-    {# Repli JS : envoie les devis déjà parsés (un par un) pour l'affichage #}
     <form method="post" id="results-form" style="display:none">
       {% csrf_token %}
       <input type="hidden" name="equipe_id" id="rf-equipe">
@@ -113,14 +114,20 @@
         <th>Client</th>
         <th>Objet / Chantier</th>
         <th style="text-align:right">Lignes</th>
-        <th style="text-align:right">Total PDF</th>
+        <th style="text-align:right">Total XLS</th>
         <th>Statut</th>
       </tr></thead>
       <tbody>
       {% for r in results %}
       <tr>
         <td style="font-size:11px;color:var(--gray-md)">{{ r.filename }}</td>
-        <td><strong>{{ r.parsed.reference|default:"—" }}</strong></td>
+        <td>
+          {% if r.parsed.reference %}
+            <strong>{{ r.parsed.reference }}</strong>
+          {% else %}
+            <em style="color:var(--gray-md)">— auto —</em>
+          {% endif %}
+        </td>
         <td>{{ r.parsed.client.nom|default:"—" }}</td>
         <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.parsed.objet }}">
           {{ r.parsed.objet|default:r.parsed.chantier.nom|default:"—" }}
@@ -133,7 +140,7 @@
           {% elif r.parsed.errors %}
             <span class="badge-err" title="{{ r.parsed.errors|join:', ' }}">Erreur</span>
           {% elif r.parsed.warnings %}
-            <span class="badge-warn" title="{{ r.parsed.warnings|join:', ' }}">OK · sans descriptions</span>
+            <span class="badge-warn" title="{{ r.parsed.warnings|join:', ' }}">⚠ Vérifier</span>
           {% else %}
             <span class="badge-ok">OK</span>
           {% endif %}
@@ -148,11 +155,11 @@
 
 <div style="margin-top:12px;padding:10px 14px;background:var(--gray-lt);border-radius:var(--r);font-size:12px;color:var(--gray-md)">
   <i class="ti ti-info-circle"></i>
-  Les références déjà existantes seront ignorées. Les sections "Récapitulatif" ne sont pas importées (sous-totaux, pas de travail réel).
-  Si le total calculé diffère du total PDF de plus de 0,05 €, une note de vérification est ajoutée au devis.
+  Les références déjà existantes seront ignorées. Les fichiers sans référence reçoivent un numéro DE##### automatique.
+  Si le total calculé diffère du total XLS, une note de vérification est ajoutée au devis.
 </div>
 
-<form method="post" action="{% url 'core:import-devis-confirm' %}">
+<form method="post" action="{% url 'core:import-devis-xls-confirm' %}">
   {% csrf_token %}
   <input type="hidden" name="equipe_id" value="{{ equipe_id }}">
   <input type="hidden" name="parsed_json" value="{{ parsed_json }}">
@@ -160,7 +167,7 @@
     <button type="submit" class="btn btn-prune">
       <i class="ti ti-check"></i> Confirmer l'import
     </button>
-    <a href="{% url 'core:import-devis' %}" class="btn">
+    <a href="{% url 'core:import-devis-xls' %}" class="btn">
       <i class="ti ti-arrow-left"></i> Modifier la sélection
     </a>
   </div>
@@ -180,13 +187,12 @@ function showFiles(files) {
   Array.from(files).forEach(f => {
     const div = document.createElement('div');
     div.className = 'file-item';
-    div.innerHTML = '<i class="ti ti-file-type-pdf"></i><span>' + f.name + '</span>';
+    div.innerHTML = '<i class="ti ti-table"></i><span>' + f.name + '</span>';
     list.appendChild(div);
   });
   btn.disabled = false;
 }
 
-// Drag & drop
 const zone = document.getElementById('drop-zone');
 if (zone) {
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
@@ -194,19 +200,18 @@ if (zone) {
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('drag-over');
-    const input = document.getElementById('pdf-input');
+    const input = document.getElementById('xls-input');
     const dt = new DataTransfer();
-    Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.pdf')).forEach(f => dt.items.add(f));
+    Array.from(e.dataTransfer.files)
+      .filter(f => f.name.endsWith('.xls') || f.name.endsWith('.xlsx'))
+      .forEach(f => dt.items.add(f));
     input.files = dt.files;
     showFiles(input.files);
   });
 }
 
-// ── Prévisualisation avec barre de progression ──────────────────────────────
-// Chaque PDF est parsé via une requête dédiée (OCR lent) → on avance la barre
-// au fil des fichiers, puis on poste les résultats pour afficher l'aperçu.
-const MAX_PDFS = {{ max_pdfs }};
-const PARSE_URL = "{% url 'core:import-devis-parse-one' %}";
+const MAX_XLS = {{ max_xls|default:20 }};
+const PARSE_URL = "{% url 'core:import-devis-xls-parse-one' %}";
 const uploadForm = document.getElementById('upload-form');
 
 if (uploadForm) {
@@ -216,12 +221,10 @@ if (uploadForm) {
     const equipe = document.querySelector('[name=equipe_id]').value;
     if (!equipe) { alert('Sélectionnez une équipe.'); return; }
 
-    const files = Array.from(document.getElementById('pdf-input').files);
+    const files = Array.from(document.getElementById('xls-input').files);
     if (!files.length) return;
-    if (files.length > MAX_PDFS) {
-      alert(files.length + ' fichiers — maximum ' + MAX_PDFS + ' par lot.\n'
-            + 'Pour un import plus important, créez un dossier sur le SharePoint, '
-            + 'mettez-y les devis et envoyez le lien à Denis Pekkip.');
+    if (files.length > MAX_XLS) {
+      alert(files.length + ' fichiers — maximum ' + MAX_XLS + ' par lot.');
       return;
     }
 
@@ -242,7 +245,7 @@ if (uploadForm) {
       fill.style.width = Math.round((i / files.length) * 100) + '%';
 
       const fd = new FormData();
-      fd.append('pdf', files[i]);
+      fd.append('xls', files[i]);
       try {
         const resp = await fetch(PARSE_URL, {
           method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd,

@@ -6,7 +6,16 @@
 
 {% block content %}
 <div class="page-hd">
-  <div><div class="page-title">Devis</div><div class="page-sub">{{ page_obj.paginator.count }} devis</div></div>
+  <div>
+    <div class="page-title">Devis</div>
+    <div class="page-sub">
+      {{ page_obj.paginator.count }} devis
+      &ensp;·&ensp;
+      <a href="{% url 'core:import-devis' %}" class="page-sub-link"><i class="ti ti-file-import"></i> Import PDF</a>
+      &ensp;·&ensp;
+      <a href="{% url 'core:import-devis-xls' %}" class="page-sub-link"><i class="ti ti-table-import"></i> Import XLS</a>
+    </div>
+  </div>
   <a href="{% url 'core:devis-create' %}" class="btn btn-prune"><i class="ti ti-plus"></i> Nouveau devis</a>
 </div>
 

@@ -19,6 +19,7 @@ from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse, HttpResponse, HttpResponseForbidden
+from django.db.models.deletion import ProtectedError
 
 logger = logging.getLogger(__name__)
 
@@ -677,7 +678,12 @@ def client_delete(request, pk):
         return redirect('core:clients')
     client = get_object_or_404(Client, pk=pk)
     nom = client.nom
-    client.delete()
+    try:
+        client.delete()
+    except ProtectedError:
+        nb = client.devis.count()
+        messages.error(request, f'Impossible de supprimer "{nom}" : {nb} devis y sont rattachés.')
+        return redirect('core:clients')
     messages.success(request, f'Client "{nom}" supprimé.')
     return redirect('core:clients')
 
@@ -1010,7 +1016,12 @@ def devis_delete(request, pk):
         messages.error(request, 'Vous ne pouvez pas supprimer ce devis.')
         return redirect('core:devis-list')
     ref = devis.reference
-    devis.delete()
+    try:
+        devis.delete()
+    except ProtectedError:
+        nb = devis.factures.count()
+        messages.error(request, f'Impossible de supprimer le devis {ref} : {nb} facture{"s" if nb > 1 else ""} y sont rattachée{"s" if nb > 1 else ""}.')
+        return redirect('core:devis-list')
     messages.success(request, f'Devis {ref} supprimé.')
     return redirect('core:devis-list')
 
@@ -3016,6 +3027,7 @@ def _fmt_montant(val):
 # repli sans-JS (un seul POST parse tout). Pour un import massif → commande CLI
 # `import_devis_pdf` (sans timeout, sur le VPS).
 MAX_IMPORT_PDFS = 5
+MAX_IMPORT_XLS = 20
 
 
 def _build_import_result(parsed, filename):
@@ -3162,6 +3174,142 @@ def import_devis_confirm(request):
             imported += 1
         except Exception as e:
             logger.error('import_devis_confirm: erreur sur %s : %s', ref, e)
+            errored += 1
+
+    parts = []
+    if imported:
+        parts.append(f'{imported} devis importé{"s" if imported > 1 else ""}')
+    if skipped:
+        parts.append(f'{skipped} ignoré{"s" if skipped > 1 else ""} (référence déjà existante)')
+    if errored:
+        parts.append(f'{errored} erreur{"s" if errored > 1 else ""}')
+
+    if imported:
+        messages.success(request, ' — '.join(parts))
+    elif skipped and not errored:
+        messages.warning(request, ' — '.join(parts))
+    else:
+        messages.error(request, ' — '.join(parts) or 'Aucun devis importé.')
+
+    return redirect('core:devis-list')
+
+
+def _render_xls_preview(request, equipes, equipe_id, results):
+    parsed_json = json.dumps([r['parsed'] for r in results], cls=_ImportJSONEncoder)
+    return render(request, 'core/import_devis_xls.html', {
+        'equipes': equipes,
+        'equipe_id': equipe_id,
+        'step': 'preview',
+        'results': results,
+        'parsed_json': parsed_json,
+    })
+
+
+@login_required
+def import_devis_xls_view(request):
+    from .import_xls import parse_devis_xls
+
+    equipes = (Equipe.objects
+               .filter(type_rangee='permanente', archivee=False)
+               .select_related('service')
+               .order_by('service__nom', 'nom'))
+
+    def upload(equipe_id=''):
+        return render(request, 'core/import_devis_xls.html', {
+            'equipes': equipes, 'step': 'upload', 'equipe_id': equipe_id,
+            'max_xls': MAX_IMPORT_XLS,
+        })
+
+    if request.method == 'POST':
+        equipe_id = request.POST.get('equipe_id', '')
+
+        results_json = request.POST.get('results_json', '')
+        if results_json:
+            try:
+                raw = json.loads(results_json, object_hook=_import_json_decoder)
+            except (json.JSONDecodeError, ValueError):
+                messages.error(request, "Données invalides — recommencez l'import.")
+                return upload(equipe_id)
+            if not isinstance(raw, list) or not raw:
+                messages.error(request, 'Aucun devis à prévisualiser.')
+                return upload(equipe_id)
+            results = [_build_import_result(item.get('parsed', {}), item.get('filename', ''))
+                       for item in raw[:MAX_IMPORT_XLS]]
+            return _render_xls_preview(request, equipes, equipe_id, results)
+
+        files = request.FILES.getlist('xlss')
+        if not files:
+            messages.error(request, 'Aucun fichier XLS/XLSX sélectionné.')
+            return upload(equipe_id)
+
+        if len(files) > MAX_IMPORT_XLS:
+            messages.error(
+                request,
+                f'{len(files)} fichiers sélectionnés — maximum {MAX_IMPORT_XLS} par lot.',
+            )
+            return upload(equipe_id)
+
+        results = [_build_import_result(parse_devis_xls(f), f.name) for f in files]
+        return _render_xls_preview(request, equipes, equipe_id, results)
+
+    return upload()
+
+
+@login_required
+@require_POST
+def import_devis_xls_parse_one(request):
+    from .import_xls import parse_devis_xls
+
+    f = request.FILES.get('xls')
+    if not f:
+        return JsonResponse({'ok': False, 'error': 'Aucun fichier reçu.'}, status=400)
+
+    parsed = parse_devis_xls(f)
+    result = _build_import_result(parsed, f.name)
+    return JsonResponse(
+        {
+            'ok': True,
+            'filename': result['filename'],
+            'parsed': parsed,
+            'exists': result['exists'],
+            'total_display': result['total_display'],
+        },
+        encoder=_ImportJSONEncoder,
+    )
+
+
+@login_required
+@require_POST
+def import_devis_xls_confirm(request):
+    from .import_pdf import create_from_parsed
+
+    equipe_id = request.POST.get('equipe_id', '')
+    equipe = get_object_or_404(Equipe, pk=equipe_id) if equipe_id else None
+    parsed_json = request.POST.get('parsed_json', '[]')
+
+    try:
+        parsed_list = json.loads(parsed_json, object_hook=_import_json_decoder)
+    except (json.JSONDecodeError, ValueError):
+        messages.error(request, "Données invalides — recommencez l'import.")
+        return redirect('core:import-devis-xls')
+
+    imported, skipped, errored = 0, 0, 0
+
+    for parsed in parsed_list:
+        ref = parsed.get('reference', '').strip()
+        if not ref:
+            ref = gen_numero_devis()
+            parsed['reference'] = ref
+            parsed['importe_pdf'] = False
+
+        if Devis.objects.filter(reference=ref).exists():
+            skipped += 1
+            continue
+        try:
+            create_from_parsed(parsed, equipe, request.user)
+            imported += 1
+        except Exception as e:
+            logger.error('import_devis_xls_confirm: erreur sur %s : %s', ref, e)
             errored += 1
 
     parts = []
