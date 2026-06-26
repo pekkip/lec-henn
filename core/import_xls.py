@@ -76,8 +76,8 @@ def _pad_row(row, min_len=10):
 
 
 def _load_rows(path_or_fp):
-    """Charge un .xls ou .xlsx → list[list]. Lignes paddées à 10 colonnes minimum."""
-    if isinstance(path_or_fp, (str,)):
+    """Charge un .xls ou .xlsx → (rows, content_bytes, is_xlsx)."""
+    if isinstance(path_or_fp, str):
         with open(path_or_fp, 'rb') as f:
             content = f.read()
     else:
@@ -97,7 +97,7 @@ def _load_rows(path_or_fp):
         ws = wb.sheet_by_index(0)
         rows = [_pad_row(ws.row_values(r)) for r in range(ws.nrows)]
 
-    return rows
+    return rows, content, is_xlsx
 
 
 # ─── Détection du format ───────────────────────────────────────────────────
@@ -187,6 +187,85 @@ def _extract_metadata(rows, header_idx, fmt):
             if m:
                 result['objet'] = m.group(1).strip()
                 break
+
+    return result
+
+
+def _extract_shape_metadata(content):
+    """
+    Extrait date + référence + code secteur depuis la zone de texte d'en-tête BIFF (XLS).
+
+    La zone de texte stocke ses champs séparés par LF (0x0a) :
+      DD/MM/YYYY \\n référence \\n [durée | date_fin] \\n code_secteur (2 chiffres)
+
+    Le code secteur est extrait sur les bytes bruts pour éviter la contamination
+    par les bytes BIFF qui suivent immédiatement la fin du texte.
+    """
+    import calendar
+
+    def _clean(raw):
+        return re.sub(r'\s+', ' ', ''.join(chr(b) if 32 <= b < 127 else ' ' for b in raw)).strip()
+
+    result = {'date': None, 'date_validite': None, 'reference': '', 'equipe_hint': ''}
+
+    for m in re.finditer(rb'\d{2}/\d{2}/\d{4}', content):
+        block = content[m.start():m.start() + 100]
+        raw_fields = block.split(b'\x0a')
+        fields = [_clean(f) for f in raw_fields[:5]]
+
+        if len(fields) < 2:
+            continue
+
+        ref = re.sub(r'[^A-Za-z0-9 \-/]', '', fields[1]).strip()
+        if not ref:
+            continue
+
+        date_str = re.sub(r'[^0-9/]', '', fields[0])
+        try:
+            date = datetime.datetime.strptime(date_str, '%d/%m/%Y').date()
+        except ValueError:
+            continue
+
+        result['date'] = date
+        result['reference'] = ref
+
+        # Champ 2 : durée ("X mois") ou date de fin de validité
+        if len(fields) > 2:
+            f2 = fields[2]
+            dm = re.match(r'\d{2}/\d{2}/\d{4}', f2)
+            if dm:
+                try:
+                    result['date_validite'] = datetime.datetime.strptime(dm.group(0), '%d/%m/%Y').date()
+                except ValueError:
+                    pass
+            else:
+                mm = re.match(r'^(\d+)\s*mois', f2, re.IGNORECASE)
+                if mm:
+                    months = int(mm.group(1))
+                    y = date.year + (date.month - 1 + months) // 12
+                    mo = (date.month - 1 + months) % 12 + 1
+                    day = min(date.day, calendar.monthrange(y, mo)[1])
+                    result['date_validite'] = datetime.date(y, mo, day)
+
+        # Code secteur : cherche \nXX[\t<\x00] dans les bytes bruts du bloc
+        # (évite les faux positifs dus aux bytes de record BIFF après le texte)
+        sm = re.search(rb'\n(\d{2})[\x09<\x00]', block[:80])
+        if sm:
+            result['equipe_hint'] = sm.group(1).decode('ascii')
+
+        break  # Premier bloc valide = en-tête du devis
+
+    # Objet : prend la dernière occurrence de "Objet :" dans le fichier.
+    # Les fichiers contiennent parfois un objet template en début et l'objet réel
+    # ensuite — le dernier est toujours le bon.
+    objet_matches = list(re.finditer(rb'Objet\s*:\s+([^\x00<\n\r]{3,200})', content))
+    if objet_matches:
+        raw = objet_matches[-1].group(1)
+        # Filtrer les bytes non imprimables parasites (bytes BIFF de fin de record)
+        clean = bytes(b for b in raw if 0x20 <= b <= 0x7e or b >= 0xa0)
+        objet = clean.decode('latin-1', errors='replace').strip()
+        if objet and len(objet) >= 3:
+            result['objet'] = objet
 
     return result
 
@@ -442,7 +521,7 @@ def parse_devis_xls(path_or_fp):
     warnings = []
 
     try:
-        rows = _load_rows(path_or_fp)
+        rows, content, is_xlsx = _load_rows(path_or_fp)
     except Exception as exc:
         return {
             'reference': '', 'date': None, 'date_validite': None,
@@ -456,6 +535,14 @@ def parse_devis_xls(path_or_fp):
 
     header_idx, col_map, fmt = _detect_header_and_cols(rows)
     meta = _extract_metadata(rows, header_idx, fmt)
+
+    # Pour les fichiers XLS, fusionner les métadonnées extraites des zones de texte
+    if not is_xlsx:
+        shape_meta = _extract_shape_metadata(content)
+        for key in ('reference', 'date', 'date_validite', 'equipe_hint', 'objet'):
+            if shape_meta.get(key) and not meta.get(key):
+                meta[key] = shape_meta[key]
+
     tree = _parse_tree(rows, header_idx, col_map, fmt)
     total_xls = _extract_total(rows)
     nb_lignes = _count_leaves(tree)
@@ -468,7 +555,7 @@ def parse_devis_xls(path_or_fp):
     return {
         'reference': meta.get('reference', ''),
         'date': meta.get('date'),
-        'date_validite': None,
+        'date_validite': meta.get('date_validite'),
         'equipe_hint': meta.get('equipe_hint', ''),
         'objet': meta.get('objet', ''),
         'client': {
