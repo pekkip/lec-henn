@@ -406,8 +406,8 @@ def logout_view(request):
     logout(request)
     return redirect('core:login')
 
-def aide_view(request):
-    return render(request, 'core/aide.html', {'site_url': settings.SITE_URL})
+def manuel_view(request):
+    return render(request, 'core/manuel.html', {'site_url': settings.SITE_URL})
 
 DOMAINE_AUTORISE = 'compagnonsbatisseurs.eu'
 
@@ -2413,7 +2413,7 @@ def utilisateur_create(request):
             f'Mot de passe temporaire : {mdp_temp}\n\n'
             f'Connectez-vous ici : {settings.SITE_URL}/login/\n\n'
             f'Merci de changer votre mot de passe dès votre première connexion.\n\n'
-            f'Un manuel utilisateur est disponible directement sur le site : {settings.SITE_URL}/aide/\n\n'
+            f'Un manuel utilisateur est disponible directement sur le site : {settings.SITE_URL}/manuel/\n\n'
             f'CB Bretagne'
         )
 

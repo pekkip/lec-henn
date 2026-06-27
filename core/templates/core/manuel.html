@@ -1,0 +1,941 @@
+{% load static %}<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manuel utilisateur — Devis & Facturation CB Bretagne</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --prune: #67123A;
+      --prune-lt: #f5e8ee;
+      --teal: #00AA8D;
+      --teal-dk: #00735E;
+      --teal-lt: #e0f5f2;
+      --amber: #F7A600;
+      --amber-lt: #fef3c7;
+      --violet: #5B3EA5;
+      --violet-lt: #ede9f7;
+      --red: #C0392B;
+      --gray-dk: #1a1a2e;
+      --gray-md: #6b7280;
+      --gray-lt: #f3f4f6;
+      --gray-bd: #e5e7eb;
+      --white: #fff;
+      --r: 8px;
+    }
+
+    body {
+      font-family: 'Montserrat', sans-serif;
+      font-size: 14px;
+      color: var(--gray-dk);
+      background: var(--gray-lt);
+      line-height: 1.6;
+    }
+
+    /* LAYOUT */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* TOC */
+    .toc {
+      width: 270px;
+      flex-shrink: 0;
+      background: var(--white);
+      border-right: 1px solid var(--gray-bd);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 1.5rem 0;
+    }
+    .toc-header {
+      padding: 0 1.25rem 1rem;
+      border-bottom: 1px solid var(--gray-bd);
+      margin-bottom: 0.75rem;
+    }
+    .toc-logo {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--prune);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .toc-subtitle { font-size: 11px; color: var(--gray-md); margin-top: 2px; }
+    .toc nav { padding: 0 0.75rem; }
+    .toc a {
+      display: block;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: var(--gray-md);
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .toc a:hover { background: var(--gray-lt); color: var(--gray-dk); }
+    .toc a.active { background: var(--prune-lt); color: var(--prune); font-weight: 600; }
+    .toc-section { margin-top: 0.5rem; }
+    .toc-section > a {
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--gray-dk);
+    }
+    .toc-sub a { padding-left: 24px; font-size: 12px; }
+
+    /* CONTENT */
+    .content { flex: 1; padding: 2.5rem 3rem 4rem; max-width: 880px; }
+
+    .page-title {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--prune);
+      margin-bottom: 0.25rem;
+    }
+    .page-subtitle { font-size: 13px; color: var(--gray-md); margin-bottom: 2.5rem; }
+
+    /* SECTIONS */
+    .section { margin-bottom: 3rem; scroll-margin-top: 1.5rem; }
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--prune);
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--prune-lt);
+      margin-bottom: 1.25rem;
+    }
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-dk);
+      margin: 1.5rem 0 0.6rem;
+    }
+    p { margin-bottom: 0.75rem; color: #374151; }
+    ul, ol { padding-left: 1.4rem; margin-bottom: 0.75rem; }
+    li { margin-bottom: 0.3rem; color: #374151; }
+    a.xref { color: var(--teal-dk); font-weight: 600; text-decoration: none; }
+    a.xref:hover { text-decoration: underline; }
+
+    /* CARDS / CALLOUTS */
+    .tip {
+      background: var(--teal-lt);
+      border-left: 3px solid var(--teal);
+      border-radius: 0 var(--r) var(--r) 0;
+      padding: 10px 14px;
+      margin: 0.75rem 0;
+      font-size: 13px;
+    }
+    .warn {
+      background: var(--amber-lt);
+      border-left: 3px solid var(--amber);
+      border-radius: 0 var(--r) var(--r) 0;
+      padding: 10px 14px;
+      margin: 0.75rem 0;
+      font-size: 13px;
+    }
+    .tip strong.hd, .warn strong.hd { display: block; margin-bottom: 2px; }
+
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; margin: 0.75rem 0 1rem; font-size: 13px; }
+    th { background: var(--gray-lt); padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--gray-md); border-bottom: 1px solid var(--gray-bd); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--gray-bd); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+
+    /* BADGES */
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .b-draft    { background: #f3f4f6; color: #6b7280; }
+    .b-valid    { background: #d1fae5; color: #065f46; }
+    .b-sent     { background: #dbeafe; color: #1e40af; }
+    .b-paid     { background: #d1fae5; color: #065f46; }
+    .b-accepted { background: #d1fae5; color: #065f46; }
+    .b-refused  { background: #fee2e2; color: #991b1b; }
+    .b-acompte  { background: var(--amber-lt); color: #92400e; }
+
+    code {
+      background: var(--gray-lt);
+      border: 1px solid var(--gray-bd);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 12px;
+      font-family: monospace;
+    }
+    kbd {
+      background: #fff;
+      border: 1px solid var(--gray-bd);
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 11px;
+      font-family: monospace;
+      color: var(--gray-dk);
+    }
+
+    /* ===== CAPTURES (figures) ===== */
+    .shot { margin: 1rem 0; }
+    .shot img {
+      display: block;
+      max-width: 100%;
+      border: 1px solid var(--gray-bd);
+      border-radius: var(--r);
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    }
+    .shot figcaption { font-size: 12px; color: var(--gray-md); margin-top: 6px; font-style: italic; }
+    .shot.shot-todo img { display: none; }
+    .shot.shot-todo {
+      border: 2px dashed var(--gray-bd);
+      border-radius: var(--r);
+      padding: 1.4rem;
+      text-align: center;
+      background: repeating-linear-gradient(45deg, #fafafa, #fafafa 10px, #f4f4f6 10px, #f4f4f6 20px);
+    }
+    .shot.shot-todo::before {
+      content: "📷 Capture à intégrer";
+      display: block;
+      font-weight: 600;
+      color: var(--gray-md);
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .shot.shot-todo figcaption { font-style: normal; }
+
+    /* ===== SCHÉMAS / DIAGRAMMES ===== */
+    .diagram {
+      background: #fbfbfc;
+      border: 1px solid var(--gray-bd);
+      border-radius: 10px;
+      padding: 16px;
+      margin: 1rem 0;
+    }
+    .dgm-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-md); margin-bottom: 12px; }
+    .dgm-cap { font-size: 12px; color: var(--gray-md); font-style: italic; margin-top: 10px; }
+
+    /* Flux horizontal */
+    .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .flow .box {
+      background: #fff;
+      border: 1.5px solid var(--prune);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--prune);
+      text-align: center;
+      min-width: 120px;
+    }
+    .flow .box small { display: block; font-weight: 400; font-size: 11px; color: var(--gray-md); margin-top: 2px; }
+    .flow .box.teal { border-color: var(--teal); color: var(--teal-dk); }
+    .flow .box.amber { border-color: var(--amber); color: #92400e; }
+    .flow .box.dashed { border-style: dashed; border-color: var(--gray-md); color: var(--gray-md); }
+    .arrow { color: var(--gray-md); font-weight: 700; font-size: 18px; }
+    .arrow small { display: block; font-size: 9px; font-weight: 600; color: var(--teal-dk); text-align: center; }
+
+    /* Étapes numérotées */
+    .steps { display: flex; gap: 10px; flex-wrap: wrap; }
+    .step { flex: 1; min-width: 150px; background: #fff; border: 1px solid var(--gray-bd); border-radius: 8px; padding: 12px; }
+    .step .n { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--prune); color: #fff; font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+    .step b { display: block; font-size: 13px; }
+    .step span { font-size: 12px; color: var(--gray-md); }
+
+    /* Mini-maquette éditeur */
+    .mock { border: 1px solid var(--gray-bd); border-radius: 10px; overflow: hidden; }
+    .mock-tb { background: var(--prune); padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .pill { background: rgba(255,255,255,.16); color: #fff; border-radius: 99px; padding: 3px 10px; font-size: 11px; font-weight: 600; }
+    .mock-cols, .mrow { display: grid; grid-template-columns: 1fr 60px 54px 74px 80px; }
+    .mock-cols { background: var(--gray-lt); border-bottom: 1px solid var(--gray-bd); padding: 6px 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--gray-md); }
+    .mock-cols span:not(:first-child) { text-align: right; }
+    .mrow { align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--gray-bd); font-size: 13px; }
+    .mrow:last-child { border-bottom: none; }
+    .mrow span:not(.lbl) { text-align: right; color: #374151; }
+    .lbl { display: flex; align-items: center; gap: 8px; }
+    .grip { color: #c7c7d1; }
+    .tag { font-size: 10px; font-weight: 700; border-radius: 4px; padding: 1px 6px; white-space: nowrap; }
+    .t-titre { background: var(--prune-lt); color: var(--prune); }
+    .t-s { background: var(--teal-lt); color: var(--teal-dk); }
+    .t-c { background: #e0e7ff; color: #3730a3; }
+    .t-mo { background: #eef2ff; color: #3730a3; }
+    .t-mat { background: #fff7ed; color: #9a3412; }
+    .t-f { background: #f1f5f9; color: #334155; }
+    .t-fin { background: #fde8f0; color: var(--prune); }
+    .t-finx { background: var(--violet-lt); color: var(--violet); }
+    .ind { padding-left: 22px; }
+    .ind2 { padding-left: 40px; }
+    .mock-recap { background: var(--prune-lt); padding: 10px 12px; display: flex; justify-content: flex-end; gap: 22px; font-size: 13px; flex-wrap: wrap; }
+    .mock-recap b { color: var(--prune); }
+
+    /* Deux colonnes (facturation partielle) */
+    .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .invc { background: #fff; border: 1px solid var(--gray-bd); border-radius: 8px; overflow: hidden; }
+    .invc-hd { background: var(--gray-lt); padding: 7px 12px; font-size: 12px; font-weight: 700; color: var(--gray-dk); border-bottom: 1px solid var(--gray-bd); }
+    .invc-row { display: flex; justify-content: space-between; padding: 6px 12px; font-size: 12.5px; border-bottom: 1px solid var(--gray-lt); }
+    .invc-row:last-child { border-bottom: none; }
+    .invc-row .q { color: var(--gray-md); }
+    .invc-row.nf { color: #9ca3af; font-style: italic; }
+    .invc-tot { display: flex; justify-content: space-between; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--prune); background: var(--prune-lt); }
+
+    /* RESPONSIVE */
+    @media (max-width: 768px) {
+      .toc { display: none; }
+      .content { padding: 1.5rem; }
+      .cols2, .mock-cols, .mrow { grid-template-columns: 1fr; }
+      .cols2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- TABLE DES MATIÈRES -->
+  <aside class="toc">
+    <div class="toc-header">
+      <div class="toc-logo">CB Bretagne</div>
+      <div class="toc-subtitle">Manuel utilisateur</div>
+      <a href="/login/" style="display:inline-block;margin-top:10px;font-size:14.5px;font-weight:600;color:var(--teal);text-decoration:none;border:2px solid var(--teal);border-radius:6px;padding:6px 12px;width:100%;">
+        ← Retour à l'application
+      </a>
+    </div>
+    <nav>
+      <div class="toc-section"><a href="#connexion">1. Connexion</a></div>
+
+      <div class="toc-section"><a href="#dashboard">2. Tableau de bord</a></div>
+
+      <div class="toc-section"><a href="#clients">3. Les clients</a></div>
+      <div class="toc-sub">
+        <a href="#clients-liste">Consulter et filtrer</a>
+        <a href="#clients-creer">Créer un client</a>
+      </div>
+
+      <div class="toc-section"><a href="#flux">4. En bref : devis → facture</a></div>
+
+      <div class="toc-section"><a href="#devis">5. Les devis</a></div>
+      <div class="toc-sub">
+        <a href="#devis-liste">Liste et filtres</a>
+        <a href="#devis-creer">Créer un devis (client)</a>
+        <a href="#devis-editeur">L'éditeur de lignes</a>
+        <a href="#devis-types">Types de lignes</a>
+        <a href="#devis-biblio">Utiliser la bibliothèque</a>
+        <a href="#devis-financement">Zones financement</a>
+        <a href="#devis-pdf">Vue client (PDF)</a>
+        <a href="#devis-statut">Statuts</a>
+        <a href="#devis-dupliquer">Dupliquer</a>
+        <a href="#devis-import">Importer des devis existants</a>
+      </div>
+
+      <div class="toc-section"><a href="#factures">6. Les factures</a></div>
+      <div class="toc-sub">
+        <a href="#factures-creer">Créer une facture</a>
+        <a href="#factures-partiel">Facturation partielle</a>
+        <a href="#factures-acompte">Acomptes</a>
+        <a href="#factures-cycle">Cycle de validation</a>
+        <a href="#factures-bypass">Bypass comptable</a>
+        <a href="#factures-avoir">Créer un avoir</a>
+      </div>
+
+      <div class="toc-section"><a href="#compta">7. Outils compta</a></div>
+      <div class="toc-sub">
+        <a href="#compta-structure">Factures structure</a>
+        <a href="#compta-appel">Appels de convention</a>
+        <a href="#compta-editeur">L'éditeur</a>
+        <a href="#compta-outils-saisie">Coller / Calcul Tutorat</a>
+        <a href="#compta-contacts">Contacts / services</a>
+        <a href="#compta-avoir">Avoirs</a>
+      </div>
+
+      <div class="toc-section"><a href="#biblio">8. Ma bibliothèque</a></div>
+
+      <div class="toc-section"><a href="#aides">9. Bibliothèque Aides</a></div>
+
+      <div class="toc-section"><a href="#numerotation">10. Numérotation</a></div>
+
+      <div class="toc-section"><a href="#profil">11. Mon profil</a></div>
+
+      <div class="toc-section"><a href="#utilisateurs">12. Gestion des utilisateurs</a></div>
+    </nav>
+  </aside>
+
+  <!-- CONTENU -->
+  <main class="content">
+    <h1 class="page-title">Manuel utilisateur</h1>
+    <p class="page-subtitle">Outil Devis &amp; Facturation — Compagnons Bâtisseurs Bretagne</p>
+
+    <!-- 1. CONNEXION -->
+    <div class="section" id="connexion">
+      <h2>1. Connexion</h2>
+      <p>L'outil est accessible depuis n'importe quel navigateur (Chrome, Firefox, Edge…) à l'adresse :</p>
+      <p><strong><a href="{{ site_url }}/login/" style="color:var(--prune)">{{ site_url }}/login/</a></strong></p>
+      <ol>
+        <li>Saisissez votre <strong>identifiant</strong> et votre <strong>mot de passe temporaire</strong> (communiqués par votre administrateur) ;</li>
+        <li>Cliquez sur <strong>Se connecter</strong> ;</li>
+        <li>Changez votre mot de passe dès la première connexion depuis votre <a href="#profil" class="xref">profil</a> (menu en haut à droite).</li>
+      </ol>
+      <div class="tip"><strong class="hd">Mot de passe oublié ?</strong> Pendant la phase de test, contactez votre <strong>administrateur</strong> : il vous régénère un mot de passe temporaire et vous le transmet directement.</div>
+    </div>
+
+    <!-- 2. TABLEAU DE BORD -->
+    <div class="section" id="dashboard">
+      <h2>2. Tableau de bord</h2>
+      <p>Le tableau de bord s'affiche à la connexion. Il est composé de <strong>widgets</strong> (petites fenêtres) que <strong>vous choisissez et organisez vous-même</strong> : indicateurs chiffrés, listes, graphiques et activité récente.</p>
+
+      <div class="shot">
+        <img src="{% static 'core/manuel/dashboard_perso.png' %}" alt="Tableau de bord en mode personnalisation">
+        <figcaption>Le tableau de bord en mode personnalisation — capture&nbsp;: <code>core/static/core/manuel/dashboard_perso.png</code></figcaption>
+      </div>
+
+      <h3 id="dashboard-personnaliser">Personnaliser votre tableau de bord</h3>
+      <p>Cliquez sur le bouton <strong>Personnaliser</strong> (en haut à droite) pour passer en mode édition. Vous pouvez alors :</p>
+      <ul>
+        <li><strong>Réorganiser</strong> — glissez-déposez un widget pour le déplacer (poignée en haut à droite du widget) ;</li>
+        <li><strong>Masquer</strong> — cliquez sur l'icône œil barré d'un widget pour le retirer (il repasse dans « Ajouter un widget ») ;</li>
+        <li><strong>Ajouter</strong> — choisissez un widget dans le panneau <strong>Ajouter un widget</strong> en bas de page.</li>
+      </ul>
+      <p>Cliquez sur <strong>Verrouiller</strong> pour enregistrer et quitter le mode édition. Votre disposition est mémorisée et vous est propre.</p>
+
+      <h3 id="dashboard-portee">Portée des données (Tous / Mes données / Mon équipe)</h3>
+      <p>Chaque widget possède un petit menu de <strong>portée</strong> (en haut à droite) :</p>
+      <ul>
+        <li><strong>Tous</strong> — toutes les données de l'association ;</li>
+        <li><strong>Mes données</strong> — uniquement ce que vous avez créé ;</li>
+        <li><strong>Mon équipe</strong> — votre équipe (vous, vos collègues d'équipe, vos techniciens).</li>
+      </ul>
+      <div class="tip">Les widgets liés à la <strong>comptabilité</strong> n'apparaissent que pour les comptables et administrateurs. Des widgets de <strong>production</strong> (suivi des chantiers d'insertion) apparaissent pour les membres des services concernés.</div>
+
+      <h3>La barre du haut (topbar)</h3>
+      <p>Toujours visible, elle contient le logo (cliquable pour revenir au tableau de bord), le titre de la page en cours, votre identifiant (avec un liseré de <a href="#profil" class="xref">votre couleur</a>) et le bouton de déconnexion.</p>
+      <h3>Le menu latéral (sidebar)</h3>
+      <ul>
+        <li><strong>Tableau de bord</strong> — vue d'ensemble</li>
+        <li><strong>Devis</strong> — liste de tous les devis</li>
+        <li><strong>Factures</strong> — factures liées à un devis (chantiers)</li>
+        <li><strong>Avoirs</strong> — tous les avoirs (chantiers + compta)</li>
+        <li><strong>Clients</strong> — liste des clients</li>
+        <li><strong>Bibliothèque</strong> — votre catalogue personnel d'ouvrages</li>
+        <li><strong>Aides travaux</strong> — bibliothèque des aides et subventions partagée</li>
+        <li><strong>Manuel</strong> — ce document</li>
+      </ul>
+      <p>Les <strong>comptables</strong> et <strong>administrateurs</strong> disposent en plus d'une section <strong>Outils compta</strong> ; les rôles insertion voient une section <strong>Insertion</strong> (documentée dans le manuel dédié).</p>
+      <div class="tip">Le menu peut être <strong>replié</strong> (icônes seules) via le bouton <strong>Replier</strong> tout en bas — pratique pour gagner de la place. L'état est mémorisé.</div>
+    </div>
+
+    <!-- 3. CLIENTS -->
+    <div class="section" id="clients">
+      <h2>3. Les clients</h2>
+
+      <h3 id="clients-liste">Consulter et filtrer la liste</h3>
+      <p>Cliquez sur <strong>Clients</strong> dans le menu latéral. Vous pouvez filtrer par :</p>
+      <ul>
+        <li><strong>Nom</strong> — recherche libre</li>
+        <li><strong>Type</strong> — Particulier / Association / Bailleur / Collectivité / Autre</li>
+        <li><strong>Code postal</strong> ou <strong>Département</strong></li>
+        <li><strong>Ville</strong></li>
+        <li><strong>Portée</strong> — Tous les clients / Mes clients / Mon équipe</li>
+      </ul>
+      <div class="shot">
+        <img src="{% static 'core/manuel/clients_liste.png' %}" alt="Liste des clients avec filtres">
+        <figcaption>Liste des clients et barre de filtres — capture&nbsp;: <code>core/static/core/manuel/clients_liste.png</code></figcaption>
+      </div>
+
+      <h3 id="clients-creer">Créer un client</h3>
+      <p>Depuis la liste, cliquez sur <strong>Nouveau client</strong>. Vous pouvez aussi créer un client <strong>à la volée</strong> lors de la création d'un devis (voir <a href="#devis-creer" class="xref">Créer un devis</a>).</p>
+      <ul>
+        <li>Saisissez le <strong>nom / organisation</strong> (obligatoire) ;</li>
+        <li>Renseignez le <strong>code postal</strong> — la ville est suggérée automatiquement ;</li>
+        <li>Ajoutez les informations de contact si disponibles.</li>
+      </ul>
+      <div class="tip"><strong class="hd">Éviter les doublons</strong> — avant de créer un client, tapez son nom dans le champ de recherche : l'autocomplétion affiche les clients existants.</div>
+      <p>Tout utilisateur connecté peut créer et modifier un client. La <strong>suppression</strong> reste réservée aux administrateurs.</p>
+      <div class="shot">
+        <img src="{% static 'core/manuel/client_fiche.png' %}" alt="Fiche client et carnet de contacts">
+        <figcaption>Fiche client et carnet de contacts — capture&nbsp;: <code>core/static/core/manuel/client_fiche.png</code></figcaption>
+      </div>
+    </div>
+
+    <!-- 4. EN BREF : FLUX -->
+    <div class="section" id="flux">
+      <h2>4. En bref : du devis à la facture</h2>
+      <p>Le parcours type, du premier contact au règlement :</p>
+      <div class="diagram">
+        <div class="dgm-title">Parcours d'un chantier</div>
+        <div class="flow">
+          <span class="box">Client<small>fiche client</small></span>
+          <span class="arrow">→</span>
+          <span class="box">Devis<small>brouillon → accepté</small></span>
+          <span class="arrow">→</span>
+          <span class="box teal">Facture(s)<small>acompte, intermédiaire, solde</small></span>
+          <span class="arrow">→</span>
+          <span class="box dashed">Avoir<small>si correction</small></span>
+        </div>
+        <div class="dgm-cap">Un même devis peut donner lieu à plusieurs factures (un acompte, des factures intermédiaires, une facture de solde). Chaque facture peut, si besoin, être corrigée par un avoir.</div>
+      </div>
+      <p>Les sections suivantes détaillent chaque étape : <a href="#devis" class="xref">construire le devis</a>, <a href="#factures-creer" class="xref">créer les factures</a>, gérer la <a href="#factures-partiel" class="xref">facturation partielle</a> et les <a href="#factures-acompte" class="xref">acomptes</a>.</p>
+    </div>
+
+    <!-- 5. DEVIS -->
+    <div class="section" id="devis">
+      <h2>5. Les devis</h2>
+
+      <h3 id="devis-liste">Liste et filtres</h3>
+      <p>La liste affiche tous les devis de l'association, du plus récent au plus ancien. Filtres disponibles : territoire, service, équipe, statut, auteur, recherche libre (référence, client, chantier).</p>
+      <p>La colonne <strong>Reste à fact.</strong> indique le montant restant à facturer (orange = il reste quelque chose, vert = tout est facturé).</p>
+
+      <h3 id="devis-creer">Créer un devis — choisir le client</h3>
+      <ol>
+        <li>Cliquez sur <strong>Nouveau devis</strong> ;</li>
+        <li>Sélectionnez le <strong>client</strong> :
+          <ul>
+            <li>tapez son nom dans le champ de recherche (autocomplétion), ou</li>
+            <li>cliquez <strong>Parcourir</strong> pour ouvrir la liste filtrable, ou</li>
+            <li>cliquez <strong>Nouveau client</strong> pour le créer sans quitter la page (voir <a href="#clients-creer" class="xref">Créer un client</a>) ;</li>
+          </ul>
+        </li>
+        <li>Renseignez le <strong>chantier / objet</strong>, l'<strong>équipe</strong>, la <strong>validité</strong> et le <strong>taux horaire MO</strong> ;</li>
+        <li>Cliquez sur <strong>Créer le devis</strong> — vous arrivez dans l'éditeur.</li>
+      </ol>
+      <div class="warn"><strong class="hd">Sélection obligatoire</strong> — le devis ne peut pas être créé sans un client choisi dans la liste : taper un nom ne suffit pas, il faut le sélectionner.</div>
+      <div class="shot">
+        <img src="{% static 'core/manuel/devis_form_client.png' %}" alt="Formulaire de création de devis — sélection du client">
+        <figcaption>Création d'un devis et sélection du client — capture&nbsp;: <code>core/static/core/manuel/devis_form_client.png</code></figcaption>
+      </div>
+
+      <h3 id="devis-editeur">L'éditeur de lignes</h3>
+      <p>La page d'un devis s'organise en onglets :</p>
+      <ul>
+        <li><strong>En-tête</strong> — client, chantier, équipe, taux MO, conditions, coordonnées CB ;</li>
+        <li><strong>Édition</strong> — la zone principale de construction du devis (barre d'outils + arbre de lignes + panneau bibliothèque) ;</li>
+        <li><strong>Factures</strong> — les factures liées à ce devis (voir <a href="#factures" class="xref">chapitre 6</a>) ;</li>
+        <li><strong>Journal</strong> — l'historique des actions.</li>
+      </ul>
+      <p>Dans l'onglet <strong>Édition</strong>, cliquez sur un champ (description, quantité, coût…) pour le modifier directement. Validez avec <kbd>Entrée</kbd> ou en cliquant ailleurs. Cliquez sur <strong>Enregistrer les lignes</strong> (ou <kbd>Ctrl</kbd>+<kbd>S</kbd>) ; une confirmation apparaît brièvement en bas à droite. Réorganisez les lignes par <strong>glisser-déposer</strong> via la poignée <span class="grip">⠿</span> à gauche de chaque ligne.</p>
+      <div class="tip"><strong class="hd">Aucune perte de saisie</strong> — si vous tentez de fermer l'onglet, de recharger ou de revenir en arrière alors que des modifications ne sont pas enregistrées, le navigateur demande confirmation. (Vaut aussi pour l'éditeur des factures et la bibliothèque.)</div>
+      <div class="shot">
+        <img src="{% static 'core/manuel/devis_editeur.png' %}" alt="Éditeur de devis rempli">
+        <figcaption>L'éditeur de devis (barre d'outils + arbre de lignes) — capture&nbsp;: <code>core/static/core/manuel/devis_editeur.png</code></figcaption>
+      </div>
+
+      <h3 id="devis-types">Types de lignes</h3>
+      <p>Le devis est un <strong>arbre</strong> : des <strong>titres</strong> regroupent des ouvrages, et un ouvrage composite contient lui-même sa main-d'œuvre et ses matériaux. Voici la mini-maquette d'un devis et la signification de chaque type :</p>
+      <div class="diagram">
+        <div class="dgm-title">Schéma — structure d'un devis</div>
+        <div class="mock">
+          <div class="mock-tb">
+            <span class="pill">+ Titre</span><span class="pill">+ Ouvrage</span>
+            <span class="pill">+ Composite</span><span class="pill">+ Aide CBB</span>
+            <span class="pill">+ Financements</span><span class="pill">✂ Saut de page</span>
+          </div>
+          <div class="mock-cols"><span>Description</span><span>Qté</span><span>Unité</span><span>P.U.</span><span>Total</span></div>
+          <div class="mrow"><span class="lbl"><i class="grip">⠿</i><i class="tag t-titre">TITRE</i> Maçonnerie</span><span></span><span></span><span></span><span>1&nbsp;530,00</span></div>
+          <div class="mrow"><span class="lbl ind"><i class="grip">⠿</i><i class="tag t-s">S</i> Mur en parpaing</span><span>12</span><span>m²</span><span>95,00</span><span>1&nbsp;140,00</span></div>
+          <div class="mrow"><span class="lbl ind"><i class="grip">⠿</i><i class="tag t-c">C</i> Enduit (composite)</span><span>1</span><span>u</span><span></span><span>390,00</span></div>
+          <div class="mrow"><span class="lbl ind2"><i class="grip">⠿</i><i class="tag t-mo">MO</i> Application</span><span>8</span><span>h</span><span>35,00</span><span>280,00</span></div>
+          <div class="mrow"><span class="lbl ind2"><i class="grip">⠿</i><i class="tag t-mat">MAT</i> Mortier</span><span>5</span><span>sac</span><span>22,00</span><span>110,00</span></div>
+          <div class="mrow"><span class="lbl"><i class="grip">⠿</i><i class="tag t-f">F</i> Forfait nettoyage de fin de chantier</span><span>1</span><span>u</span><span>150,00</span><span>150,00</span></div>
+          <div class="mrow"><span class="lbl"><i class="grip">⠿</i><i class="tag t-fin">FIN</i> Aide travaux CBB</span><span></span><span></span><span></span><span>−300,00</span></div>
+          <div class="mock-recap"><span>Main-d'œuvre <b>280,00 €</b></span><span>Matériaux <b>1&nbsp;250,00 €</b></span><span>Net client <b>1&nbsp;530,00 €</b></span></div>
+        </div>
+        <div class="dgm-cap">Reproduction schématique (pas une capture). L'indentation traduit l'imbrication&nbsp;: MO et MAT sont <em>à l'intérieur</em> de l'ouvrage composite.</div>
+      </div>
+      <table>
+        <thead><tr><th>Type</th><th>Usage</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag t-titre">TITRE</span></td><td>Section qui regroupe des lignes sous un intitulé. N'a pas de prix propre : il <strong>totalise</strong> ses lignes.</td></tr>
+          <tr><td><span class="tag t-s">S</span> Ouvrage simple</td><td>Un ouvrage à <strong>prix unitaire global</strong> (quantité × prix). Le plus rapide quand vous connaissez directement le prix au m², à l'unité…</td></tr>
+          <tr><td><span class="tag t-c">C</span> Ouvrage composite</td><td>Un ouvrage <strong>décomposé</strong> en main-d'œuvre + matériaux : son prix est <strong>calculé</strong> à partir des lignes MO et MAT qu'il contient.</td></tr>
+          <tr><td><span class="tag t-f">F</span> Forfait</td><td>Une ligne <strong>forfaitaire</strong> (montant global), placée sous un titre — utile pour un poste qui ne se décompose pas.</td></tr>
+          <tr><td><span class="tag t-mo">MO</span></td><td>Main-d'œuvre, <strong>à l'intérieur d'un composite</strong> : quantité d'heures × taux horaire du devis.</td></tr>
+          <tr><td><span class="tag t-mat">MAT</span></td><td>Matériaux, à l'intérieur d'un composite (prix matériaux).</td></tr>
+          <tr><td><span class="tag t-fin">FIN</span> / <span class="tag t-finx">FINX</span></td><td>Lignes de financement, dans les zones dédiées (voir <a href="#devis-financement" class="xref">Zones financement</a>).</td></tr>
+        </tbody>
+      </table>
+      <div class="tip"><strong class="hd">Simple ou composite ?</strong> Utilisez un <strong>ouvrage simple</strong> quand vous avez un prix tout compris ; un <strong>composite</strong> quand vous voulez détailler la main-d'œuvre et les matériaux (et piloter la marge via le taux horaire).</div>
+      <p>Sous chaque titre, des boutons permettent d'ajouter un <strong>sous-titre</strong>, un <strong>forfait</strong>, un <strong>ouvrage simple</strong>, un <strong>ouvrage composite</strong> ou un <strong>saut de page</strong>.</p>
+      <p><strong>Saut de page</strong> — insère une coupure qui force un changement de page dans le PDF client. Il n'a pas de prix et n'entre pas dans les totaux.</p>
+
+      <h3 id="devis-biblio">Utiliser la bibliothèque</h3>
+      <p>Dans l'onglet Édition, un <strong>panneau bibliothèque</strong> est affiché sur le côté : c'est votre catalogue d'ouvrages réutilisables.</p>
+      <ul>
+        <li><strong>Insérer</strong> — glissez un ouvrage (ou un <em>groupe</em>) du panneau vers le devis ; le taux MO du devis est appliqué automatiquement ;</li>
+        <li><strong>Enregistrer</strong> — glissez une ligne du devis vers le panneau pour l'ajouter à votre bibliothèque. Glissez un <strong>titre entier</strong> pour en faire un <strong>groupe</strong> réutilisable d'un bloc.</li>
+      </ul>
+      <p>Détails et organisation : voir <a href="#biblio" class="xref">Ma bibliothèque</a>.</p>
+      <div class="shot">
+        <img src="{% static 'core/manuel/devis_biblio_panneau.png' %}" alt="Panneau bibliothèque dans l'éditeur de devis">
+        <figcaption>Le panneau bibliothèque dans l'éditeur (glisser-déposer) — capture&nbsp;: <code>core/static/core/manuel/devis_biblio_panneau.png</code></figcaption>
+      </div>
+
+      <h3 id="devis-financement">Zones financement &amp; subventions</h3>
+      <p>Le devis dispose de <strong>deux zones de financement</strong> distinctes, activables indépendamment depuis la barre d'outils :</p>
+      <table>
+        <thead><tr><th>Bouton</th><th>Zone</th><th>Usage</th></tr></thead>
+        <tbody>
+          <tr><td><strong>🎁 Aide CBB</strong></td><td>Aide travaux CBB</td><td>Aides attribuées par CBB (FIN / FMO / FMAT)</td></tr>
+          <tr><td><strong>🏦 Financements</strong></td><td>Financements organismes</td><td>Financements versés à CBB par des organismes tiers (collectivités, bailleurs…) — type FINX</td></tr>
+        </tbody>
+      </table>
+      <p>Dans chaque zone vous pouvez glisser une aide depuis le panneau bibliothèque, ajouter une ligne libre, ou supprimer la zone entière. Les montants sont déduits dans le récapitulatif (<strong>Net client</strong>). Voir aussi <a href="#aides" class="xref">Bibliothèque Aides</a>.</p>
+
+      <h3 id="devis-pdf">Vue client (PDF)</h3>
+      <p>Cliquez sur <strong>Vue client</strong> pour afficher le document à envoyer au client. Vous pouvez :</p>
+      <ul>
+        <li><strong>Télécharger le PDF</strong> (bouton dédié — document généré côté serveur, prêt à envoyer) ;</li>
+        <li>ou utiliser l'impression du navigateur (<kbd>Ctrl</kbd>+<kbd>P</kbd>).</li>
+      </ul>
+      <div class="tip"><strong class="hd">Sans TVA</strong> — l'association n'est pas assujettie à la TVA : les devis et factures clients affichent un <strong>« Montant net de taxes »</strong> (pas de ligne de TVA). La mention « TVA non applicable — art. 293 B du CGI » figure dans les conditions.</div>
+
+      <h3 id="devis-statut">Statuts du devis</h3>
+      <table>
+        <thead><tr><th>Statut</th><th>Signification</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge b-draft">Brouillon</span></td><td>En cours de rédaction</td></tr>
+          <tr><td><span class="badge b-sent">Envoyé</span></td><td>Envoyé au client, en attente de réponse</td></tr>
+          <tr><td><span class="badge b-accepted">Accepté</span></td><td>Signé / accepté par le client (nécessaire pour facturer)</td></tr>
+          <tr><td><span class="badge b-refused">Refusé</span></td><td>Refusé par le client</td></tr>
+          <tr><td><span class="badge b-draft">Expiré</span></td><td>Date de validité dépassée</td></tr>
+        </tbody>
+      </table>
+      <p>Changez le statut depuis le sélecteur en haut de la page du devis.</p>
+
+      <h3 id="devis-dupliquer">Dupliquer un devis</h3>
+      <p>Dans la liste des devis, cliquez sur l'icône de copie (deux feuilles) à droite du devis. Un nouveau devis brouillon est créé avec toutes les lignes du devis original.</p>
+
+      <h3 id="devis-import">Importer des devis existants</h3>
+      <p>En haut de la liste des devis, deux boutons permettent d'importer des devis <strong>déjà établis</strong> (ancien logiciel, historique) :</p>
+      <table>
+        <thead><tr><th>Bouton</th><th>Usage</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Import PDF</strong></td><td>Devis au format PDF (jusqu'à <strong>5</strong> à la fois). Le texte est lu automatiquement, y compris les libellés (reconnaissance de caractères).</td></tr>
+          <tr><td><strong>Import XLS</strong></td><td>Devis au format tableur <code>.xls</code>/<code>.xlsx</code> (jusqu'à <strong>20</strong>). Trois mises en page courantes sont reconnues automatiquement ; le client, la référence et l'objet sont extraits.</td></tr>
+        </tbody>
+      </table>
+      <div class="diagram">
+        <div class="dgm-title">Schéma — déroulé d'un import</div>
+        <div class="steps">
+          <div class="step"><span class="n">1</span><b>Déposer</b><span>Sélectionnez les fichiers PDF ou tableur à importer.</span></div>
+          <div class="step"><span class="n">2</span><b>Prévisualiser</b><span>L'outil affiche les devis reconstitués et vérifie les totaux.</span></div>
+          <div class="step"><span class="n">3</span><b>Confirmer</b><span>Validez : les devis sont créés dans l'application.</span></div>
+        </div>
+      </div>
+      <div class="warn"><strong class="hd">Contrôle des totaux</strong> — si le total reconstitué ne correspond pas exactement à celui du document d'origine, l'écart est signalé par un préfixe <code>⚠ ÉCART</code> (sur l'objet du devis ou sur la ligne concernée) afin que vous le vérifiiez.</div>
+      <p>Les devis importés <strong>conservent leur numéro d'origine</strong>. Pour un <strong>gros volume</strong> à importer, déposez les fichiers sur le SharePoint et transmettez le lien à l'administrateur (un outil en lot existe côté administration).</p>
+      <div class="shot">
+        <img src="{% static 'core/manuel/import_devis.png' %}" alt="Écran d'import de devis">
+        <figcaption>L'écran d'import (dépôt + prévisualisation) — capture&nbsp;: <code>core/static/core/manuel/import_devis.png</code></figcaption>
+      </div>
+    </div>
+
+    <!-- 6. FACTURES -->
+    <div class="section" id="factures">
+      <h2>6. Les factures</h2>
+      <p>Les factures de chantier se créent <strong>depuis un devis accepté</strong>, dans son onglet <strong>Factures</strong>. Un devis peut donner lieu à plusieurs factures successives jusqu'à couvrir son montant total.</p>
+
+      <h3 id="factures-creer">Créer une facture depuis le devis</h3>
+      <ol>
+        <li>Ouvrez le devis, onglet <strong>Factures</strong> (il rappelle <em>Total brut</em>, <em>Facturé</em> et <em>Reste</em>) ;</li>
+        <li>Cliquez sur <strong>Nouvelle facture</strong> ;</li>
+        <li>Choisissez le type :
+          <ul>
+            <li><strong>Facture</strong> — les lignes sont <strong>pré-remplies depuis le devis</strong> (voir <a href="#factures-partiel" class="xref">Facturation partielle</a>) ; renseignez l'échéance ;</li>
+            <li><strong>Acompte</strong> — saisissez un <strong>montant libre</strong> (voir <a href="#factures-acompte" class="xref">Acomptes</a>) ;</li>
+          </ul>
+        </li>
+        <li>Cliquez sur <strong>Créer en brouillon</strong>.</li>
+      </ol>
+      <p>La facture est créée en <strong>brouillon</strong>. Ouvrez-la pour ajuster ses lignes, son libellé et ses conditions, puis suivez le <a href="#factures-cycle" class="xref">cycle de validation</a>.</p>
+      <div class="shot">
+        <img src="{% static 'core/manuel/devis_onglet_factures.png' %}" alt="Onglet Factures d'un devis">
+        <figcaption>L'onglet Factures d'un devis — capture&nbsp;: <code>core/static/core/manuel/devis_onglet_factures.png</code></figcaption>
+      </div>
+      <div class="shot">
+        <img src="{% static 'core/manuel/facture_nouvelle.png' %}" alt="Modale Nouvelle facture">
+        <figcaption>La fenêtre « Nouvelle facture » (Facture / Acompte) — capture&nbsp;: <code>core/static/core/manuel/facture_nouvelle.png</code></figcaption>
+      </div>
+
+      <h3 id="factures-partiel">Facturation partielle — lignes non facturées</h3>
+      <p>Vous n'êtes pas obligé de tout facturer d'un coup. Dans l'éditeur d'une facture, chaque ligne a une <strong>quantité à facturer</strong> :</p>
+      <ul>
+        <li>Mettez une ligne à <strong>0</strong> pour ne pas la facturer cette fois ; un <strong>titre entièrement à 0</strong> se replie (rien n'apparaît sur le document) ;</li>
+        <li>La <strong>quantité restante</strong> (devis − déjà facturé) est <strong>reportée automatiquement</strong> sur la facture suivante ;</li>
+        <li>Chaque titre affiche son <strong>historique</strong> : « Facturé X € le … · réf », pour savoir ce qui a déjà été facturé et par quelle facture.</li>
+      </ul>
+      <div class="diagram">
+        <div class="dgm-title">Schéma — un devis facturé en deux fois</div>
+        <div class="cols2">
+          <div class="invc">
+            <div class="invc-hd">Facture 1 (intermédiaire)</div>
+            <div class="invc-row"><span>Maçonnerie — gros œuvre</span><span class="q">12 / 12 m²</span></div>
+            <div class="invc-row nf"><span>Peinture — finitions</span><span class="q">0 / 40 m²</span></div>
+            <div class="invc-tot"><span>Facturé</span><span>1 530,00 €</span></div>
+          </div>
+          <div class="invc">
+            <div class="invc-hd">Facture 2 (solde)</div>
+            <div class="invc-row" style="color:#9ca3af"><span>Maçonnerie — gros œuvre</span><span class="q">Facturé le 12/03 · FA00042</span></div>
+            <div class="invc-row"><span>Peinture — finitions</span><span class="q">40 / 40 m²</span></div>
+            <div class="invc-tot"><span>Facturé</span><span>1 200,00 €</span></div>
+          </div>
+        </div>
+        <div class="dgm-cap">La peinture, non facturée sur la facture 1 (qté 0, grisée), revient automatiquement avec sa quantité restante sur la facture 2.</div>
+      </div>
+      <div class="shot">
+        <img src="{% static 'core/manuel/facture_editeur.png' %}" alt="Éditeur de facture">
+        <figcaption>L'éditeur de facture (quantités à facturer, lignes non facturées, historique par titre) — capture&nbsp;: <code>core/static/core/manuel/facture_editeur.png</code></figcaption>
+      </div>
+
+      <h3 id="factures-acompte">Acomptes</h3>
+      <p>Un <strong>acompte</strong> est une <strong>avance</strong> versée par le client. Ce n'est <strong>pas</strong> une facturation en plus : la <strong>facture de solde</strong> porte le montant <strong>plein</strong> du devis, et l'acompte déjà versé en est <strong>déduit</strong> pour obtenir le « solde à régler ».</p>
+      <div class="diagram">
+        <div class="dgm-title">Schéma — acompte puis solde (devis 3 000 €)</div>
+        <div class="flow">
+          <span class="box amber">Acompte 600 €<small>avance versée</small></span>
+          <span class="arrow">+</span>
+          <span class="box">Facture de solde<small>montant plein 3 000 €</small></span>
+          <span class="arrow">→<small>− acompte</small></span>
+          <span class="box teal">Solde à régler<small>2 400 €</small></span>
+        </div>
+        <div class="dgm-cap">L'acompte (600 €) n'est pas ajouté aux 3 000 € : il est retranché du solde. Total encaissé = 600 + 2 400 = 3 000 €.</div>
+      </div>
+      <div class="warn"><strong class="hd">Verrou de cohérence</strong> — la validation d'une <strong>facture de solde</strong> est <strong>bloquée</strong> tant qu'un acompte émis n'est pas marqué <strong>payé</strong>. Pour débloquer : sur la ligne de l'acompte (statut « Envoyé »), cliquez sur l'icône ✓ pour le marquer payé, puis validez la facture de solde.</div>
+
+      <h3 id="factures-cycle">Cycle de validation</h3>
+      <div class="diagram">
+        <div class="dgm-title">Schéma — statuts d'une facture</div>
+        <div class="flow">
+          <span class="badge b-draft">Brouillon</span>
+          <span class="arrow">→<small>comptable</small></span>
+          <span class="badge b-valid">Validée</span>
+          <span class="arrow">→<small>envoi client</small></span>
+          <span class="badge b-sent">Envoyée</span>
+          <span class="arrow">→<small>règlement</small></span>
+          <span class="badge b-paid">Payée</span>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Statut</th><th>Qui peut agir</th><th>Action suivante</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge b-draft">Brouillon</span></td><td>Équipe du devis</td><td>Valider (comptable) ou Bypass</td></tr>
+          <tr><td><span class="badge b-valid">Validée</span></td><td>Équipe du devis</td><td>Marquer comme Envoyée</td></tr>
+          <tr><td><span class="badge b-sent">Envoyée</span></td><td>Équipe du devis</td><td>Marquer comme Payée</td></tr>
+          <tr><td><span class="badge b-paid">Payée</span></td><td>—</td><td>État final</td></tr>
+        </tbody>
+      </table>
+      <p>Le passage <em>Brouillon → Validée</em> est réservé au <strong>comptable</strong> (ou un administrateur) : c'est l'étape de contrôle avant envoi. Tant qu'une facture est en brouillon, son aperçu porte un numéro provisoire <code>PF-…</code> et la mention « proforma » (le numéro définitif est attribué à la validation — voir <a href="#numerotation" class="xref">Numérotation</a>).</p>
+
+      <h3 id="factures-bypass">Bypass de validation comptable</h3>
+      <p>Si le comptable n'est pas disponible, un responsable ou administrateur peut contourner la validation via le bouton <strong>Bypass</strong>. L'action est tracée dans le journal d'audit.</p>
+      <div class="warn"><strong class="hd">Phase de test</strong> — le bypass repose sur l'envoi d'un code par email, dont la <strong>délivrance vers les adresses internes n'est pas garantie</strong> actuellement. À utiliser avec parcimonie ; en cas de souci, rapprochez-vous de l'administrateur.</div>
+
+      <h3 id="factures-avoir">Créer un avoir</h3>
+      <p>Un <strong>avoir</strong> annule tout ou partie d'une facture (facture négative). Il se crée <strong>depuis une facture validée</strong> :</p>
+      <ol>
+        <li>Repérez la facture concernée (statut Validée, Envoyée ou Payée) ;</li>
+        <li>Cliquez sur l'icône <strong>↩ Créer un avoir</strong> ;</li>
+        <li>L'avoir reprend les lignes de la facture avec les <strong>quantités inversées</strong> (ex. 20 m² → −20 m²) ;</li>
+        <li>Ajustez les quantités pour n'annuler qu'une partie si besoin, puis <strong>Enregistrer</strong> et <strong>Valider</strong>.</li>
+      </ol>
+      <p>Une facture qui a donné lieu à un avoir affiche un badge rouge <strong>↩ Avoir</strong> (cliquable). Tous les avoirs sont regroupés dans la rubrique <strong>Avoirs</strong> du menu.</p>
+    </div>
+
+    <!-- 7. OUTILS COMPTA -->
+    <div class="section" id="compta">
+      <h2>7. Outils compta <small style="font-size:12px;font-weight:400;color:var(--gray-md)">(comptable / admin)</small></h2>
+      <p>La section <strong>Outils compta</strong> du menu (visible uniquement pour les comptables et administrateurs) permet de facturer <strong>directement</strong>, sans passer par un devis. Deux outils : <strong>Factures structure</strong> et <strong>Appels de convention</strong>. Ces documents s'adressent à des <strong>structures</strong> (collectivités, bailleurs, associations…) et n'ont pas d'adresse de chantier.</p>
+
+      <h3 id="compta-structure">Factures structure</h3>
+      <ol>
+        <li>Menu <strong>Outils compta → Factures Structure</strong>, puis <strong>Nouvelle facture</strong> ;</li>
+        <li>Choisissez (ou créez) le <strong>client</strong> et, si besoin, un <strong>service / interlocuteur</strong> ;</li>
+        <li>Renseignez l'objet et l'échéance, puis <strong>Créer</strong> ;</li>
+        <li>Construisez les lignes dans l'éditeur, puis <strong>Enregistrer</strong> et <strong>Valider</strong>.</li>
+      </ol>
+      <p>À la validation, elles reçoivent un numéro de la forme <code>FACTURE-ST#####</code> (voir <a href="#numerotation" class="xref">Numérotation</a>).</p>
+
+      <h3 id="compta-appel">Appels de convention</h3>
+      <p>Même fonctionnement, via <strong>Outils compta → Appels de convention</strong>. Le document client porte le titre « Facture d'appel de convention » et conserve une numérotation dédiée (<code>APP-AAAA-NNN</code>).</p>
+
+      <h3 id="compta-editeur">L'éditeur (titres &amp; forfaits)</h3>
+      <p>L'éditeur des outils compta est volontairement simplifié — pas de distinction main-d'œuvre / matériaux. Deux types de lignes :</p>
+      <ul>
+        <li><strong>Titre</strong> — en-tête de section qui regroupe des forfaits ;</li>
+        <li><strong>Forfait</strong> — une ligne avec description, quantité, unité et prix unitaire.</li>
+      </ul>
+      <p>Sur chaque ligne : <strong>glisser-déposer</strong> via la poignée <span class="grip">⠿</span>, <strong>dupliquer</strong> (un titre est dupliqué avec ses forfaits) et <strong>supprimer</strong>. Depuis la liste, l'icône copie duplique une facture entière en nouveau brouillon.</p>
+      <div class="tip"><strong class="hd">Proforma</strong> — tant qu'une facture est en brouillon, son édition client porte un numéro provisoire <code>PF-…</code> et la mention « proforma ». Le numéro définitif est attribué à la validation.</div>
+
+      <h3 id="compta-outils-saisie">Outils de saisie rapide (Excel)</h3>
+      <p>Deux boutons dans la barre de l'éditeur permettent d'importer des données depuis Excel en une seule opération :</p>
+      <table>
+        <thead><tr><th>Bouton</th><th>Usage</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Coller depuis Excel</strong></td>
+            <td>Coller n'importe quel tableau Excel → chaque ligne devient un forfait. Les dates (jj/mm/aaaa ou aaaa-mm-jj) sont détectées et normalisées. Les colonnes sont alignées.</td>
+          </tr>
+          <tr>
+            <td><strong>Calcul Tutorat</strong></td>
+            <td>Outil dédié aux <strong>services civiques</strong>. Coller la liste des volontaires (colonnes : Secteur <em>(optionnel)</em>, Nom, Prénom — ou Nom Prénom en une colonne —, Date début, Date fin) puis choisir le trimestre, l'année et le taux mensuel. L'outil calcule le nombre de jours (méthode JOURS360) et génère un titre <em>Xe trimestre AAAA — SERVICES CIVIQUES</em> avec un forfait par personne.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="tip"><strong class="hd">Colonne Secteur (Calcul Tutorat)</strong> — si la première colonne est un nombre (code secteur), elle est détectée automatiquement. Sinon, collez directement Nom, Prénom, Date début, Date fin.</div>
+
+      <h3 id="compta-contacts">Contacts / services d'un client</h3>
+      <p>Une même structure (ex. une collectivité) peut avoir plusieurs services destinataires. Vous pouvez attacher à un client un <strong>carnet de contacts</strong> (service, interlocuteur, email, téléphone) :</p>
+      <ul>
+        <li>à la création d'une facture compta — bouton <strong>Nouveau contact</strong> sous le sélecteur ;</li>
+        <li>depuis la fiche client — la modale de modification liste et permet d'ajouter les contacts.</li>
+      </ul>
+      <p>C'est optionnel : un particulier ou une association n'a généralement aucun contact à part. Le champ <strong>Type</strong> du client (Particulier / Association / Bailleur / Collectivité / Autre) permet de filtrer la liste.</p>
+
+      <h3 id="compta-avoir">Avoirs sur factures compta</h3>
+      <p>Comme pour les factures de chantier, vous pouvez créer un <strong>avoir</strong> depuis une facture structure ou un appel de convention validé (voir <a href="#factures-avoir" class="xref">Créer un avoir</a>). L'avoir reprend les lignes en quantités inversées et apparaît à la fois dans la liste <strong>Avoirs</strong> et dans la liste de l'outil concerné.</p>
+    </div>
+
+    <!-- 8. BIBLIOTHÈQUE -->
+    <div class="section" id="biblio">
+      <h2>8. Ma bibliothèque personnelle</h2>
+      <p>La bibliothèque est accessible depuis le menu latéral. C'est votre catalogue personnel d'ouvrages réutilisables d'un devis à l'autre.</p>
+      <div class="shot">
+        <img src="{% static 'core/manuel/biblio_page.png' %}" alt="Page Bibliothèque">
+        <figcaption>La page Bibliothèque (catégories et groupes) — capture&nbsp;: <code>core/static/core/manuel/biblio_page.png</code></figcaption>
+      </div>
+
+      <h3>Organiser sa bibliothèque</h3>
+      <p>La bibliothèque fonctionne comme l'éditeur de devis : créez des <strong>catégories</strong> pour regrouper vos ouvrages (Maçonnerie, Plomberie…), ajoutez des ouvrages sous chaque catégorie, et réorganisez par glisser-déposer.</p>
+
+      <h3>Utiliser un ouvrage dans un devis</h3>
+      <p>Dans l'éditeur de devis, glissez un ouvrage depuis le panneau bibliothèque vers la zone du devis. Le taux MO du devis est automatiquement appliqué.</p>
+
+      <h3>Enregistrer un ouvrage depuis un devis</h3>
+      <p>Dans l'éditeur, glissez une ligne depuis le devis vers le panneau bibliothèque. L'ouvrage est enregistré dans votre bibliothèque.</p>
+
+      <h3>Groupes d'ouvrages (titre entier)</h3>
+      <p>Vous pouvez enregistrer un <strong>titre entier</strong> d'un devis — avec tous ses ouvrages, lignes MO/matériaux et forfaits — comme <strong>groupe</strong> réutilisable (ex. « Remplacement d'un tableau électrique »).</p>
+      <ul>
+        <li><strong>Créer un groupe</strong> — glissez la ligne du titre depuis le devis vers le panneau bibliothèque. Il apparaît avec un badge <strong>groupe</strong> ;</li>
+        <li><strong>Réutiliser un groupe</strong> — cliquez ou glissez l'article « groupe » : le titre complet se recrée dans le devis, avec le taux MO du devis ;</li>
+        <li><strong>Modifier un groupe</strong> — sur la page Bibliothèque, un groupe s'édite comme une catégorie (lignes, prix, % matériaux) et peut être rangé dans une catégorie. Le bouton <strong>Groupe</strong> permet aussi d'en créer un de zéro.</li>
+      </ul>
+      <div class="tip"><strong class="hd">Catégorie ou groupe ?</strong> Une <strong>catégorie</strong> sert à <em>ranger</em> la bibliothèque (ses ouvrages s'insèrent un par un) ; un <strong>groupe</strong> s'insère <em>d'un bloc</em> dans le devis.</div>
+
+      <h3>Ajuster les tarifs</h3>
+      <ul>
+        <li><strong>Taux MO</strong> — modifiez le taux en haut de la bibliothèque et appliquez-le à toutes les lignes MO en une action ;</li>
+        <li><strong>% matériaux</strong> — dans chaque section, le champ % permet d'ajuster les prix matériaux de toute la catégorie.</li>
+      </ul>
+    </div>
+
+    <!-- 9. AIDES -->
+    <div class="section" id="aides">
+      <h2>9. Bibliothèque Aides (partagée)</h2>
+      <p>Accessible depuis <strong>Aides travaux</strong> dans le menu latéral. Contrairement à la bibliothèque personnelle, elle est <strong>partagée entre tous les utilisateurs</strong>.</p>
+      <p>Elle regroupe les aides financières et subventions connues (organisme, montant, type). Les aides sont réparties en <strong>deux catégories</strong> :</p>
+      <table>
+        <thead><tr><th>Catégorie</th><th>Types</th><th>Zone cible dans le devis</th></tr></thead>
+        <tbody>
+          <tr><td><strong>🎁 Aides CBB</strong></td><td>FIN, FMO, FMAT</td><td>Zone <em>Aide travaux CBB</em></td></tr>
+          <tr><td><strong>🏦 Aides organismes</strong></td><td>FINX</td><td>Zone <em>Financements organismes</em></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Utiliser une aide dans un devis</h3>
+      <ol>
+        <li>Activez la zone de financement correspondante dans l'éditeur du devis (<strong>Aide CBB</strong> ou <strong>Financements</strong>) ;</li>
+        <li>La section <strong>Aides</strong> apparaît dans le panneau bibliothèque avec les deux catégories ;</li>
+        <li>Glissez une aide vers la zone correspondante, ou cliquez dessus pour l'insérer.</li>
+      </ol>
+      <p>Une ligne liée à une aide affiche un indicateur 🔗. Le montant reste modifiable sur le devis.</p>
+    </div>
+
+    <!-- 10. NUMÉROTATION -->
+    <div class="section" id="numerotation">
+      <h2>10. Numérotation des documents</h2>
+      <p>Chaque type de document a son propre préfixe. Le numéro définitif est <strong>attribué à la validation</strong> (un brouillon affiche un numéro provisoire <code>PF-…</code>).</p>
+      <table>
+        <thead><tr><th>Document</th><th>Format</th></tr></thead>
+        <tbody>
+          <tr><td>Devis</td><td><code>DE#####</code></td></tr>
+          <tr><td>Facture de chantier</td><td><code>FA#####</code></td></tr>
+          <tr><td>Acompte</td><td><code>AC#####</code></td></tr>
+          <tr><td>Facture structure</td><td><code>FACTURE-ST#####</code></td></tr>
+          <tr><td>Avoir</td><td><code>AV#####</code></td></tr>
+          <tr><td>Appel de convention</td><td><code>APP-AAAA-NNN</code></td></tr>
+        </tbody>
+      </table>
+      <div class="tip">Les numéros sont des compteurs continus (sans année, sauf l'appel de convention). Les <strong>devis importés</strong> conservent le numéro figurant sur le document d'origine.</div>
+    </div>
+
+    <!-- 11. PROFIL -->
+    <div class="section" id="profil">
+      <h2>11. Mon profil</h2>
+      <p>Cliquez sur votre identifiant en haut à droite pour accéder à votre profil.</p>
+      <table>
+        <thead><tr><th>Paramètre</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Mot de passe</strong></td><td>À changer dès la première connexion (et à tout moment ensuite).</td></tr>
+          <tr><td><strong>Taux MO par défaut</strong></td><td>Taux horaire pré-rempli à la création d'un devis.</td></tr>
+          <tr><td><strong>Saisie HT (matériaux)</strong></td><td>Si activé, vous saisissez les <strong>prix matériaux en HT</strong>, convertis automatiquement en TTC (+20 %) dans l'éditeur.</td></tr>
+          <tr><td><strong>Couleur</strong></td><td>Votre couleur personnelle (nuancier) — sert de repère dans les listes (liseré d'auteur) et autour du bouton de profil.</td></tr>
+          <tr><td><strong>Coordonnées CB</strong></td><td>Vos coordonnées apparaissant sur les devis et factures.</td></tr>
+          <tr><td><strong>Conditions devis</strong></td><td>Texte de conditions pré-rempli sur les nouveaux devis.</td></tr>
+          <tr><td><strong>Conditions facture</strong></td><td>Texte de conditions pré-rempli sur les nouvelles factures.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 12. UTILISATEURS -->
+    <div class="section" id="utilisateurs">
+      <h2>12. Gestion des utilisateurs <small style="font-size:12px;font-weight:400;color:var(--gray-md)">(admin / responsable)</small></h2>
+      <p>Accessible depuis <strong>Utilisateurs</strong> dans le menu latéral (visible uniquement pour les admins et responsables).</p>
+
+      <h3>Rôles</h3>
+      <table>
+        <thead><tr><th>Rôle</th><th>Droits</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Technicien</strong></td><td>Crée et modifie les devis de son équipe. Consulte tous les devis en lecture seule.</td></tr>
+          <tr><td><strong>Responsable</strong></td><td>Idem technicien + gère les utilisateurs de ses équipes + peut bypasser la validation comptable.</td></tr>
+          <tr><td><strong>Comptable</strong></td><td>Consulte tous les devis (lecture seule) + valide les factures + accède aux <strong>Outils compta</strong>.</td></tr>
+          <tr><td><strong>Admin</strong></td><td>Accès complet — tous les droits sur tous les objets.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Créer un utilisateur</h3>
+      <ol>
+        <li>Cliquez sur <strong>Nouvel utilisateur</strong> ;</li>
+        <li>Renseignez les informations (prénom, nom, email, identifiant, rôle, équipes) ;</li>
+        <li>Cliquez sur <strong>Créer l'utilisateur</strong>.</li>
+      </ol>
+      <div class="warn"><strong class="hd">Communication du compte (phase de test)</strong> — à la création, l'écran affiche <strong>une seule fois</strong> le message d'invitation complet (identifiant + mot de passe temporaire). <strong>Copiez-le et transmettez-le manuellement</strong> au nouvel utilisateur (Teams, messagerie) : l'envoi automatique par email n'est pas fiable vers les adresses internes pour l'instant. Notez le mot de passe avant de quitter la page.</div>
+
+      <h3>Modifier ou désactiver un utilisateur</h3>
+      <p>Dans la liste des utilisateurs, cliquez sur l'icône de modification pour changer le rôle, les équipes ou le responsable. Pour désactiver un compte, utilisez le bouton <strong>Désactiver</strong> — l'utilisateur ne peut plus se connecter mais ses données sont conservées.</p>
+      <div class="tip"><strong class="hd">Pas de suppression</strong> — les comptes sont désactivés, jamais supprimés, pour préserver l'historique des devis et factures.</div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// Active le lien TOC correspondant à la section visible
+const sections = document.querySelectorAll('.section');
+const tocLinks = document.querySelectorAll('.toc a');
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      tocLinks.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector('.toc a[href="#' + entry.target.id + '"]');
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

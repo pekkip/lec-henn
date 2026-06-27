@@ -215,7 +215,7 @@ structurante — après stabilisation des phases 1-2.
 - [x] Prestataire → barre hachurée sans MO ni émargement (toujours lecture seule). _(test `test_rangee_prestataire_sans_mo`)_
 - [x] `pct_consomme`/`heures_par_tranche` des équipes permanentes **identiques** (renfort/prestataire ne créent aucune `Presence` ; rangée créée sans `_recalcul_durees_tranche` → pas de décalage des permanentes). `test core` (203) + `check` verts. _(test `test_rentabilite_permanente_inchangee`)_
 - [x] Création **sans admin Django** : bouton « Rangée ponctuelle » + modale (sélecteur 3 types) → endpoint `rangee_save`. Archivage auto des temporaires échues. _(test `test_rangee_temporaire_archivage_auto`)_
-- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`.
+- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/manuel/`.
 
 ---
 
@@ -253,7 +253,7 @@ structurante — après stabilisation des phases 1-2.
   (mode `range`, remplace les 2 `<input type=date>`) rebranchées dessus. Sélection turquoise, today
   point prune, conforme `Modales harmonisées.dc.html`. Modale rangée Phase 3 hors périmètre §5E.)_
 - [x] `test core` (205) + `check` verts.
-- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/aide/`.
+- [x] Commit + cocher l'état + NOTES_DEV + proposer MAJ manuel `/manuel/`.
 
 ---
 

@@ -15,7 +15,7 @@ urlpatterns = [
     path('tableau-de-bord/config/', views.dashboard_save, name='dashboard-save'),
 
     # Aide / Manuel utilisateur (public)
-    path('aide/', views.aide_view, name='aide'),
+    path('manuel/', views.manuel_view, name='manuel'),
 
     # Mot de passe oublié (public)
     path('mot-de-passe-oublie/', views.mot_de_passe_oublie, name='mot-de-passe-oublie'),

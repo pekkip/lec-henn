@@ -217,7 +217,7 @@ les tests facturation partielle/complète session 41) + test manuel de save sur 
 - Test manuel ciblé selon la phase (cf. chaque section).
 - Entrée NOTES_DEV (session N+1) + mise à jour du § Dette technique (cocher les items traités :
   context_processor profil, calculs totaux dupliqués, etc.).
-- Proposer une mise à jour du manuel `/aide/` si une phase change l'UX visible (Phase 4).
+- Proposer une mise à jour du manuel `/manuel/` si une phase change l'UX visible (Phase 4).
 
 ---
 
