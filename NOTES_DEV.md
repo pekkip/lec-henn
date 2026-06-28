@@ -1697,14 +1697,9 @@ Pour supprimer proprement :
   (`@page`, Montserrat en fichier local, masquer la barre de boutons) ; (3) idem facture ;
   (4) snapshot au passage « envoyé » + pièce jointe email. ⚠️ La fiche de présence remplit
   ses cases en JS → rendre les valeurs côté serveur avant de la passer à WeasyPrint.
-- **Dépôt SharePoint via Microsoft Graph — factures + fiches de présence** (acté 13/06/2026) :
-  pousser les PDF générés vers le SharePoint partagé (tenant M365 de l'association) —
-  factures au passage validé/envoyé, fiches de présence à la clôture du mois (s'emboîte
-  avec la clôture auto à l'impression, déjà actée). Répond en partie à la conservation
-  réglementaire FSE. **Ordre des dépendances : OVH → WeasyPrint → ce chantier.**
-  Côté code : `msal` (jeton applicatif) + `PUT /sites/{site-id}/drive/items/.../content`.
-  Prérequis bloquant : **demande IT nationale unique** (voir § Infra) — ne rien développer
-  avant d'avoir les identifiants.
+- ~~**Dépôt SharePoint via Microsoft Graph — factures + fiches de présence**~~ **(abandonné 28/06/2026)** :
+  trop complexe à maintenir. Remplacé par export PDF manuel + rangement dans le répertoire SharePoint
+  approprié par l'utilisateur. La permission `Sites.Selected` est retirée de la demande IT.
 - **Annexes au devis (croquis, fiches techniques, plans)** (spec actée 13/06/2026) :
   nouveau modèle `AnnexeDevis` (FK devis, FileField, titre, created_by, created_at) +
   upload/liste/suppression dans l'éditeur de devis (droits = `peut_modifier_devis`).
@@ -1739,52 +1734,25 @@ Pour supprimer proprement :
   passe temporaire à l'écran (communication manuelle), l'email reste best-effort.
   **Mise à jour 13/06/2026** : la demande DNS Brevo devient caduque si la demande Graph
   ci-dessous aboutit (`Mail.Send` remplace Brevo) — ne pas faire les deux demandes.
-- **🔴 Demande IT nationale unique — app Entra ID / Microsoft Graph + DNS** (actée 13/06/2026,
-  **à envoyer une fois l'OVH en place** — une seule demande, couvre SharePoint + emails + URL) :
+- **🔴 Demande IT nationale — app Entra ID / Microsoft Graph + DNS** (envoyée 28/06/2026,
+  **en attente de réponse**) :
   1. App registration « CB Bretagne — outil devis/facturation » dans Entra ID
      (récupérer `tenant_id` + `client_id`).
-  2. Permission Graph **`Sites.Selected`** (type Application) + **grant en écriture sur le
-     site SharePoint CB Bretagne** (fournir l'URL du site dans la demande — sans ce grant
-     explicite, `Sites.Selected` ne donne accès à rien).
-  3. Permission **`Mail.Send`** (type Application) + **`ApplicationAccessPolicy`** limitée
-     à la boîte `noreply@compagnonsbatisseurs.eu` (sans la policy, l'app pourrait envoyer
-     depuis n'importe quelle adresse du tenant).
-  4. De préférence authentification par **certificat** (clé publique fournie par nous) ;
-     à défaut secret client de durée maximale — **noter la date d'expiration** (≤ 24 mois,
-     panne silencieuse classique au renouvellement).
-  5. **(DNS — concern distinct, mais même interlocuteur)** Enregistrement DNS **A**
-     `deviscbb` dans la zone `compagnonsbatisseurs.eu` → **51.178.24.126** (+ **AAAA** →
-     **2001:41d0:367:4d7::1**), pour servir l'appli sur `https://gestioncbb.compagnonsbatisseurs.eu`.
-     (VPS OVH `vps-28c76530.vps.ovh.net`.) C'est
-     l'**hébergeur de la zone DNS** (registrar ou autre prestataire — l'IT nationale sait)
-     qui pose l'enregistrement ; nous ne fournissons que le sous-domaine + l'IP. Le **certificat
-     HTTPS** est géré de notre côté (Let's Encrypt / `certbot` sur le VPS, automatique dès que
-     le A résout — aucune action registrar). Ne pas confondre avec l'adresse d'envoi des
-     emails `noreply@…` (point 3, boîte M365 indépendante du sous-domaine web). **Découplé de
-     la création du VPS** : peut se faire après (il faut l'IP du VPS d'abord) — monter le
-     serveur sur l'IP nue, ajouter le domaine ensuite sans interruption. Mettre à jour
-     `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` / `SITE_URL` côté Django à ce moment-là.
-
-  Brouillon prêt à envoyer :
-  > Objet : Enregistrement d'une application Entra ID pour l'outil de gestion CB Bretagne
-  >
-  > Bonjour, dans le cadre de notre outil interne de devis/facturation (hébergé sur notre
-  > VPS OVH), nous aurions besoin d'un enregistrement d'application dans Entra ID :
-  > (1) app « CB Bretagne — outil devis/facturation », en nous communiquant tenant_id et
-  > client_id ; (2) permission Microsoft Graph Sites.Selected (Application) avec grant en
-  > écriture sur notre site SharePoint : [URL du site] ; (3) permission Mail.Send
-  > (Application) restreinte par ApplicationAccessPolicy à noreply@compagnonsbatisseurs.eu ;
-  > (4) de préférence une authentification par certificat (nous fournissons la clé
-  > publique), sinon un secret client avec sa date d'expiration.
-  >
-  > Par ailleurs (volet DNS), nous aurions besoin d'un enregistrement DNS de type A pour le
-  > sous-domaine gestioncbb.compagnonsbatisseurs.eu pointant vers l'adresse IP de notre VPS
-  > OVH : A → 51.178.24.126 et AAAA → 2001:41d0:367:4d7::1. Cela nous
-  > permettra de servir l'application sur https://gestioncbb.compagnonsbatisseurs.eu ; le
-  > certificat TLS sera géré de notre côté (Let's Encrypt). Merci d'avance.
+  2. Permission **`Mail.Send`** (type Application) + **`ApplicationAccessPolicy`** limitée
+     à la boîte `noreply@compagnonsbatisseurs.eu` — remplace Brevo, élimine le problème
+     SPF/DKIM. ~~`Sites.Selected` retiré~~ (dépôt SharePoint abandonné).
+  3. Authentification par **certificat** (durée 10 ans, pas de renouvellement à gérer).
+     **Certificat généré sur le VPS (28/06/2026)** :
+     - Clé publique (à envoyer à l'IT) : `/srv/cbbretagne/app/cbb_graph.crt`
+     - Clé privée (secret, ne quitte pas le VPS) : `/etc/cbbretagne/cbb_graph.key` (chmod 600)
+     - Commande : `openssl req -x509 -newkey rsa:2048 -days 3650 -nodes -subj "/CN=cbb-graph"`
+  4. **(DNS)** Enregistrement **A** `gestioncbb.compagnonsbatisseurs.eu` → **51.178.24.126**
+     + **AAAA** → **2001:41d0:367:4d7::1**. Certificat HTTPS géré côté VPS (Let's Encrypt).
+     Mettre à jour `ALLOWED_HOSTS` / `CSRF_TRUSTED_ORIGINS` / `SITE_URL` dès DNS résolu.
+  **Dès réception `tenant_id` + `client_id`** : câbler `msal` dans Django pour remplacer Brevo.
 - ✅ **Migration Railway → OVH terminée** — runbook : `DEPLOY_OVH.md`.
   VPS opérationnel : Ubuntu 24.04, nginx, PostgreSQL local, gunicorn systemd, HTTPS Let's Encrypt
   sur `https://vps-28c76530.vps.ovh.net`. Railway coupé. **En attente** : DNS IT national
-  (`gestioncbb.compagnonsbatisseurs.eu` → 51.178.24.126) + Entra ID Graph (SharePoint + Mail.Send).
+  (`gestioncbb.compagnonsbatisseurs.eu` → 51.178.24.126) + Entra ID Graph (`Mail.Send` — SharePoint abandonné).
   Dès DNS résolu : `certbot --nginx -d vps-28c76530.vps.ovh.net -d gestioncbb.…` + mise à jour `.env`.
 - ✅ **Renommage équipes en prod** — fait session 27 : SORM→65-SORM, GORM→65-GORM, GOSM→61-GOSM, AQSM→58-AQSM, AQRM→AQRM A + AQRM B.
