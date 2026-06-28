@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/fonts.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/colors.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/typography.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/spacing.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/components.css"/>
+<style>
+  body{background:#e7e5df}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-md);margin-bottom:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)}
+  .mdl{background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,.16);overflow:hidden;display:flex;flex-direction:column}
+  .mdl-ttl{font-size:15px;font-weight:600;color:var(--prune);padding:15px 18px 1px}
+  .mdl-sub{font-size:12px;color:var(--gray-md);padding:0 18px 6px}
+  .mdl-bd{padding:10px 18px 0;flex:1}
+  .mdl-act{display:flex;gap:8px;justify-content:flex-end;padding:14px 18px 16px}
+  .lblf{font-size:11px;color:var(--gray-md);font-weight:500;margin-bottom:4px;display:block}
+  .fld{margin-bottom:11px}
+  .inp{padding:7px 10px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);background:#fff;color:var(--gray);width:100%;outline:none}
+  .recap{font-size:11px;color:var(--gray);background:var(--gray-lt);border-radius:var(--r);padding:7px 10px;line-height:1.6}
+  .recap strong{color:var(--prune)}
+  /* calendrier commun */
+  .cal{user-select:none;border:1px solid var(--gray-bd);border-radius:var(--r);padding:9px 11px}
+  .cal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+  .cal-hd b{font-size:13px;color:var(--gray)}
+  .cal-nav{background:none;border:none;cursor:pointer;font-size:17px;color:var(--gray);padding:0 7px;border-radius:3px;line-height:1.2}
+  .cal-nav:hover{background:var(--gray-lt)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .cal-h{text-align:center;font-size:10px;font-weight:600;color:var(--gray-md);padding:1px 0 3px}
+  .cal-d{position:relative;text-align:center;font-size:12px;padding:6px 0;border-radius:4px;cursor:pointer;color:var(--gray);font-variant-numeric:tabular-nums}
+  .cal-d.out{color:#d2d0cc;cursor:default}
+  .cal-d.today{font-weight:700}
+  .cal-d.today::after{content:'';position:absolute;left:50%;bottom:3px;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--prune)}
+  .cal-d.busy{background:var(--amber-lt)}
+  .cal-d.in{background:var(--teal-lt);border-radius:0}
+  .cal-d.s{background:var(--teal-dk);color:#fff;font-weight:600;border-radius:4px 0 0 4px}
+  .cal-d.e{background:var(--teal-dk);color:#fff;font-weight:600;border-radius:0 4px 4px 0}
+  .cal-d.s.e{border-radius:4px}
+  .cal-d.s.today::after,.cal-d.e.today::after{background:#fff}
+  .rng{font-size:11px;color:var(--gray);text-align:center;margin:7px 0 2px}
+  .cren{display:flex;background:var(--gray-lt);border-radius:8px;padding:3px;gap:3px}
+  .cren button{flex:1;padding:6px 10px;border-radius:6px;font-size:12px;border:none;background:transparent;color:var(--gray-md);cursor:pointer;font-weight:500;font-family:var(--f)}
+  .cren button.on{background:#fff;color:var(--gray);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .cbx{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--gray);cursor:pointer}
+  .cbx .bx{width:15px;height:15px;border-radius:3px;border:1.5px solid var(--gray-bd);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .cbx .bx.on{background:var(--teal-dk);border-color:var(--teal-dk);color:#fff;font-size:10px}
+  .echip{display:inline-flex;align-items:center;gap:4px;font-size:11px;border:1px solid var(--gray-bd);border-radius:99px;padding:3px 9px;color:var(--gray-md);white-space:nowrap}
+  .echip.on{border-color:var(--teal);background:var(--teal-lt);color:var(--teal-dk);font-weight:600}
+  .newf{outline:2px solid var(--teal);outline-offset:3px;border-radius:var(--r)}
+  .newtag{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--teal-dk);background:var(--teal-lt);border-radius:99px;padding:2px 7px}
+</style>
+</helmet>
+
+<div style="min-width:100%;min-height:100vh;width:max-content;box-sizing:border-box;padding:48px;background:#e7e5df;font-family:var(--f);color:var(--gray)">
+
+  <!-- Intro -->
+  <div style="max-width:1000px;margin-bottom:34px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-dk);margin-bottom:10px">Refonte — Modales du planning &amp; de l'émargement</div>
+    <h1 style="font-size:30px;font-weight:700;color:var(--prune);margin-bottom:10px;letter-spacing:-.01em">Trois modales, un seul calendrier</h1>
+    <p style="font-size:14px;line-height:1.6;color:var(--gray-md);margin-bottom:18px;text-wrap:pretty;max-width:840px">Ces pages comptent trois fenêtres&nbsp;: <strong>Assigner un chantier</strong>, <strong>Prêt d'équipier</strong> et <strong>Formation / événement</strong>. Aujourd'hui chacune gère ses dates différemment (la fenêtre événement utilise des champs date natifs, les deux autres un mini-calendrier maison, dupliqué). On les aligne sur <strong>un composant calendrier commun</strong> — même sélection de plage, mêmes demi-journées, même titre prune — et on ajoute le <strong>code d'absence</strong> sur l'événement.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span class="chip"><i class="ti ti-calendar-month" style="color:var(--teal-dk)"></i>Calendrier de plage unique</span>
+      <span class="chip"><i class="ti ti-clock-hour-4" style="color:var(--teal-dk)"></i>Demi-journées (matin / après-midi)</span>
+      <span class="chip"><i class="ti ti-tag" style="color:var(--teal-dk)"></i>Code d'absence sur l'événement</span>
+    </div>
+  </div>
+
+  <!-- Le calendrier commun -->
+  <div style="max-width:1000px;margin-bottom:40px">
+    <div class="eyebrow" style="color:var(--teal-dk)">La brique partagée</div>
+    <h2 style="font-size:20px;font-weight:700;color:var(--prune);margin-bottom:14px">Le calendrier de plage, défini une fois</h2>
+    <div style="display:flex;gap:22px;align-items:flex-start">
+      <div style="flex:none;width:300px">
+        <div class="cal">
+          <div class="cal-hd"><button class="cal-nav">‹</button><b>Mars 2026</b><button class="cal-nav">›</button></div>
+          <div class="cal-grid">
+            <div class="cal-h">L</div><div class="cal-h">M</div><div class="cal-h">M</div><div class="cal-h">J</div><div class="cal-h">V</div><div class="cal-h">S</div><div class="cal-h">D</div>
+            <div class="cal-d out">23</div><div class="cal-d out">24</div><div class="cal-d out">25</div><div class="cal-d out">26</div><div class="cal-d out">27</div><div class="cal-d out">28</div><div class="cal-d">1</div>
+            <div class="cal-d busy">2</div><div class="cal-d busy">3</div><div class="cal-d">4</div><div class="cal-d">5</div><div class="cal-d">6</div><div class="cal-d">7</div><div class="cal-d">8</div>
+            <div class="cal-d s">9</div><div class="cal-d in">10</div><div class="cal-d in today">11</div><div class="cal-d in">12</div><div class="cal-d e">13</div><div class="cal-d">14</div><div class="cal-d">15</div>
+            <div class="cal-d">16</div><div class="cal-d">17</div><div class="cal-d">18</div><div class="cal-d">19</div><div class="cal-d">20</div><div class="cal-d">21</div><div class="cal-d">22</div>
+            <div class="cal-d">23</div><div class="cal-d">24</div><div class="cal-d">25</div><div class="cal-d">26</div><div class="cal-d">27</div><div class="cal-d">28</div><div class="cal-d">29</div>
+            <div class="cal-d">30</div><div class="cal-d">31</div><div class="cal-d out">1</div><div class="cal-d out">2</div><div class="cal-d out">3</div><div class="cal-d out">4</div><div class="cal-d out">5</div>
+          </div>
+          <div class="rng">Lun 9 mat. → Ven 13 ap.</div>
+          <div class="cren"><button class="on">Matin</button><button>Après-midi</button></div>
+        </div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:11px;padding-top:4px">
+        <div style="display:flex;gap:9px"><span style="flex:none;width:18px;height:18px;border-radius:4px;background:var(--teal-dk);margin-top:1px"></span><div style="font-size:12px;color:var(--gray-md);line-height:1.5"><strong style="color:var(--gray)">Plage sélectionnée</strong> — clic-glissé du premier au dernier jour, bornes en turquoise, intérieur en teinte claire.</div></div>
+        <div style="display:flex;gap:9px"><span style="flex:none;width:18px;height:18px;border-radius:4px;background:var(--amber-lt);border:1px solid #F0D9A8;margin-top:1px"></span><div style="font-size:12px;color:var(--gray-md);line-height:1.5"><strong style="color:var(--gray)">Jours déjà pris</strong> — teinte ambre (équipier déjà affecté / semaine émargée), pour éviter les conflits.</div></div>
+        <div style="display:flex;gap:9px"><span style="flex:none;width:18px;height:18px;border-radius:4px;border:1.5px solid var(--gray-bd);position:relative;margin-top:1px"><span style="position:absolute;left:50%;bottom:2px;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--prune)"></span></span><div style="font-size:12px;color:var(--gray-md);line-height:1.5"><strong style="color:var(--gray)">Aujourd'hui</strong> — point prune sous le chiffre.</div></div>
+        <div style="display:flex;gap:9px"><i class="ti ti-clock-hour-4" style="color:var(--teal-dk);margin-top:2px"></i><div style="font-size:12px;color:var(--gray-md);line-height:1.5"><strong style="color:var(--gray)">Demi-journées</strong> — le même bouton segmenté Matin / Après-midi cale le début (et la fin selon la modale).</div></div>
+        <div class="ib ib-teal" style="margin-top:2px"><i class="ti ti-components"></i><div>Un seul composant réutilisé par les trois modales — plus de calendrier dupliqué, comportement identique partout.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Les trois modales -->
+  <div style="max-width:1180px;margin-bottom:14px">
+    <div class="eyebrow">Les trois fenêtres harmonisées</div>
+    <h2 style="font-size:20px;font-weight:700;color:var(--prune);margin-bottom:4px">Même grammaire, contenus spécifiques</h2>
+  </div>
+
+  <div style="display:flex;gap:22px;align-items:flex-start">
+
+    <!-- Modale 1 : Assigner un chantier -->
+    <div style="flex:none;width:344px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-md);margin-bottom:7px">Planning · assigner un chantier</div>
+      <div class="mdl">
+        <div class="mdl-ttl">Affecter un chantier</div>
+        <div class="mdl-sub">Étape 4/4 · choisir la date</div>
+        <div class="mdl-bd">
+          <div class="recap" style="margin-bottom:10px"><strong>AQ St Malo</strong> · Réhab. îlot Découverte · <strong>5 j</strong></div>
+          <div class="cal">
+            <div class="cal-hd"><button class="cal-nav">‹</button><b>Mars 2026</b><button class="cal-nav">›</button></div>
+            <div class="cal-grid">
+              <div class="cal-h">L</div><div class="cal-h">M</div><div class="cal-h">M</div><div class="cal-h">J</div><div class="cal-h">V</div><div class="cal-h">S</div><div class="cal-h">D</div>
+              <div class="cal-d out">23</div><div class="cal-d out">24</div><div class="cal-d out">25</div><div class="cal-d out">26</div><div class="cal-d out">27</div><div class="cal-d out">28</div><div class="cal-d">1</div>
+              <div class="cal-d busy">2</div><div class="cal-d busy">3</div><div class="cal-d">4</div><div class="cal-d">5</div><div class="cal-d">6</div><div class="cal-d">7</div><div class="cal-d">8</div>
+              <div class="cal-d s">9</div><div class="cal-d in">10</div><div class="cal-d in today">11</div><div class="cal-d in">12</div><div class="cal-d e">13</div><div class="cal-d">14</div><div class="cal-d">15</div>
+              <div class="cal-d">16</div><div class="cal-d">17</div><div class="cal-d">18</div><div class="cal-d">19</div><div class="cal-d">20</div><div class="cal-d">21</div><div class="cal-d">22</div>
+              <div class="cal-d">23</div><div class="cal-d">24</div><div class="cal-d">25</div><div class="cal-d">26</div><div class="cal-d">27</div><div class="cal-d">28</div><div class="cal-d">29</div>
+            </div>
+            <div class="rng">Démarrage&nbsp;: Lun 9 mars</div>
+            <div class="cren"><button class="on">Matin</button><button>Après-midi</button></div>
+          </div>
+        </div>
+        <div class="mdl-act"><button class="btn btn-sm">Annuler</button><button class="btn btn-teal btn-sm">Enregistrer</button></div>
+      </div>
+    </div>
+
+    <!-- Modale 2 : Prêt d'équipier -->
+    <div style="flex:none;width:344px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-md);margin-bottom:7px">Émargement · prêt d'équipier</div>
+      <div class="mdl">
+        <div class="mdl-ttl">Prêt d'équipier</div>
+        <div class="mdl-sub">Yann Tanguy (ARA Rennes) → AQ St Malo</div>
+        <div class="mdl-bd">
+          <div class="cal">
+            <div class="cal-hd"><button class="cal-nav">‹</button><b>Mars 2026</b><button class="cal-nav">›</button></div>
+            <div class="cal-grid">
+              <div class="cal-h">L</div><div class="cal-h">M</div><div class="cal-h">M</div><div class="cal-h">J</div><div class="cal-h">V</div><div class="cal-h">S</div><div class="cal-h">D</div>
+              <div class="cal-d out">23</div><div class="cal-d out">24</div><div class="cal-d out">25</div><div class="cal-d out">26</div><div class="cal-d out">27</div><div class="cal-d out">28</div><div class="cal-d">1</div>
+              <div class="cal-d">2</div><div class="cal-d">3</div><div class="cal-d">4</div><div class="cal-d">5</div><div class="cal-d">6</div><div class="cal-d">7</div><div class="cal-d">8</div>
+              <div class="cal-d">9</div><div class="cal-d s">10</div><div class="cal-d e today">11</div><div class="cal-d">12</div><div class="cal-d">13</div><div class="cal-d">14</div><div class="cal-d">15</div>
+              <div class="cal-d">16</div><div class="cal-d">17</div><div class="cal-d">18</div><div class="cal-d">19</div><div class="cal-d">20</div><div class="cal-d">21</div><div class="cal-d">22</div>
+              <div class="cal-d">23</div><div class="cal-d">24</div><div class="cal-d">25</div><div class="cal-d">26</div><div class="cal-d">27</div><div class="cal-d">28</div><div class="cal-d">29</div>
+            </div>
+            <div class="rng">Mar 10 mat. → Mer 11 ap.</div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:10px">
+            <div style="flex:1"><div class="lblf" style="text-align:center">Début</div><div class="cren"><button class="on">Matin</button><button>Ap.-m.</button></div></div>
+            <div style="flex:1"><div class="lblf" style="text-align:center">Fin</div><div class="cren"><button>Matin</button><button class="on">Ap.-m.</button></div></div>
+          </div>
+        </div>
+        <div class="mdl-act"><button class="btn btn-sm">Annuler</button><button class="btn btn-teal btn-sm">Enregistrer</button></div>
+      </div>
+    </div>
+
+    <!-- Modale 3 : Formation / événement -->
+    <div style="flex:none;width:344px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--gray-md);margin-bottom:7px">Planning · formation / événement</div>
+      <div class="mdl">
+        <div class="mdl-ttl">Événement</div>
+        <div class="mdl-sub">Posé sur le planning d'une ou plusieurs équipes</div>
+        <div class="mdl-bd">
+          <div style="display:flex;gap:10px">
+            <div class="fld" style="flex:1"><label class="lblf">Type *</label><select class="inp"><option>Formation</option><option>Visite</option><option>Jour férié / pont</option></select></div>
+            <div class="fld" style="flex:1"><label class="lblf">Créneau</label><select class="inp"><option>Journée entière</option><option>Matin</option></select></div>
+          </div>
+          <div class="fld newf">
+            <label class="lblf" style="display:flex;align-items:center;justify-content:space-between">Code d'absence attribué <span class="newtag"><i class="ti ti-sparkles" style="font-size:9px"></i> Nouveau</span></label>
+            <select class="inp"><option>F — Férié</option><option>FO — Formation</option><option>S — Suspension</option><option>— aucun —</option></select>
+            <div style="font-size:11px;color:var(--teal-dk);margin-top:5px;line-height:1.45"><i class="ti ti-arrow-down-right"></i> Reporté automatiquement dans l'émargement des équipes concernées, les jours couverts.</div>
+          </div>
+          <div class="fld"><label class="lblf">Équipes concernées <span style="color:var(--gray-md);font-weight:400">(aucune = toutes)</span></label><div style="display:flex;flex-wrap:wrap;gap:5px"><span class="echip on">AQ St Malo</span><span class="echip">ARA Rennes</span><span class="echip">Brico Brest</span></div></div>
+          <div class="cal">
+            <div class="cal-hd"><button class="cal-nav">‹</button><b>Mars 2026</b><button class="cal-nav">›</button></div>
+            <div class="cal-grid">
+              <div class="cal-h">L</div><div class="cal-h">M</div><div class="cal-h">M</div><div class="cal-h">J</div><div class="cal-h">V</div><div class="cal-h">S</div><div class="cal-h">D</div>
+              <div class="cal-d out">23</div><div class="cal-d out">24</div><div class="cal-d out">25</div><div class="cal-d out">26</div><div class="cal-d out">27</div><div class="cal-d out">28</div><div class="cal-d">1</div>
+              <div class="cal-d">2</div><div class="cal-d">3</div><div class="cal-d">4</div><div class="cal-d">5</div><div class="cal-d">6</div><div class="cal-d">7</div><div class="cal-d">8</div>
+              <div class="cal-d">9</div><div class="cal-d">10</div><div class="cal-d s e today">11</div><div class="cal-d">12</div><div class="cal-d">13</div><div class="cal-d">14</div><div class="cal-d">15</div>
+              <div class="cal-d">16</div><div class="cal-d">17</div><div class="cal-d">18</div><div class="cal-d">19</div><div class="cal-d">20</div><div class="cal-d">21</div><div class="cal-d">22</div>
+            </div>
+            <div class="rng">Mer 11 mars · journée</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:11px;margin-bottom:4px">
+            <label class="cbx"><span class="bx"></span> Jour travaillé <span style="color:var(--gray-md)">(vendredi / exceptionnel)</span></label>
+            <label class="cbx"><span class="bx on">✓</span> Décale les chantiers</label>
+          </div>
+        </div>
+        <div class="mdl-act"><button class="btn btn-sm">Annuler</button><button class="btn btn-teal btn-sm">Enregistrer</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:1180px;margin-top:18px;display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--gray-md);line-height:1.5">
+    <i class="ti ti-checks" style="color:var(--teal-dk);margin-top:1px"></i>
+    <div><strong style="color:var(--gray)">Harmonisé.</strong> Même en-tête prune, même calendrier de plage, mêmes boutons (Annuler / Enregistrer en turquoise), mêmes demi-journées. La modale événement gagne le champ <strong style="color:var(--gray)">« code d'absence attribué »</strong> qui se reporte automatiquement dans l'émargement — comme les jours fériés aujourd'hui.</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

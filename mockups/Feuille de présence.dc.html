@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/fonts.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/colors.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/typography.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/components.css"/>
+<style>
+  body{background:#e7e5df}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-md);margin-bottom:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)}
+  /* ====== FICHE A4 paysage — reproduction fidèle du format papier ====== */
+  .sheet{background:#fff;border:1px solid #ccc;box-shadow:0 1px 4px rgba(0,0,0,.12);padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#1a1a1a;width:1040px}
+  .f-head{display:grid;grid-template-columns:1fr auto auto;align-items:start;gap:14px;border-bottom:2px solid #333;padding-bottom:7px;margin-bottom:6px}
+  .f-title{font-size:14px;font-weight:bold}
+  .f-meta{font-size:11px;line-height:1.7}
+  .f-meta .lbl{color:#555;display:inline-block;min-width:62px}
+  .f-org{text-align:right;font-size:8.5px;color:#777;line-height:1.4}
+  .f-org .o-name{font-weight:bold;color:var(--prune);font-size:10px}
+  .eq-info{display:flex;gap:18px;flex-wrap:wrap;padding:5px 0 7px;border-bottom:1px solid #bbb;font-size:10.5px}
+  .eq-field{display:flex;gap:5px;align-items:baseline}
+  .eq-field .lbl{color:#555;white-space:nowrap}
+  .eq-field .val{border-bottom:1px solid #aaa;min-width:64px;font-weight:600;padding:0 3px}
+  /* table */
+  .ft{width:100%;border-collapse:collapse;margin-top:6px;table-layout:fixed}
+  .ft th,.ft td{border:1px solid #999;padding:2px 3px;text-align:center;vertical-align:middle;overflow:hidden}
+  .ft col.daycol{width:26px}
+  .ft col.lblcol{width:84px}
+  .ft .th-bloc{background:#d4d4d4;font-weight:700;font-size:10px}
+  .ft .th-prev{background:#ece6da;color:#7a6a4a}
+  .ft .th-jour{background:#e8e8e8;font-weight:600;font-size:9.5px}
+  .ft .th-num{background:#efefef;font-size:9px;color:#555;font-weight:600}
+  .ft .prev{background:#faf5ea}
+  .ft .off{background:#ededed}
+  .ft .rl{width:84px;text-align:right;font-size:9.5px;color:#444;font-weight:600;background:#f5f5f5;padding-right:5px}
+  .ft .ma td,.ft .ma th{height:22px}
+  .ft .sig td{height:60px;background:#fcfcfc;vertical-align:bottom}
+  .rot{writing-mode:vertical-rl;transform:rotate(180deg);font-weight:700;font-size:9px;letter-spacing:.03em;line-height:1;padding:2px 0}
+  .rot.sal{color:var(--teal-dk)}
+  .rot.eti{color:#b3261e}
+  .ft .txt{text-align:left;padding-left:5px;color:#333}
+  /* footer */
+  .f-foot{margin-top:8px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;border-top:1px solid #bbb;padding-top:7px}
+  .legende{font-size:8.6px;color:#444;line-height:1.55;column-gap:18px}
+  .legende b{color:#222}
+  .logos{display:flex;gap:9px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .logo{height:30px;border:1px solid #e0e0e0;border-radius:2px;display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:8px;color:#333;background:#fff;text-align:center;line-height:1.15;white-space:nowrap}
+  .logo .eu{display:flex;gap:5px;align-items:center}
+  .logo .stars{color:#1746a0;font-size:7px;letter-spacing:-1px;max-width:22px;line-height:.9}
+  @media print{
+    body{background:#fff!important}
+    .noprint{display:none!important}
+    .sheet{border:none;box-shadow:none;width:auto;padding:0}
+    @page{size:A4 landscape;margin:8mm 10mm}
+  }
+</style>
+</helmet>
+
+<div style="min-width:100%;min-height:100vh;width:max-content;box-sizing:border-box;padding:48px;background:#e7e5df;font-family:var(--f);color:var(--gray)">
+
+  <!-- ===== Intro (écran) ===== -->
+  <div class="noprint" style="max-width:1000px;margin-bottom:34px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-dk);margin-bottom:10px">Refonte — Feuille de présence mensuelle</div>
+    <h1 style="font-size:30px;font-weight:700;color:var(--prune);margin-bottom:10px;letter-spacing:-.01em">Le format papier, fidèle et imprimable</h1>
+    <p style="font-size:14px;line-height:1.6;color:var(--gray-md);margin-bottom:18px;text-wrap:pretty;max-width:840px">Cette fiche est <strong>volontairement inchangée</strong> : même structure, mêmes colonnes que le document papier remis aux encadrants en début de mois. Elle est <strong>imprimée puis signée</strong> à la main (émargement salarié et émargement ETI). On la garde sobre — police document, traits noirs — et on rend <strong>variables</strong> les logos de financeurs selon l'équipe.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px">
+      <span class="chip"><i class="ti ti-printer" style="color:var(--teal-dk)"></i>A4 paysage · 1 fiche / équipier</span>
+      <span class="chip"><i class="ti ti-signature" style="color:var(--teal-dk)"></i>Lignes d'émargement à signer</span>
+      <span class="chip"><i class="ti ti-building-bank" style="color:var(--teal-dk)"></i>Logos selon les financements</span>
+      <span class="chip"><i class="ti ti-calendar" style="color:var(--teal-dk)"></i>Semaine du mois précédent incluse</span>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-prune btn-sm"><i class="ti ti-printer"></i> Imprimer</button>
+      <button class="btn btn-sm" style="background:#fff"><i class="ti ti-arrow-left"></i> Retour</button>
+      <span class="badge b-amber" style="align-self:center"><i class="ti ti-lock" style="font-size:11px"></i> Mois clôturé — saisie verrouillée</span>
+    </div>
+  </div>
+
+  <!-- ===== FICHE ===== -->
+  <div class="sheet">
+    <!-- En-tête -->
+    <div class="f-head">
+      <div>
+        <div class="f-title">Fiche d'Émargement Mensuelle — 2026</div>
+        <div class="f-meta" style="margin-top:4px">
+          <div><span class="lbl">Chantier :</span> <strong>Atelier de Quartier St Malo</strong></div>
+          <div><span class="lbl">ETI :</span> <strong>Laëtitia FAUCHOIX</strong> &nbsp;—&nbsp; Tél. 06 78 97 08 43</div>
+        </div>
+      </div>
+      <div class="f-meta" style="text-align:right">
+        <div style="font-size:13px;font-weight:bold">Mois de : mars</div>
+      </div>
+      <div class="f-org">
+        <div class="o-name">COMPAGNONS BÂTISSEURS</div>
+        BRETAGNE<br>22 rue de la Donelière<br>35000 Rennes<br>02.99.02.60.70
+      </div>
+    </div>
+
+    <!-- Ligne équipier -->
+    <div class="eq-info">
+      <div class="eq-field"><span class="lbl">Équipier :</span> <span class="val" style="min-width:150px">DAWLATZAI Allah-Mamad</span></div>
+      <div class="eq-field"><span class="lbl">Début contrat :</span> <span class="val">17/02/25</span></div>
+      <div class="eq-field"><span class="lbl">Fin :</span> <span class="val">16/08/26</span></div>
+      <div class="eq-field"><span class="lbl">Contrat :</span> <span class="val" style="min-width:110px">CDDI - 26 heures</span></div>
+      <div class="eq-field"><span class="lbl">Récup (h) :</span> <span class="val" style="min-width:38px">9,8</span></div>
+      <div class="eq-field"><span class="lbl">Congés (j) :</span> <span class="val" style="min-width:38px">6,72</span></div>
+      <div class="eq-field"><span class="lbl">Visite médicale :</span> <span class="val">21/03/25</span></div>
+    </div>
+
+    <!-- Tableau -->
+    <table class="ft">
+      <colgroup>
+        <col class="lblcol"/>
+        <col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/>
+        <col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/>
+        <col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/>
+        <col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/>
+        <col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/>
+        <col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/><col class="daycol"/>
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="rl" rowspan="3" style="vertical-align:bottom">Semaine</th>
+          <th class="th-bloc th-prev" colspan="5">Mois préc. · S9</th>
+          <th class="th-bloc" colspan="5">Semaine 10</th>
+          <th class="th-bloc" colspan="5">Semaine 11</th>
+          <th class="th-bloc" colspan="5">Semaine 12</th>
+          <th class="th-bloc" colspan="5">Semaine 13</th>
+          <th class="th-bloc" colspan="5">Semaine 14</th>
+        </tr>
+        <tr>
+          <th class="th-jour prev">L</th><th class="th-jour prev">M</th><th class="th-jour prev">M</th><th class="th-jour prev">J</th><th class="th-jour prev">V</th>
+          <th class="th-jour">L</th><th class="th-jour">M</th><th class="th-jour">M</th><th class="th-jour">J</th><th class="th-jour">V</th>
+          <th class="th-jour">L</th><th class="th-jour">M</th><th class="th-jour">M</th><th class="th-jour">J</th><th class="th-jour">V</th>
+          <th class="th-jour">L</th><th class="th-jour">M</th><th class="th-jour">M</th><th class="th-jour">J</th><th class="th-jour">V</th>
+          <th class="th-jour">L</th><th class="th-jour">M</th><th class="th-jour">M</th><th class="th-jour">J</th><th class="th-jour">V</th>
+          <th class="th-jour">L</th><th class="th-jour">M</th><th class="th-jour off"></th><th class="th-jour off"></th><th class="th-jour off"></th>
+        </tr>
+        <tr>
+          <th class="th-num prev">23</th><th class="th-num prev">24</th><th class="th-num prev">25</th><th class="th-num prev">26</th><th class="th-num prev">27</th>
+          <th class="th-num">2</th><th class="th-num">3</th><th class="th-num">4</th><th class="th-num">5</th><th class="th-num">6</th>
+          <th class="th-num">9</th><th class="th-num">10</th><th class="th-num">11</th><th class="th-num">12</th><th class="th-num">13</th>
+          <th class="th-num">16</th><th class="th-num">17</th><th class="th-num">18</th><th class="th-num">19</th><th class="th-num">20</th>
+          <th class="th-num">23</th><th class="th-num">24</th><th class="th-num">25</th><th class="th-num">26</th><th class="th-num">27</th>
+          <th class="th-num">30</th><th class="th-num">31</th><th class="th-num off"></th><th class="th-num off"></th><th class="th-num off"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Matin -->
+        <tr class="ma">
+          <td class="rl">M</td>
+          <td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td class="off"></td><td class="off"></td><td class="off"></td>
+        </tr>
+        <!-- Après-midi -->
+        <tr class="ma">
+          <td class="rl">A</td>
+          <td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td class="off"></td><td class="off"></td><td class="off"></td>
+        </tr>
+        <!-- Émargement Salarié -->
+        <tr class="sig">
+          <td class="rl" style="padding:0"><div class="rot sal">Émargement<br>Salarié</div></td>
+          <td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td class="off"></td><td class="off"></td><td class="off"></td>
+        </tr>
+        <!-- Chantier (par semaine) -->
+        <tr class="ma">
+          <td class="rl">Chantier</td>
+          <td class="prev txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+        </tr>
+        <!-- Observation (par semaine) -->
+        <tr class="ma">
+          <td class="rl">Observation</td>
+          <td class="prev txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+          <td class="txt" colspan="5"></td>
+        </tr>
+        <!-- Émargement ETI -->
+        <tr class="sig">
+          <td class="rl" style="padding:0"><div class="rot eti">Émargement<br>ETI</div></td>
+          <td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td><td class="prev"></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td></td><td></td><td></td>
+          <td></td><td></td><td class="off"></td><td class="off"></td><td class="off"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Pied : légende + logos financeurs -->
+    <div class="f-foot">
+      <div class="legende" style="columns:2">
+        <div><b>C</b> Congé &nbsp; <b>R</b> Récupération &nbsp; <b>M</b> Maladie &nbsp; <b>AT</b> Accident Travail</div>
+        <div><b>A</b> Absence &nbsp; <b>AJ</b> Absence Justifiée non rémunérée &nbsp; <b>S</b> Suspension</div>
+        <div><b>DE</b> Démarches Externes &nbsp; <b>DI</b> Démarches Internes</div>
+        <div><b>PMSMP</b> Période Mise en Situation en Milieu Pro. &nbsp; <b>F</b> Férié</div>
+      </div>
+      <div class="logos" data-logos>
+        <div class="logo"><div class="eu"><span class="stars">★ ★ ★ ★<br>★&nbsp;&nbsp;&nbsp;★<br>★ ★ ★ ★</span><span style="text-align:left;color:#1746a0">Cofinancé par<br>l'Union européenne</span></div></div>
+        <div class="logo"><span style="font-weight:700">RÉPUBLIQUE<br>FRANÇAISE</span></div>
+        <div class="logo"><span><b>Ille-et-Vilaine</b><br><span style="color:#777">Le Département</span></span></div>
+        <div class="logo"><span style="color:#1d6fb8;font-weight:700">Saint-Malo<br>Agglomération</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Zoom : logos variables ===== -->
+  <div class="noprint" style="max-width:1040px;margin-top:40px">
+    <div class="eyebrow" style="color:var(--teal-dk)">Zoom · logos selon les financements</div>
+    <h2 style="font-size:20px;font-weight:700;color:var(--prune);margin-bottom:8px">Le pied de page s'adapte à l'équipe</h2>
+    <p style="font-size:13px;line-height:1.6;color:var(--gray-md);max-width:840px;margin-bottom:20px;text-wrap:pretty">Les logos affichés en bas à droite sont ceux des <strong>financeurs rattachés à l'équipe</strong> (<span class="mono">equipe.financeurs</span>). Chaque chantier d'insertion est cofinancé différemment&nbsp;: la fiche reprend automatiquement le bon jeu de logos, le reste de la mise en page est identique.</p>
+    <div style="display:flex;gap:18px;flex-wrap:wrap">
+      <div style="flex:1;min-width:300px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);overflow:hidden">
+        <div class="card-hd"><span class="card-title"><i class="ti ti-users" style="color:var(--teal)"></i>AQ St Malo</span></div>
+        <div style="padding:14px;display:flex;gap:9px;flex-wrap:wrap;font-family:Arial,sans-serif">
+          <div class="logo">Cofinancé par<br>l'Union européenne</div>
+          <div class="logo"><b>RÉPUBLIQUE<br>FRANÇAISE</b></div>
+          <div class="logo"><b>Ille-et-Vilaine</b></div>
+          <div class="logo" style="color:#1d6fb8;font-weight:700">Saint-Malo<br>Agglomération</div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:300px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);overflow:hidden">
+        <div class="card-hd"><span class="card-title"><i class="ti ti-users" style="color:var(--teal)"></i>ARA Rennes</span></div>
+        <div style="padding:14px;display:flex;gap:9px;flex-wrap:wrap;font-family:Arial,sans-serif">
+          <div class="logo"><b>RÉPUBLIQUE<br>FRANÇAISE</b></div>
+          <div class="logo"><b>Région<br>Bretagne</b></div>
+          <div class="logo" style="color:#b3261e;font-weight:700">Rennes<br>Métropole</div>
+          <div class="logo"><b>Ille-et-Vilaine</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="ib ib-teal" style="margin-top:18px;max-width:1040px"><i class="ti ti-photo"></i><div>Les blocs ci-dessus sont des <strong>emplacements</strong>. À prévoir côté code&nbsp;: un champ <span class="mono">logo</span> (image) sur le modèle <span class="mono">Financeur</span> — <strong>téléversable depuis la page admin</strong> (aujourd'hui les financeurs existent mais sans possibilité d'ajouter une image). La fiche affiche alors <span class="mono">financeur.logo</span> pour chaque financeur de l'équipe, à hauteur fixe (~30&nbsp;px) ; à défaut, le nom dans un cadre.</div></div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

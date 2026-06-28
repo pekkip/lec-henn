@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/fonts.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/colors.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/typography.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/spacing.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/components.css"/>
+<style>
+  body{background:#e7e5df}
+  .win-topbar{background:#fff;border-bottom:1px solid var(--gray-bd);height:60px;display:flex;align-items:center;padding:0 1rem;gap:12px;flex-shrink:0}
+  .logo-area{display:flex;align-items:center;gap:9px;padding-right:14px;border-right:1px solid var(--gray-bd)}
+  .logo-txt strong{font-size:12px;font-weight:600;color:var(--prune);display:block;line-height:1.2}
+  .logo-txt span{font-size:10px;color:var(--teal-dk);font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+  .topbar-slogan{font-family:'Montserrat Alternates',sans-serif;font-style:italic;font-weight:600;font-size:17px;color:var(--prune);white-space:nowrap}
+  .win-body{display:flex;flex:1;overflow:hidden}
+  .win-side{width:200px;background:var(--prune);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+  .nav-sect{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.5);padding:.9rem 1rem 3px;margin-top:4px}
+  .nav-item{display:flex;align-items:center;gap:8px;padding:8px 1rem;font-size:13px;color:rgba(255,255,255,.82);border-left:2px solid transparent;text-decoration:none}
+  .nav-item i{font-size:16px}
+  .nav-item.active{color:#fff;background:rgba(255,255,255,.14);border-left-color:var(--teal);font-weight:600}
+  .win-main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+  /* onglets PRUNE (cohérents avec l'éditeur de devis) */
+  .tabs{background:var(--prune);display:flex;padding:0 1.25rem;flex-shrink:0}
+  .tab{padding:13px 16px;font-size:14px;color:rgba(255,255,255,.72);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;text-decoration:none;display:flex;align-items:center}
+  .tab.on{color:#fff;border-bottom:2px solid var(--teal);font-weight:600}
+  .tab i{font-size:12px;margin-right:4px}
+  /* barre contexte (comme le devis) */
+  .ctx-bar{background:#fff;border-bottom:1px solid var(--gray-bd);padding:9px 1rem;display:flex;gap:14px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+  .ctx-ref{font-family:var(--fm);font-size:12px;font-weight:600;color:var(--prune)}
+  .ctx-id{display:flex;align-items:center;gap:9px}
+  .ctx-f{display:flex;flex-direction:column;gap:1px;min-width:0}
+  .ctx-lbl{font-size:9px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.06em}
+  .ctx-val{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ctx-link{font-family:var(--fm);font-size:12px;color:var(--teal-dk);text-decoration:underline;text-decoration-color:rgba(0,115,94,.35);text-underline-offset:2px;cursor:pointer;display:inline-flex;align-items:center;gap:3px}
+  .ctx-sep{width:1px;background:var(--gray-bd);height:26px;flex-shrink:0}
+  /* zone d'outils unifiée : Format + Objet regroupés */
+  .toolzone{background:var(--gray-lt);border-bottom:1px solid var(--gray-bd);padding:8px 1rem;display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+  .toolrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .toolrow-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--gray-md);width:50px;flex-shrink:0}
+  .fmt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid transparent;border-radius:4px;background:none;color:var(--gray);font-size:13px}
+  .fmt-btn:hover{background:#fff;border-color:var(--gray-bd)}
+  .fmt-sep{width:1px;height:16px;background:var(--gray-bd);margin:0 3px}
+  .notes-input{flex:1;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;color:var(--gray);background:#fff;font-family:var(--f);line-height:1.5;min-width:0}
+  .editor-body{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:3px;background:var(--bg)}
+  .col-hd{background:var(--bg);padding:4px 10px 6px;display:flex;align-items:center;gap:4px;font-size:10px;color:var(--gray-md);text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;z-index:10;border-bottom:1px solid var(--gray-bd);margin-bottom:4px}
+  .node-row{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:5px 8px;min-height:34px}
+  .node-row.titre-row{background:var(--prune-lt);border-color:var(--prune-bd)}
+  .nbadge{font-size:10px;padding:2px 5px;border-radius:3px;font-weight:500;flex-shrink:0}
+  .nb-TITRE{background:var(--prune-lt);color:#72243E}.nb-MO{background:var(--amber-lt);color:#8B5E0A}.nb-S{background:var(--teal-lt);color:var(--teal-dk)}
+  .nd-desc{flex:1;min-width:0;font-size:12px}
+  .nd-qty-wrap{width:80px;flex-shrink:0;display:flex;align-items:center;gap:3px;justify-content:flex-end}
+  .nd-qty{width:52px;text-align:right;font-size:12px;border:1px solid var(--gray-bd);border-radius:4px;padding:2px 5px;background:var(--gray-lt);min-height:30px}
+  .nd-unit{font-size:11px;color:var(--gray-md);width:24px}
+  .nd-ref{width:64px;text-align:right;font-size:11px;color:var(--gray-md);opacity:.7;flex-shrink:0}
+  .nd-pu{width:64px;text-align:right;font-size:11px;color:var(--gray-md);flex-shrink:0}
+  .nd-total{width:74px;text-align:right;font-size:12px;font-weight:600;color:var(--prune);flex-shrink:0}
+  .kids-wrap{margin-left:22px;border-left:2px solid var(--teal-bd);padding-left:4px;margin-top:3px;display:flex;flex-direction:column;gap:3px}
+  .titre-prog{padding:6px 8px 8px}
+  .prog-track{height:4px;background:var(--gray-bd);border-radius:2px;margin-bottom:5px;position:relative;overflow:hidden}
+  .prog-fill-prev{height:4px;border-radius:2px;background:var(--prune-bd);position:absolute;top:0;left:0}
+  .prog-fill{height:4px;border-radius:2px;background:var(--teal);position:absolute;top:0}
+  .prog-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--gray-md)}
+  .prog-labels .current{color:var(--prune);font-weight:500}
+  .prec-wrap{margin:0 0 8px;padding:6px 8px;background:var(--prune-lt);border-radius:4px;border:1px solid var(--prune-bd)}
+  .prec-title{font-size:10px;color:#72243E;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+  .prec-row{display:flex;align-items:baseline;gap:6px;font-size:11px}
+  .prec-ref{font-family:var(--fm);font-size:10px;color:#72243E;width:100px;flex-shrink:0}
+  .prec-libelle{flex:1;color:var(--gray)}
+  .prec-montant{font-size:11px;font-weight:500;color:#72243E;width:72px;text-align:right;flex-shrink:0}
+  /* acomptes — remontés AU-DESSUS du pied */
+  .acomptes-section{background:var(--amber-lt);border-top:1px solid #EBD9A8;border-bottom:1px solid #EBD9A8;padding:7px 14px;flex-shrink:0}
+  .editor-foot{background:#fff;border-top:1px solid var(--gray-bd);padding:9px 14px;display:flex;justify-content:flex-end;align-items:baseline;gap:16px;flex-shrink:0;flex-wrap:wrap}
+  .ft-lbl{font-size:11px;color:var(--gray-md)}
+  .ft-val{font-size:13px;font-weight:500}
+  .ft-grand{font-size:20px;font-weight:600;color:var(--prune)}
+  .ft-sep{width:1px;height:16px;background:var(--gray-bd)}
+  .chk{display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--teal-dk);color:#fff;font-size:11px;align-items:center;justify-content:center;flex-shrink:0}
+</style>
+</helmet>
+
+<div style="min-width:100%;min-height:100vh;width:max-content;box-sizing:border-box;padding:48px;background:#e7e5df;font-family:var(--f);color:var(--gray)">
+
+  <div style="max-width:1320px;margin-bottom:22px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-dk);margin-bottom:10px">Éditeur de facture · proposition (Après)</div>
+    <h1 style="font-size:26px;font-weight:700;color:var(--prune);margin-bottom:12px;letter-spacing:-.01em">Aligné sur l'éditeur de devis</h1>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 40px;max-width:1100px">
+      <div style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--gray)"><span class="chk"><i class="ti ti-check"></i></span>Onglets <strong>prune</strong> + <strong>barre contexte</strong> unique (réf · état · client · chantier · devis lié · montants).</div>
+      <div style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--gray)"><span class="chk"><i class="ti ti-check"></i></span><strong>Aperçu</strong> une seule fois (dans les onglets) ; plus de fil d'Ariane en double.</div>
+      <div style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--gray)"><span class="chk"><i class="ti ti-check"></i></span><strong>Format + Objet</strong> regroupés dans une seule zone d'outils.</div>
+      <div style="display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--gray)"><span class="chk"><i class="ti ti-check"></i></span><strong>Acomptes versés</strong> remontés au-dessus du pied (totaux + Sauvegarder).</div>
+    </div>
+  </div>
+
+  <div style="width:1320px;height:780px;background:#fff;border-radius:3px;box-shadow:0 2px 10px rgba(0,0,0,.12);overflow:hidden;display:flex;flex-direction:column">
+
+    <!-- TOPBAR épurée -->
+    <div class="win-topbar">
+      <div class="logo-area">
+        <svg width="30" height="30" viewBox="0 0 80 80" fill="none" aria-hidden="true">
+          <circle cx="22" cy="17" r="8" fill="#00AA8D"/><path d="M8 52Q8 34 22 34Q36 34 36 52Z" fill="#00AA8D"/>
+          <circle cx="58" cy="17" r="8" fill="#F7A600"/><path d="M44 52Q44 34 58 34Q72 34 72 52Z" fill="#F7A600"/>
+          <circle cx="40" cy="13" r="8" fill="#67123A"/><path d="M26 48Q26 30 40 30Q54 30 54 48Z" fill="#67123A"/>
+        </svg>
+        <div class="logo-txt"><strong>compagnons bâtisseurs</strong><span>bretagne</span></div>
+      </div>
+      <div class="topbar-slogan">La solidarité, un chantier à partager</div>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+        <span class="btn btn-ghost btn-sm" style="background:#fff;border-color:var(--gray-bd);color:var(--prune)"><i class="ti ti-user"></i> Marie Le Gall</span>
+        <span class="btn btn-ghost btn-sm" style="background:#fff;border-color:var(--gray-bd);color:var(--prune)"><i class="ti ti-logout"></i></span>
+      </div>
+    </div>
+
+    <div class="win-body">
+      <div class="win-side">
+        <div class="nav-sect">Principal</div>
+        <a class="nav-item"><i class="ti ti-layout-dashboard"></i>Tableau de bord</a>
+        <a class="nav-item"><i class="ti ti-calculator"></i>Devis</a>
+        <a class="nav-item active"><i class="ti ti-cash"></i>Factures</a>
+        <a class="nav-item"><i class="ti ti-receipt-refund"></i>Avoirs</a>
+        <a class="nav-item"><i class="ti ti-users"></i>Clients</a>
+        <div class="nav-sect">Configuration</div>
+        <a class="nav-item"><i class="ti ti-books"></i>Bibliothèque</a>
+        <a class="nav-item"><i class="ti ti-gift"></i>Aides travaux</a>
+      </div>
+
+      <div class="win-main">
+        <!-- ONGLETS prune, Aperçu unique -->
+        <div class="tabs">
+          <a class="tab"><i class="ti ti-arrow-left"></i>Devis DEV-2026-0087</a>
+          <span class="tab on"><i class="ti ti-receipt"></i>Facture FAC-2026-0051</span>
+          <a class="tab"><i class="ti ti-eye"></i>Aperçu</a>
+        </div>
+
+        <!-- BARRE CONTEXTE -->
+        <div class="ctx-bar">
+          <div class="ctx-f" style="max-width:210px"><span class="ctx-lbl">Client</span><span class="ctx-val">Mairie de Quimper</span></div>
+          <div class="ctx-sep"></div>
+          <div class="ctx-f" style="max-width:260px"><span class="ctx-lbl">Chantier</span><span class="ctx-val">Réhabilitation logement social</span></div>
+          <div class="ctx-sep"></div>
+          <div class="ctx-f"><span class="ctx-lbl">Échéance</span><span class="ctx-val">15/04/2026</span></div>
+          <div class="ctx-id" style="margin-left:auto"><span class="badge b-fvalidated">Validée</span><span class="badge b-amber" style="font-size:11px"><i class="ti ti-receipt" style="font-size:11px"></i> Acompte 1/2</span></div>
+        </div>
+
+        <!-- ZONE OUTILS : Format + Objet regroupés -->
+        <div class="toolzone">
+          <div class="toolrow">
+            <span class="toolrow-lbl">Objet</span>
+            <input class="notes-input" value="Acompte 1/2 — travaux cuisine et salle de bain."/>
+            <span style="font-size:10px;color:var(--gray-md);flex-shrink:0">apparaît sur l'aperçu et le PDF</span>
+          </div>
+          <div class="toolrow">
+            <span class="toolrow-lbl">Format</span>
+            <button class="fmt-btn"><b>G</b></button><button class="fmt-btn"><i>I</i></button><button class="fmt-btn"><u>S</u></button><button class="fmt-btn"><s>S</s></button>
+            <span style="margin-left:8px;font-size:10px;color:var(--gray-md)">S'applique à la description sélectionnée</span>
+          </div>
+        </div>
+
+        <!-- CORPS -->
+        <div class="editor-body">
+          <div class="col-hd">
+            <div style="flex:1">Description</div>
+            <div style="width:80px;text-align:right">Facturée</div>
+            <div style="width:64px;text-align:right">Qté devis</div>
+            <div style="width:64px;text-align:right">P.U.</div>
+            <div style="width:74px;text-align:right;color:var(--prune)">Total</div>
+          </div>
+
+          <div class="tree-node">
+            <div class="node-row titre-row"><span class="nbadge nb-TITRE">titre</span><div class="nd-desc" style="font-weight:600">Salle de bain — réhabilitation complète</div><div class="nd-qty-wrap"><span style="font-size:12px;color:var(--gray-md)">0,50</span></div><div class="nd-ref">1</div><div class="nd-pu"></div><div class="nd-total">1 620,00 €</div></div>
+            <div class="titre-prog">
+              <div class="prog-track"><div class="prog-fill-prev" style="width:25%"></div><div class="prog-fill" style="width:50%;left:25%"></div></div>
+              <div class="prog-labels"><span class="current">1 620,00 € cette facture</span><span>/ 3 240,00 € devis · <span style="color:var(--prune-bd)">810,00 € déjà facturé</span></span></div>
+            </div>
+            <div class="prec-wrap">
+              <div class="prec-title">Factures précédentes</div>
+              <div class="prec-row"><span class="prec-ref">FAC-2026-0044</span><div class="prec-libelle">Acompte initial</div><span class="prec-montant">810,00 €</span></div>
+            </div>
+            <div class="kids-wrap">
+              <div class="node-row"><span class="nbadge nb-S">simple</span><div class="nd-desc">Dépose ancien carrelage</div><div class="nd-qty-wrap"><input class="nd-qty" value="6"/><span class="nd-unit">m²</span></div><div class="nd-ref">12</div><div class="nd-pu">18,00 €</div><div class="nd-total">108,00 €</div></div>
+              <div class="node-row"><span class="nbadge nb-MO">MO</span><div class="nd-desc">Pose faïence murale toute hauteur</div><div class="nd-qty-wrap"><input class="nd-qty" value="12"/><span class="nd-unit">m²</span></div><div class="nd-ref">24</div><div class="nd-pu">42,00 €</div><div class="nd-total">504,00 €</div></div>
+            </div>
+          </div>
+
+          <div class="tree-node">
+            <div class="node-row titre-row"><span class="nbadge nb-TITRE">titre</span><div class="nd-desc" style="font-weight:600">Cuisine — mise aux normes électriques</div><div class="nd-qty-wrap"><span style="font-size:12px;color:var(--gray-md)">0,50</span></div><div class="nd-ref">1</div><div class="nd-pu"></div><div class="nd-total">1 090,00 €</div></div>
+            <div class="titre-prog">
+              <div class="prog-track"><div class="prog-fill" style="width:50%;left:0%"></div></div>
+              <div class="prog-labels"><span class="current">1 090,00 € cette facture</span><span>/ 2 180,00 € devis</span></div>
+            </div>
+            <div class="kids-wrap">
+              <div class="node-row"><span class="nbadge nb-S">simple</span><div class="nd-desc">Remplacement tableau électrique</div><div class="nd-qty-wrap"><input class="nd-qty" value="0,5"/><span class="nd-unit">u</span></div><div class="nd-ref">1</div><div class="nd-pu">540,00 €</div><div class="nd-total">270,00 €</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ACOMPTES — au-dessus du pied -->
+        <div class="acomptes-section">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:10px;font-weight:600;color:#8B5E0A;text-transform:uppercase;letter-spacing:.05em;flex-shrink:0"><i class="ti ti-receipt" style="font-size:12px"></i> Acomptes versés</span>
+            <span style="font-family:var(--fm);font-size:10px;color:#8B5E0A">ACO-2026-0012</span>
+            <span style="font-size:11px;color:var(--gray-md);flex:1">Acompte à la commande · 12/02/2026</span>
+            <span style="font-size:11px;font-weight:600;color:#8B5E0A">810,00 €</span>
+          </div>
+        </div>
+
+        <!-- PIED -->
+        <div class="editor-foot">
+          <div style="margin-left:auto;display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+            <span class="ft-lbl">Montant global devis</span><span class="ft-val">12 480,00 €</span>
+            <div class="ft-sep"></div>
+            <span class="ft-lbl">Déjà facturé</span><span class="ft-val" style="color:var(--gray-md)">810,00 €</span>
+            <div class="ft-sep"></div>
+            <span class="ft-lbl">Cette facture</span><span class="ft-grand">2 710,00 €</span><span class="ft-lbl">HT</span>
+          </div>
+          <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#8B5E0A;margin-right:4px"><span style="width:7px;height:7px;border-radius:50%;background:var(--amber);flex-shrink:0"></span>Non enregistré</span><span class="btn btn-prune btn-sm"><i class="ti ti-device-floppy"></i> Enregistrer</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/fonts.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/colors.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/typography.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/spacing.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/components.css"/>
+<style>
+  body{background:#e7e5df}
+  .frame{background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-md);margin-bottom:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)}
+  /* panneau équipiers */
+  .panel{border:1px solid var(--gray-bd);border-radius:var(--r);overflow:hidden;align-self:start}
+  .panel .card-hd{padding:8px 10px}
+  .bsearch{position:relative;margin:8px}
+  .bsearch i{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--gray-md)}
+  .bsearch input{width:100%;padding:6px 8px 6px 28px;font-size:12px;border:1px solid var(--gray-bd);border-radius:var(--r);outline:none;color:var(--gray)}
+  .cat-hd{display:flex;align-items:center;gap:6px;padding:5px 8px;margin:0 8px;background:var(--gray-lt);border-radius:var(--r);font-size:11px;font-weight:600;color:var(--gray)}
+  .cat-hd .ct{margin-left:auto;font-size:10px;color:var(--gray-md);font-weight:500}
+  .art{display:flex;align-items:center;gap:7px;padding:5px 8px;margin:3px 8px;border:1px solid var(--gray-bd);border-radius:var(--r);font-size:11px;background:#fff;color:var(--gray)}
+  .art .av{width:20px;height:20px;border-radius:50%;background:var(--prune-lt);color:var(--prune);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;flex-shrink:0}
+  .art.other .av{background:var(--amber-lt);color:#8B5E0A}
+  /* grille émargement */
+  .eg{display:grid;grid-template-columns:172px 22px repeat(5,1fr) 62px;border:1px solid var(--gray-bd);border-radius:var(--r);overflow:hidden;font-size:12px}
+  .eg>div{border-right:1px solid var(--gray-bd);border-bottom:1px solid var(--gray-bd)}
+  .eg .h{background:var(--gray-lt);font-size:11px;font-weight:600;color:var(--gray-md);display:flex;align-items:center;justify-content:center;text-align:center;padding:5px 2px;line-height:1.2}
+  .eg .h.mois{background:var(--prune-lt);color:var(--prune-dk);text-transform:capitalize}
+  .eg .h.day{flex-direction:column}
+  .eg .h.day b{color:var(--gray);font-size:12px;margin-top:1px}
+  .eg .h.day.off{background:#ECEAE7;color:#b3b1ad}
+  .eg .h.day.off b{color:#b3b1ad}
+  .eg .h.day.today{background:var(--teal-lt);color:var(--teal-dk)}
+  .eg .h.day.today b{color:var(--teal-dk)}
+  .eg .h.name{justify-content:flex-start;padding-left:.7rem}
+  .nm{position:relative;display:flex;align-items:center;gap:7px;padding:0 .55rem;background:#fff}
+  .nm .av{width:24px;height:24px;border-radius:50%;background:var(--prune-lt);color:var(--prune);display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:700;flex-shrink:0}
+  .nm.borrow{border-left:3px solid var(--amber)}
+  .nm.borrow .av{background:var(--amber-lt);color:#8B5E0A}
+  .nm .who{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nm small{color:var(--gray-md);font-size:10px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .matag{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--gray-md);background:#FAF9F8}
+  .cell{position:relative;display:flex;align-items:center;justify-content:center;min-height:33px;font-variant-numeric:tabular-nums;color:var(--gray)}
+  .cell::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+  .cell.cha::before{background:var(--teal)} .cell.chb::before{background:var(--amber)} .cell.chc::before{background:var(--prune)}
+  .cell.foc{box-shadow:inset 0 0 0 2px var(--teal);background:var(--teal-lt)}
+  .cell.code{font-weight:700;letter-spacing:.02em}
+  .cell.conge{background:var(--teal-lt);color:var(--teal-dk)} .cell.conge::before{display:none}
+  .cell.malad{background:var(--red-lt);color:var(--red)} .cell.malad::before{display:none}
+  .cell.off{background:#F6F4F2} .cell.off::before{display:none}
+  .cell.away{background:repeating-linear-gradient(45deg,#F0EEEC 0 6px,#E7E5E2 6px 12px);color:#a8a6a3;font-size:9px;font-weight:600} .cell.away::before{display:none}
+  .cell.noaff{background:#FAFAF8;color:#cfcdc9} .cell.noaff::before{display:none}
+  .gtot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:#FAF9F8}
+  .gtot b{font-size:13px;font-variant-numeric:tabular-nums;color:var(--gray)}
+  .gtot small{font-size:9px;color:var(--gray-md)}
+  .addrow{grid-column:1/-1;padding:7px .7rem;background:#FCFBFA;font-size:11px;color:var(--gray-md);display:flex;align-items:center;gap:7px;border-bottom:none}
+  .kbd{font-family:var(--fm);background:var(--gray-lt);border:1px solid var(--gray-bd);border-radius:3px;padding:0 4px;font-size:10px;color:var(--gray)}
+</style>
+</helmet>
+
+<div style="min-width:100%;min-height:100vh;width:max-content;box-sizing:border-box;padding:48px;background:#e7e5df;font-family:var(--f);color:var(--gray)">
+
+  <!-- ===== Intro ===== -->
+  <div style="max-width:1000px;margin-bottom:36px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-dk);margin-bottom:10px">Refonte — Émargement hebdomadaire</div>
+    <h1 style="font-size:30px;font-weight:700;color:var(--prune);margin-bottom:10px;letter-spacing:-.01em">La saisie des heures, lisible et rapide</h1>
+    <p style="font-size:14px;line-height:1.6;color:var(--gray-md);margin-bottom:18px;text-wrap:pretty;max-width:820px">L'écran que les <strong>encadrants</strong> — et plus largement les membres du <strong>service insertion</strong> — remplissent chaque semaine. Une cellule par demi-journée et par équipier&nbsp;: un <strong>nombre</strong> = des heures, une <strong>lettre</strong> = un code d'absence. Le bandeau passe au prune de l'app, la couleur de chantier reste un liseré discret en haut de cellule, et les états (prêt, absent ailleurs, jour non travaillé) sont explicites.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span class="chip"><i class="ti ti-keyboard" style="color:var(--teal-dk)"></i>Nombre = heures · lettre = code</span>
+      <span class="chip"><i class="ti ti-arrows-exchange" style="color:var(--teal-dk)"></i>Prêt d'équipier entre équipes</span>
+      <span class="chip"><i class="ti ti-device-floppy" style="color:var(--teal-dk)"></i>Enregistrement auto à la cellule</span>
+      <span class="chip"><i class="ti ti-link" style="color:var(--teal-dk)"></i>Lié à l'affectation du planning</span>
+      <span class="chip"><i class="ti ti-users-group" style="color:var(--teal-dk)"></i>Éditable · service insertion 35</span>
+    </div>
+  </div>
+
+  <!-- ===== Écran cible ===== -->
+  <div style="max-width:1140px;margin-bottom:14px">
+    <div class="eyebrow">Écran cible · fenêtre complète</div>
+    <h2 style="font-size:22px;font-weight:700;color:var(--prune);margin-bottom:14px">Émargement — AQ St Malo, semaine 11</h2>
+  </div>
+
+  <div class="frame" style="max-width:1140px;margin-bottom:14px">
+    <!-- page header prune -->
+    <div class="page-hd" style="flex-wrap:wrap;gap:8px">
+      <div><div class="page-title">Émargement — AQ St Malo</div><div class="page-sub">Semaine 11 · 9–13 mars 2026</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select class="sel"><option>AQ St Malo</option></select>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="btn btn-sm"><i class="ti ti-chevron-left"></i></button>
+          <span style="font-size:12px;color:#fff;font-weight:500;min-width:64px;text-align:center">Sem. 11</span>
+          <button class="btn btn-sm"><i class="ti ti-chevron-right"></i></button>
+          <button class="btn btn-sm">Aujourd'hui</button>
+        </div>
+        <button class="btn btn-teal btn-sm"><i class="ti ti-plus"></i> Chantier</button>
+      </div>
+    </div>
+
+    <!-- légende -->
+    <div style="display:flex;align-items:center;gap:16px;padding:8px 1rem;border-bottom:1px solid var(--gray-bd);background:var(--gray-lt);font-size:11px;color:var(--gray-md);flex-wrap:wrap">
+      <span style="font-weight:600;color:var(--gray)">Chantiers de la semaine</span>
+      <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:8px;border-radius:2px;background:var(--prune);display:inline-block"></span>Réhab. îlot Découverte <span style="color:var(--gray-md)">9–13/03</span></span>
+      <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:8px;border-radius:2px;background:var(--teal);display:inline-block"></span>Diagnostic Cariou <span style="color:var(--gray-md)">10–11/03</span></span>
+      <span style="display:inline-flex;align-items:center;gap:5px;margin-left:auto"><span style="width:14px;height:8px;border-radius:2px;background:repeating-linear-gradient(45deg,#F0EEEC 0 3px,#E7E5E2 3px 6px);display:inline-block"></span>Absent ailleurs</span>
+    </div>
+
+    <!-- layout panel + grille -->
+    <div style="display:grid;grid-template-columns:212px 1fr;gap:16px;padding:16px 1rem">
+      <!-- panneau équipiers -->
+      <div class="panel">
+        <div class="card-hd"><span class="card-title" style="font-size:12px"><i class="ti ti-id-badge-2" style="color:var(--teal)"></i> Équipiers</span><button class="ico-btn"><i class="ti ti-chevron-left"></i></button></div>
+        <div class="bsearch"><i class="ti ti-search"></i><input placeholder="Rechercher…"/></div>
+        <div class="cat-hd"><i class="ti ti-chevron-down" style="font-size:13px"></i> AQ St Malo <span class="ct">8</span></div>
+        <div style="padding:2px 0 6px">
+          <div class="art"><span class="av">AD</span>Allah-Mamad Dawl.</div>
+          <div class="art"><span class="av">CA</span>Cabdukarim Aden.</div>
+          <div class="art"><span class="av">MD</span>Marie Donval</div>
+        </div>
+        <div class="cat-hd" style="opacity:.8"><i class="ti ti-chevron-right" style="font-size:13px"></i> ARA Rennes <span class="ct">6</span></div>
+        <div style="padding:2px 0 6px">
+          <div class="art other"><span class="av">YT</span>Yann Tanguy <i class="ti ti-grip-vertical" style="margin-left:auto;color:#ccc;font-size:13px"></i></div>
+        </div>
+      </div>
+
+      <!-- grille -->
+      <div class="eg">
+        <!-- ligne mois -->
+        <div class="h" style="grid-column:1/3"></div>
+        <div class="h mois" style="grid-column:3/8">mars 2026</div>
+        <div class="h" style="grid-column:8/9"></div>
+        <!-- en-tête jours -->
+        <div class="h name" style="grid-column:1/3">Équipier</div>
+        <div class="h day today">Lun<b>9</b></div>
+        <div class="h day">Mar<b>10</b></div>
+        <div class="h day">Mer<b>11</b></div>
+        <div class="h day">Jeu<b>12</b></div>
+        <div class="h day off">Ven<b>13</b></div>
+        <div class="h">Total</div>
+
+        <!-- Équipier 1 : Allah-Mamad -->
+        <div class="nm" style="grid-row:span 2"><span class="av">AD</span><div style="overflow:hidden"><div class="who">Allah-Mamad Dawl.</div><small>CDDI · 26 h</small></div></div>
+        <div class="matag">M</div>
+        <div class="cell chc">3,5</div><div class="cell chc">3,5</div><div class="cell chc">3,5</div><div class="cell chc">3,5</div><div class="cell off"></div>
+        <div class="gtot" style="grid-row:span 2"><b>26</b><small>h</small></div>
+        <div class="matag">A</div>
+        <div class="cell chc">3</div><div class="cell cha">3</div><div class="cell cha">3</div><div class="cell chc">3</div><div class="cell off"></div>
+
+        <!-- Équipier 2 : Cabdukarim -->
+        <div class="nm" style="grid-row:span 2"><span class="av">CA</span><div style="overflow:hidden"><div class="who">Cabdukarim Aden.</div><small>CDDI · 26 h</small></div></div>
+        <div class="matag">M</div>
+        <div class="cell chc">3,5</div><div class="cell chc">3,5</div><div class="cell chc">3,5</div><div class="cell chc">3,5</div><div class="cell off"></div>
+        <div class="gtot" style="grid-row:span 2"><b>20</b><small>h</small></div>
+        <div class="matag">A</div>
+        <div class="cell chc">3</div><div class="cell chc">3</div><div class="cell code conge">C</div><div class="cell code conge">C</div><div class="cell off"></div>
+
+        <!-- Équipier 3 : Marie -->
+        <div class="nm" style="grid-row:span 2"><span class="av">MD</span><div style="overflow:hidden"><div class="who">Marie Donval</div><small>CDDI · 30 h</small></div></div>
+        <div class="matag">M</div>
+        <div class="cell chc">3,5</div><div class="cell code malad">M</div><div class="cell code malad">M</div><div class="cell chc foc">3,5</div><div class="cell off"></div>
+        <div class="gtot" style="grid-row:span 2"><b>14</b><small>h</small></div>
+        <div class="matag">A</div>
+        <div class="cell chc">3,5</div><div class="cell code malad">M</div><div class="cell code malad">M</div><div class="cell chc">3,5</div><div class="cell off"></div>
+
+        <!-- dropzone prêt -->
+        <div class="addrow"><i class="ti ti-user-plus" style="color:var(--amber)"></i> Glisser un équipier d'une autre équipe ici pour le prêter cette semaine</div>
+
+        <!-- Équipier emprunté : Yann -->
+        <div class="nm borrow" style="grid-row:span 2"><span class="av">YT</span><div style="overflow:hidden"><div class="who">Yann Tanguy</div><small style="color:#8B5E0A">emprunté à ARA Rennes · 10–11/03</small></div></div>
+        <div class="matag">M</div>
+        <div class="cell away">↩ ARA</div><div class="cell cha">3,5</div><div class="cell cha">3,5</div><div class="cell away">↩ ARA</div><div class="cell off"></div>
+        <div class="gtot" style="grid-row:span 2"><b>14</b><small>h</small></div>
+        <div class="matag">A</div>
+        <div class="cell away">↩ ARA</div><div class="cell cha">3,5</div><div class="cell cha">3,5</div><div class="cell away">↩ ARA</div><div class="cell off"></div>
+      </div>
+    </div>
+
+    <!-- codes -->
+    <div style="padding:10px 1rem 14px;font-size:11px;color:var(--gray-md);line-height:1.9;border-top:1px solid var(--gray-bd)">
+      <strong style="color:var(--gray)">Codes d'absence</strong> (à la place des heures) ·
+      <span class="kbd">C</span> Congé · <span class="kbd">R</span> Récup · <span class="kbd">M</span> Maladie · <span class="kbd">AT</span> Acc. travail · <span class="kbd">A</span> Absence · <span class="kbd">AJ</span> Abs. justifiée · <span class="kbd">S</span> Suspension · <span class="kbd">F</span> Férié<br>
+      <span style="color:var(--gray-md)">Les <strong style="color:var(--gray)">jours fériés</strong> et les <strong style="color:var(--gray)">événements du planning</strong> (formation…) posent automatiquement leur code dans les cellules concernées. · <span class="kbd">Tab</span> de case en case · nombre = heures · lettre = code.</span>
+    </div>
+  </div>
+
+  <p style="max-width:1140px;font-size:12px;color:var(--gray-md);margin-bottom:46px;line-height:1.5">Le liseré coloré en haut de cellule reprend le <strong style="color:var(--gray)">chantier</strong> pointé ce demi-jour (lié à l'affectation du planning). <strong style="color:var(--gray)">Marie</strong> est en maladie mardi–mercredi (rouge), <strong style="color:var(--gray)">Cabdukarim</strong> en congé mercredi après-midi. <strong style="color:var(--gray)">Yann</strong> est emprunté à ARA Rennes&nbsp;: hors de sa plage de prêt, ses cases sont hachurées (« absent ailleurs »). Vendredi n'est pas travaillé (grisé).</p>
+
+  <!-- ===== Zoom saisie ===== -->
+  <div style="max-width:1140px;display:flex;gap:24px;align-items:flex-start">
+    <div style="flex:1">
+      <div class="eyebrow" style="color:var(--teal-dk)">Zoom · saisie d'une cellule</div>
+      <h2 style="font-size:19px;font-weight:700;color:var(--prune);margin-bottom:10px">Un geste, trois cas</h2>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:10px 12px">
+          <div style="width:50px;height:34px;border:1px solid var(--gray-bd);border-radius:4px;position:relative;display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--gray);font-variant-numeric:tabular-nums"><span style="position:absolute;top:0;left:0;right:0;height:3px;background:var(--prune);border-radius:4px 4px 0 0"></span>3,5</div>
+          <div style="font-size:12px;color:var(--gray-md)"><strong style="color:var(--gray)">Nombre</strong> → heures pointées sur le chantier (liseré = couleur du chantier).</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:10px 12px">
+          <div style="width:50px;height:34px;border:1px solid var(--gray-bd);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:700;background:var(--red-lt);color:var(--red)">M</div>
+          <div style="font-size:12px;color:var(--gray-md)"><strong style="color:var(--gray)">Lettre</strong> → code d'absence. La cellule prend la couleur du type (maladie en rouge, congé en turquoise).</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:10px 12px">
+          <div style="width:50px;height:34px;border:1px solid var(--teal);border-radius:4px;display:flex;align-items:center;justify-content:center;background:var(--teal-lt);color:var(--teal-dk);font-weight:600;box-shadow:inset 0 0 0 1px var(--teal)">⌶</div>
+          <div style="font-size:12px;color:var(--gray-md)"><strong style="color:var(--gray)">Focus</strong> → fond turquoise + anneau. <span class="kbd">Tab</span> passe à la case suivante, enregistrement auto au changement.</div>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1">
+      <div class="eyebrow" style="color:var(--teal-dk)">Zoom · prêt d'équipier</div>
+      <h2 style="font-size:19px;font-weight:700;color:var(--prune);margin-bottom:10px">Emprunter un équipier à une autre équipe</h2>
+      <div style="background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);padding:14px;font-size:12px;color:var(--gray-md);line-height:1.6">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--amber-lt);color:#8B5E0A;font-size:9px;font-weight:700">YT</span><strong style="color:var(--gray)">Yann Tanguy</strong> <span style="color:var(--gray-md)">— ARA Rennes</span></div>
+        <ol style="margin:0 0 0 16px;display:flex;flex-direction:column;gap:7px">
+          <li>Déplier une autre équipe dans le panneau, <strong style="color:var(--gray)">glisser</strong> l'équipier sur la zone de dépôt.</li>
+          <li>Choisir la <strong style="color:var(--gray)">plage de prêt</strong> (mini-calendrier, demi-journées) — ici 10→11/03.</li>
+          <li>Sa ligne apparaît avec un <strong style="color:#8B5E0A">liseré ambre</strong> ; hors plage, cases hachurées « absent ailleurs ».</li>
+        </ol>
+        <div class="ib ib-amber" style="margin:12px 0 0"><i class="ti ti-info-circle"></i><div>Les heures qu'il pointe ici comptent pour <strong>le chantier de l'équipe hôte</strong> — la rentabilité du bon devis.</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/fonts.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/colors.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/typography.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/tokens/spacing.css"/>
+<link rel="stylesheet" href="_ds/cb-bretagne-design-system-a97fbb47-52d8-4e86-9f2d-15d1d1128688/components.css"/>
+<style>
+  body{background:#e7e5df}
+  /* En-tête de tableau collant au scroll */
+  .scroll-y thead th{position:sticky;top:0;z-index:3;box-shadow:inset 0 -1px 0 var(--gray-bd)}
+  /* Hauteur de ligne + police UNIFORMES sur toutes les listes (confort ≈ Factures) */
+  .scroll-y table td{padding-top:12px;padding-bottom:12px;font-size:13px}
+  /* Référence (mono prune) unifiée */
+  .cell-ref{font-family:var(--fm);font-size:11px;color:var(--prune);font-weight:600;letter-spacing:.01em}
+  tr.row-link:hover .cell-ref{text-decoration:underline}
+  /* Référence d'un objet LIÉ : texte cliquable (remplace l'icône ↗) */
+  .cell-link{cursor:pointer;text-decoration:underline;text-decoration-color:rgba(103,18,58,.35);text-underline-offset:2px}
+  .cell-link:hover{text-decoration-color:var(--prune);color:var(--prune-dk)}
+  /* Grappe de badges (remplace les margin-left:4px inline) */
+  .badges{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}
+  /* Colonne d'actions : visible au survol, alignée à droite */
+  .cell-act{text-align:right;white-space:nowrap}
+  .cell-act .ico-btn{opacity:.4;transition:opacity .12s}
+  tbody tr:hover .cell-act .ico-btn{opacity:1}
+  tr.row-link{cursor:pointer}
+  /* Zébrage + liseré par AUTEUR */
+  .tbl-author td{border-bottom:none}
+  .tbl-author tbody tr:nth-child(even) td{background:#FAF8F6}
+  .tbl-author tbody tr:hover td{background:#F5EEF1}
+  .tbl-author tbody td:first-child{position:relative;padding-left:18px}
+  .tbl-author tbody td:first-child::before{content:'';position:absolute;left:7px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--rail,transparent)}
+  .tbl-author thead th:first-child{padding-left:18px}
+  /* Nuancier de préférences */
+  .swatch{width:30px;height:30px;border-radius:7px;border:2px solid #fff;box-shadow:0 0 0 1px var(--gray-bd);cursor:pointer;position:relative;padding:0}
+  .swatch:hover{box-shadow:0 0 0 1px var(--gray-md)}
+  .swatch.sel{box-shadow:0 0 0 2px var(--gray)}
+  .swatch.sel::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+</style>
+</helmet>
+
+<div style="min-width:100%;min-height:100vh;width:max-content;box-sizing:border-box;padding:48px;background:#e7e5df;font-family:var(--f);color:var(--gray)">
+
+  <!-- ——— Intro ——— -->
+  <div style="max-width:960px;margin-bottom:34px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--teal-dk);margin-bottom:10px">Refonte — gabarit unique des listes</div>
+    <h1 style="font-size:30px;font-weight:700;color:var(--prune);margin-bottom:10px;letter-spacing:-.01em">Un seul modèle de liste, plus lisible</h1>
+    <p style="font-size:14px;line-height:1.6;color:var(--gray-md);margin-bottom:18px;text-wrap:pretty">Même structure pour Devis, Factures, Avoirs, Factures Structure et Appels de convention. Le chrome (topbar + sidebar) reste inchangé — seule la zone de contenu évolue.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)"><i class="ti ti-pin" style="color:var(--teal-dk)"></i>En-tête de tableau collant</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)"><i class="ti ti-click" style="color:var(--teal-dk)"></i>Ligne cliquable = détail propre</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)"><i class="ti ti-link" style="color:var(--teal-dk)"></i>Référence liée = lien direct</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)"><i class="ti ti-filter" style="color:var(--teal-dk)"></i>Filtres sur chaque liste</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;background:#fff;border:1px solid var(--gray-bd);border-radius:99px;padding:5px 12px;color:var(--gray)"><i class="ti ti-palette" style="color:var(--teal-dk)"></i>Liseré coloré par auteur</span>
+    </div>
+  </div>
+
+  <!-- ——— Préférences : couleur par auteur ——— -->
+  <div style="max-width:1140px;margin-bottom:34px">
+    <div style="display:flex;gap:20px;align-items:stretch">
+      <div style="flex:none;width:360px;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);overflow:hidden">
+        <div class="card-hd"><span class="card-title"><i class="ti ti-palette" style="color:var(--teal)"></i>Mes préférences · ma couleur</span></div>
+        <div style="padding:14px 1rem 1rem">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--prune);color:#fff;font-size:13px;font-weight:600">ML</span>
+            <div><div style="font-size:13px;font-weight:600;color:var(--gray)">Marie Le Gall</div><div style="font-size:11px;color:var(--gray-md)">Chargée de projet · Quimper</div></div>
+          </div>
+          <div style="font-size:11px;color:var(--gray-md);font-weight:500;margin-bottom:8px">Couleur de mes lignes</div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:9px">
+            <button class="swatch sel" style="background:#67123A" title="Prune"></button>
+            <button class="swatch" style="background:#C2185B" title="Rose"></button>
+            <button class="swatch" style="background:#C0392B" title="Rouge"></button>
+            <button class="swatch" style="background:#D35400" title="Orange"></button>
+            <button class="swatch" style="background:#F7A600" title="Ambre"></button>
+            <button class="swatch" style="background:#827717" title="Olive"></button>
+            <button class="swatch" style="background:#3B6D11" title="Vert"></button>
+            <button class="swatch" style="background:#00AA8D" title="Turquoise"></button>
+            <button class="swatch" style="background:#0097A7" title="Cyan"></button>
+            <button class="swatch" style="background:#185FA5" title="Bleu"></button>
+            <button class="swatch" style="background:#3949AB" title="Indigo"></button>
+            <button class="swatch" style="background:#5B3EA5" title="Violet"></button>
+            <button class="swatch" style="background:#795548" title="Marron"></button>
+            <button class="swatch" style="background:#546E7A" title="Ardoise"></button>
+          </div>
+          <div class="form-hint" style="margin-top:12px">Couleur attribuée automatiquement à la création du compte, modifiable ici à tout moment.</div>
+        </div>
+      </div>
+
+      <div style="flex:1;background:#fff;border:1px solid var(--gray-bd);border-radius:var(--r);overflow:hidden">
+        <div class="card-hd"><span class="card-title"><i class="ti ti-users" style="color:var(--teal)"></i>Légende · couleurs d'équipe</span></div>
+        <div style="padding:16px 1rem;display:grid;grid-template-columns:1fr 1fr;gap:13px 24px">
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:13px;height:13px;border-radius:3px;background:#67123A;flex-shrink:0"></span>Marie Le Gall</div>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:13px;height:13px;border-radius:3px;background:#185FA5;flex-shrink:0"></span>Yann Tanguy</div>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:13px;height:13px;border-radius:3px;background:#00AA8D;flex-shrink:0"></span>Soaz Quéré</div>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:13px;height:13px;border-radius:3px;background:#D35400;flex-shrink:0"></span>Erwan Morvan</div>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:13px;height:13px;border-radius:3px;background:#5B3EA5;flex-shrink:0"></span>Gwen Le Floch</div>
+          <div style="display:flex;align-items:center;gap:9px;font-size:13px"><span style="width:13px;height:13px;border-radius:3px;background:#3B6D11;flex-shrink:0"></span>Nolwenn Abivol</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ——— Écran Devis ——— -->
+  <div style="max-width:1140px;margin-bottom:30px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-md);margin-bottom:6px">Écran · Devis</div>
+    <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden">
+      <div style="display:flex;flex-direction:column;height:392px">
+        <div class="page-hd">
+          <div><div class="page-title">Devis</div><div class="page-sub">128 devis</div></div>
+          <a class="btn btn-prune"><i class="ti ti-plus"></i> Nouveau devis</a>
+        </div>
+        <div class="toolbar">
+          <div class="search-wrap"><i class="ti ti-search"></i><input class="search-inp" placeholder="Référence, client, chantier…"/></div>
+          <select class="sel"><option>Tous les territoires</option></select>
+          <select class="sel"><option>Toutes les équipes</option></select>
+          <select class="sel"><option>Tous les auteurs</option></select>
+          <select class="sel" style="min-width:120px"><option>Tous les statuts</option></select>
+          <button class="btn"><i class="ti ti-filter"></i> Filtrer</button>
+          <a class="btn">Réinitialiser</a>
+        </div>
+        <div class="scroll-y">
+          <table class="tbl-author">
+            <thead><tr>
+              <th>Auteur</th><th>Référence</th><th>Client</th><th>Chantier</th><th>Équipe</th><th>Date</th><th class="num">Brut HT</th><th>Statut</th><th class="num">Reste à fact.</th><th></th>
+            </tr></thead>
+            <tbody>
+              <tr class="row-link" style="--rail:#67123A"><td>Marie Le Gall</td><td><span class="cell-ref">DEV-2026-0087</span></td><td>Mairie de Quimper</td><td>Réhabilitation logement social</td><td><span class="badge b-prune">Équipe Sud</span></td><td>14/03/2026</td><td class="num">12 480,00 €</td><td><span class="badge b-accepted"><span class="dot dot-accepted"></span>Accepté</span></td><td class="num" style="color:var(--amber)">4 160,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#185FA5"><td>Yann Tanguy</td><td><span class="cell-ref">DEV-2026-0086</span></td><td>M. et Mme Riou</td><td>ARA salle de bain</td><td><span class="badge b-prune">Équipe Nord</span></td><td>12/03/2026</td><td class="num">3 250,00 €</td><td><span class="badge b-sent"><span class="dot dot-sent"></span>Envoyé</span></td><td class="num" style="color:var(--amber)">3 250,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#00AA8D"><td>Soaz Quéré</td><td><span class="cell-ref">DEV-2026-0085</span></td><td>Habitat 35</td><td>Isolation des combles</td><td><span class="badge b-prune">Équipe Est</span></td><td>10/03/2026</td><td class="num">8 900,00 €</td><td><span class="badge b-draft"><span class="dot dot-draft"></span>Brouillon</span></td><td class="num" style="color:var(--amber)">8 900,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#67123A"><td>Marie Le Gall</td><td><span class="cell-ref">DEV-2026-0084</span></td><td>M. Le Bras</td><td>Menuiseries extérieures</td><td><span class="badge b-prune">Équipe Sud</span></td><td>08/03/2026</td><td class="num">5 640,00 €</td><td><span class="badge b-accepted"><span class="dot dot-accepted"></span>Accepté</span></td><td class="num" style="color:var(--teal-dk)">0,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#D35400"><td>Erwan Morvan</td><td><span class="cell-ref">DEV-2026-0083</span></td><td>CCAS de Lorient</td><td>Auto-réhab cuisine</td><td><span class="badge b-prune">Équipe Sud</span></td><td>05/03/2026</td><td class="num">2 180,00 €</td><td><span class="badge b-refused"><span class="dot dot-refused"></span>Refusé</span></td><td class="num" style="color:var(--teal-dk)">0,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#185FA5"><td>Yann Tanguy</td><td><span class="cell-ref">DEV-2026-0082</span></td><td>Mme Cariou</td><td>Chauffe-eau + plomberie</td><td><span class="badge b-prune">Équipe Nord</span></td><td>01/03/2026</td><td class="num">1 920,00 €</td><td><span class="badge b-expired"><span class="dot dot-expired"></span>Expiré</span></td><td class="num" style="color:var(--amber)">1 920,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#00AA8D"><td>Soaz Quéré</td><td><span class="cell-ref">DEV-2026-0081</span></td><td>Néotoa</td><td>Rénovation énergétique</td><td><span class="badge b-prune">Équipe Est</span></td><td>27/02/2026</td><td class="num">18 750,00 €</td><td><span class="badge b-accepted"><span class="dot dot-accepted"></span>Accepté</span></td><td class="num" style="color:var(--amber)">9 375,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#5B3EA5"><td>Gwen Le Floch</td><td><span class="cell-ref">DEV-2026-0080</span></td><td>Mme Le Goff</td><td>Réfection toiture</td><td><span class="badge b-prune">Équipe Nord</span></td><td>24/02/2026</td><td class="num">7 410,00 €</td><td><span class="badge b-sent"><span class="dot dot-sent"></span>Envoyé</span></td><td class="num" style="color:var(--amber)">7 410,00 €</td><td class="cell-act"><button class="ico-btn"><i class="ti ti-copy"></i></button><button class="ico-btn danger"><i class="ti ti-trash"></i></button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ——— Écran Factures ——— -->
+  <div style="max-width:1140px;margin-bottom:30px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-md);margin-bottom:6px">Écran · Factures — même grille</div>
+    <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden">
+      <div style="display:flex;flex-direction:column;height:312px">
+        <div class="page-hd">
+          <div><div class="page-title">Factures</div><div class="page-sub">86 factures</div></div>
+          <a class="btn"><i class="ti ti-download"></i> Exporter</a>
+        </div>
+        <div class="toolbar">
+          <div class="search-wrap"><i class="ti ti-search"></i><input class="search-inp" placeholder="Référence, destinataire, objet…"/></div>
+          <select class="sel"><option>Tous les auteurs</option></select>
+          <select class="sel" style="min-width:120px"><option>Tous les statuts</option></select>
+          <button class="btn"><i class="ti ti-filter"></i> Filtrer</button>
+          <a class="btn">Réinitialiser</a>
+        </div>
+        <div class="scroll-y">
+          <table class="tbl-author">
+            <thead><tr>
+              <th>Auteur</th><th>Référence</th><th>Objet</th><th>Devis</th><th>Destinataire</th><th>Échéance</th><th class="num">Montant</th><th>Statut</th><th></th>
+            </tr></thead>
+            <tbody>
+              <tr class="row-link" style="--rail:#67123A"><td>Marie Le Gall</td><td><span class="cell-ref">FAC-2026-0051</span></td><td>Acompte 30 % réhabilitation</td><td><a class="cell-ref cell-link">DEV-2026-0087</a></td><td>Mairie de Quimper</td><td>15/04/2026</td><td class="num">3 744,00 €</td><td><span class="badges"><span class="badge b-fvalidated">Validée</span></span></td><td class="cell-act"><button class="ico-btn"><i class="ti ti-user-check"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#185FA5"><td>Yann Tanguy</td><td><span class="cell-ref">FAC-2026-0050</span></td><td>Solde menuiseries</td><td><a class="cell-ref cell-link">DEV-2026-0084</a></td><td>M. Le Bras</td><td>12/04/2026</td><td class="num">5 640,00 €</td><td><span class="badges"><span class="badge b-fpaid">Payée</span></span></td><td class="cell-act"></td></tr>
+              <tr class="row-link" style="--rail:#00AA8D"><td>Soaz Quéré</td><td><span class="cell-ref">FAC-2026-0049</span></td><td>Acompte rénovation énergétique</td><td><a class="cell-ref cell-link">DEV-2026-0081</a></td><td>Néotoa</td><td style="color:var(--red);font-weight:500">02/04/2026 ⚠</td><td class="num">9 375,00 €</td><td><span class="badges"><span class="badge b-fsent">Envoyée</span></span></td><td class="cell-act"><button class="ico-btn"><i class="ti ti-cash"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#D35400"><td>Erwan Morvan</td><td><span class="cell-ref">FAC-2026-0048</span></td><td>Étude technique préalable</td><td><a class="cell-ref cell-link">DEV-2026-0079</a></td><td>Habitat 35</td><td>02/04/2026</td><td class="num">1 200,00 €</td><td><span class="badges"><span class="badge b-fdraft">Brouillon</span><span class="badge b-amber"><i class="ti ti-bolt" style="font-size:11px"></i> Bypass</span></span></td><td class="cell-act"><button class="ico-btn"><i class="ti ti-user-check"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#67123A"><td>Marie Le Gall</td><td><span class="cell-ref">FAC-2026-0047</span></td><td>Solde isolation combles</td><td><a class="cell-ref cell-link">DEV-2026-0077</a></td><td>CCAS de Lorient</td><td>25/03/2026</td><td class="num">4 320,00 €</td><td><span class="badges"><span class="badge b-fpaid">Payée</span><span class="badge b-red"><i class="ti ti-receipt-refund" style="font-size:11px"></i> Avoir</span></span></td><td class="cell-act"></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ——— Zoom : clic-ligne vs lien croisé ——— -->
+  <div style="max-width:1140px">
+    <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-dk);margin-bottom:8px">Zoom · navigation</div>
+    <h2 style="font-size:20px;font-weight:700;color:var(--prune);margin-bottom:8px">Un clic = mon détail · une référence = l'objet lié</h2>
+    <p style="font-size:13px;line-height:1.6;color:var(--gray-md);margin-bottom:18px;max-width:780px;text-wrap:pretty">La ligne entière ouvre le détail <strong>propre</strong> à l'élément (l'avoir ouvre l'avoir). Les navigations <strong>croisées</strong> passent par la <strong>référence soulignée</strong> de l'objet lié — un clic dessus neutralise le clic de la ligne (<span class="mono">event.stopPropagation()</span>).</p>
+
+    <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-md);margin-bottom:6px">Écran · Avoirs</div>
+    <div style="background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden">
+      <div style="display:flex;flex-direction:column;height:272px">
+        <div class="page-hd">
+          <div><div class="page-title">Avoirs</div><div class="page-sub">12 avoirs</div></div>
+          <a class="btn"><i class="ti ti-download"></i> Exporter</a>
+        </div>
+        <div class="toolbar">
+          <div class="search-wrap"><i class="ti ti-search"></i><input class="search-inp" placeholder="Référence, client, facture d'origine…"/></div>
+          <select class="sel"><option>Tous les auteurs</option></select>
+          <button class="btn"><i class="ti ti-filter"></i> Filtrer</button>
+          <a class="btn">Réinitialiser</a>
+        </div>
+        <div class="scroll-y">
+          <table class="tbl-author">
+            <thead><tr>
+              <th>Auteur</th><th>Référence</th><th>Facture d'origine</th><th>Client</th><th>Date</th><th class="num">Montant</th><th>Statut</th><th></th>
+            </tr></thead>
+            <tbody>
+              <tr class="row-link" style="--rail:#67123A"><td>Marie Le Gall</td><td><span class="cell-ref">AV-2026-0008</span></td><td><a class="cell-ref cell-link">FAC-2026-0047</a></td><td>CCAS de Lorient</td><td>18/03/2026</td><td class="num">−420,00 €</td><td><span class="badge b-fvalidated">Validée</span></td><td class="cell-act"><button class="ico-btn"><i class="ti ti-eye"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#00AA8D"><td>Soaz Quéré</td><td><span class="cell-ref">AV-2026-0007</span></td><td><a class="cell-ref cell-link">FAC-2026-0041</a></td><td>Néotoa</td><td>11/03/2026</td><td class="num">−1 250,00 €</td><td><span class="badge b-fpaid">Payée</span></td><td class="cell-act"><button class="ico-btn"><i class="ti ti-eye"></i></button></td></tr>
+              <tr class="row-link" style="--rail:#185FA5"><td>Yann Tanguy</td><td><span class="cell-ref">AV-2026-0006</span></td><td><a class="cell-ref cell-link">STR-2026-0019</a></td><td>Habitat 35</td><td>04/03/2026</td><td class="num">−380,00 €</td><td><span class="badge b-fvalidated">Validée</span></td><td class="cell-act"><button class="ico-btn"><i class="ti ti-eye"></i></button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:12px;color:var(--gray-md);line-height:1.5;max-width:780px">
+      <i class="ti ti-info-circle" style="color:var(--teal-dk);margin-top:1px"></i>
+      <div><strong style="color:var(--gray)">Clic sur la ligne</strong> → ouvre l'avoir (<span class="cell-ref">AV-…</span>). <strong style="color:var(--gray)">Clic sur la référence <span class="cell-ref cell-link">FAC-…</span></strong> (colonne « Facture d'origine ») → ouvre la facture d'origine. <strong style="color:var(--gray)">Icône <i class="ti ti-eye"></i></strong> → aperçu PDF, visible au survol.</div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>
