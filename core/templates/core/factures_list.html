@@ -5,7 +5,16 @@
 
 {% block content %}
 <div class="page-hd">
-  <div><div class="page-title">Factures</div><div class="page-sub">{{ page_obj.paginator.count }} factures</div></div>
+  <div>
+    <div class="page-title">Factures</div>
+    <div class="page-sub">
+      {{ page_obj.paginator.count }} factures
+      {% if request.user.profil.role == 'admin' %}
+      &ensp;·&ensp;
+      <a href="{% url 'core:import-factures' %}" class="page-sub-link"><i class="ti ti-file-import"></i> Import PDF</a>
+      {% endif %}
+    </div>
+  </div>
 </div>
 
 <form method="get">

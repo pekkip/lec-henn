@@ -62,6 +62,9 @@ urlpatterns = [
 
     # Factures
     path('factures/', views.factures_list, name='factures-list'),
+    path('factures/import/', views.import_factures_view, name='import-factures'),
+    path('factures/import/parse-un/', views.import_factures_parse_one, name='import-factures-parse-one'),
+    path('factures/import/confirmer/', views.import_factures_confirm, name='import-factures-confirm'),
     path('avoirs/', views.avoirs_list, name='avoirs-list'),
     path('devis/<int:devis_pk>/factures/nouvelle/', views.facture_create, name='facture-create'),
     path('factures/<int:pk>/valider/', views.facture_valider, name='facture-valider'),

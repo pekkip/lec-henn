@@ -12,6 +12,7 @@ from django.utils import timezone
 from django.db import connection
 from django.urls import reverse
 from django.contrib.auth.models import User
+from django.contrib.messages import get_messages
 
 from datetime import date
 from decimal import Decimal
@@ -3801,3 +3802,147 @@ class RenumeroterDevisTests(TestCase):
         d1.refresh_from_db()
         self.assertEqual(d1.reference, 'DEV-2026-001')
         self.assertTrue(Facture.objects.filter(pk=f.pk).exists())
+
+
+# ─── Import factures PDF (rattachement au devis) ──────────────────────────────
+
+_FAC_FIXTURE = (settings.BASE_DIR / 'mockups' / 'ExempleFactures'
+                / 'FA02913 Centre social Ty Blosne Bienvenue.pdf')
+
+
+def _leaf(num, label, qty='1,00', unite='', mat='', mo='', total=''):
+    return {'num': num, 'label': label, 'children': [],
+            'qty_str': qty, 'unite': unite, 'mat_str': mat, 'mo_str': mo,
+            'total_str': total, 'desc_extra': ''}
+
+
+class ImportFacturesTests(TestCase):
+    """Import factures PDF : rattachement au devis, statut, montant, blocages, droits."""
+
+    @classmethod
+    def setUpTestData(cls):
+        terr = Territoire.objects.create(nom='T')
+        serv = Service.objects.create(territoire=terr, nom='S')
+        cls.equipe = Equipe.objects.create(service=serv, nom='E')
+        cls.client_obj = Client.objects.create(nom='Mairie')
+        cls.admin = User.objects.create_user('fa_admin', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.admin, role='admin')
+        cls.tech = User.objects.create_user('fa_tech', password='pw')
+        ProfilUtilisateur.objects.create(user=cls.tech, role='technicien')
+        cls.devis = Devis.objects.create(
+            reference='DE03967', client=cls.client_obj, chantier='Studio',
+            equipe=cls.equipe, created_by=cls.admin)
+
+    def _parsed(self, **over):
+        base = {
+            'reference': 'FA02913', 'reference_devis': 'DE03967',
+            'date': date(2026, 1, 13), 'objet': 'Studio peinture',
+            'client': {'nom': 'Association Bienvenue'}, 'chantier': {'nom': ''},
+            'total_pdf': Decimal('252.40'),
+            'tree': [_leaf('1', 'Peinture', qty='1,00', mat='252,40', total='252,40')],
+            'errors': [], 'warnings': [],
+        }
+        base.update(over)
+        return base
+
+    # ── create_facture_from_parsed ───────────────────────────────────
+
+    def test_create_lie_au_devis_statut_envoyee(self):
+        from .import_facture_pdf import create_facture_from_parsed
+        facture, warnings = create_facture_from_parsed(self._parsed(), self.devis, self.admin)
+        self.assertEqual(facture.devis, self.devis)
+        self.assertEqual(facture.type_doc, 'facture')
+        self.assertEqual(facture.status, 'sent')
+        self.assertEqual(facture.numero, 'FA02913')
+        self.assertEqual(facture.montant, Decimal('252.40'))
+        self.assertEqual(facture.date_creation, date(2026, 1, 13))
+        self.assertFalse([w for w in warnings if 'Écart' in w])
+
+    def test_montant_alimente_total_facture_du_devis(self):
+        from .import_facture_pdf import create_facture_from_parsed
+        create_facture_from_parsed(self._parsed(), self.devis, self.admin)
+        self.assertEqual(self.devis.total_facture(), Decimal('252.40'))
+
+    def test_ecart_total_ajoute_note(self):
+        from .import_facture_pdf import create_facture_from_parsed
+        # total_pdf annonce 300 mais les lignes valent 252,40 → note + montant = PDF
+        facture, warnings = create_facture_from_parsed(
+            self._parsed(total_pdf=Decimal('300.00')), self.devis, self.admin)
+        self.assertEqual(facture.montant, Decimal('300.00'))
+        self.assertIn('Écart', facture.notes)
+        self.assertTrue([w for w in warnings if 'Écart' in w])
+
+    def test_sections_alphanumeriques(self):
+        """L'arbre accepte les sections « B / B.2 » des factures de situation."""
+        from .import_facture_pdf import create_facture_from_parsed
+        parsed = self._parsed(
+            total_pdf=Decimal('100.00'),
+            tree=[{'num': 'B', 'label': 'Lot B', 'desc_extra': '',
+                   'qty_str': '', 'unite': '', 'mat_str': '', 'mo_str': '', 'total_str': '',
+                   'children': [_leaf('B.2', 'Poste', mat='100,00', total='100,00')]}])
+        facture, _ = create_facture_from_parsed(parsed, self.devis, self.admin)
+        self.assertEqual(facture.montant, Decimal('100.00'))
+        self.assertTrue(facture.lignes.filter(type_ligne='TITRE').exists())
+
+    # ── Vue de confirmation (blocage / création / droits) ────────────
+
+    def _post_confirm(self, parsed_list):
+        payload = json.dumps(parsed_list)
+        return self.client.post(reverse('core:import-factures-confirm'),
+                                {'parsed_json': payload})
+
+    def test_confirm_cree_et_lie(self):
+        self.client.login(username='fa_admin', password='pw')
+        parsed = self._parsed()
+        parsed['total_pdf'] = {'__decimal__': '252.40'}
+        parsed['date'] = {'__date__': '2026-01-13'}
+        resp = self._post_confirm([parsed])
+        self.assertEqual(resp.status_code, 302)
+        f = Facture.objects.get(numero='FA02913')
+        self.assertEqual(f.devis, self.devis)
+        self.assertEqual(f.status, 'sent')
+
+    def test_confirm_bloque_si_devis_absent(self):
+        self.client.login(username='fa_admin', password='pw')
+        parsed = self._parsed(reference='FA09999', reference_devis='DE99999')
+        parsed['total_pdf'] = {'__decimal__': '252.40'}
+        parsed['date'] = None
+        resp = self._post_confirm([parsed])
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Facture.objects.filter(numero='FA09999').exists())
+        msgs = [str(m) for m in get_messages(resp.wsgi_request)]
+        self.assertTrue(any('introuvable' in m for m in msgs))
+
+    def test_confirm_doublon_ignore(self):
+        self.client.login(username='fa_admin', password='pw')
+        Facture.objects.create(devis=self.devis, type_doc='facture', numero='FA02913',
+                               destinataire='X', status='sent', created_by=self.admin)
+        parsed = self._parsed()
+        parsed['total_pdf'] = {'__decimal__': '252.40'}
+        parsed['date'] = None
+        self._post_confirm([parsed])
+        self.assertEqual(Facture.objects.filter(numero='FA02913').count(), 1)
+
+    def test_import_factures_reserve_admin(self):
+        # Technicien : 403 ; admin : 200
+        self.client.login(username='fa_tech', password='pw')
+        self.assertEqual(self.client.get(reverse('core:import-factures')).status_code, 403)
+        self.client.login(username='fa_admin', password='pw')
+        self.assertEqual(self.client.get(reverse('core:import-factures')).status_code, 200)
+
+    def test_lien_import_visible_admin_seulement(self):
+        self.client.login(username='fa_tech', password='pw')
+        self.assertNotContains(self.client.get(reverse('core:factures-list')),
+                               reverse('core:import-factures'))
+        self.client.login(username='fa_admin', password='pw')
+        self.assertContains(self.client.get(reverse('core:factures-list')),
+                            reverse('core:import-factures'))
+
+    @skipUnless(_FAC_FIXTURE.exists(), 'PDF exemple FA02913 absent')
+    def test_parse_exemple_extrait_reference_devis(self):
+        from .import_facture_pdf import parse_facture_pdf
+        parsed = parse_facture_pdf(str(_FAC_FIXTURE))
+        self.assertEqual(parsed['reference'], 'FA02913')
+        self.assertEqual(parsed['reference_devis'], 'DE03967')
+        self.assertEqual(parsed['total_pdf'], Decimal('394.48'))
+        self.assertEqual(parsed['date'], date(2026, 1, 13))

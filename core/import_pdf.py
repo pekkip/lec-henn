@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 _CENTS = Decimal('0.01')
 
+# Numéro de ligne / N° Ordre du tableau EBP. Chaque segment est un groupe de
+# chiffres OU une lettre majuscule isolée (sections « B », « B.2.1 » des factures
+# de situation) — les devis n'utilisent que des chiffres, le motif reste donc
+# rétro-compatible. Partagé par l'ancrage OCR (_number_row_positions) et le parsing
+# texte (_parse_text_row) pour que l'arbre et les descriptions s'alignent.
+_NODE_NUM = r'(?:[A-Z]|\d+)(?:\.(?:[A-Z]|\d+))*'
+
 
 def _fmt_eur(v):
     """Decimal → "1 234,56" (format français, sans symbole)."""
@@ -94,7 +101,7 @@ def _number_row_positions(page):
     result = []
     seen = set()
     for w in sorted(page.extract_words(), key=lambda w: w['top']):
-        if w['x0'] < 100 and re.fullmatch(r'\d+(?:\.\d+)*', w['text']):
+        if w['x0'] < 100 and re.fullmatch(_NODE_NUM, w['text']):
             num = w['text']
             if num not in seen:
                 seen.add(num)
@@ -508,30 +515,79 @@ def _parse_amounts_from_text(rest):
         qty = numbers[0]
         unit = unit_m.group(1)
         after_unit = rest_after_first[unit_m.end():]
-        amounts = _NUMBER_RE.findall(after_unit)
     else:
         qty = numbers[0]
         unit = ''
-        amounts = numbers[1:]
+        after_unit = rest_after_first
 
-    total = ''
-    if len(amounts) == 0:
-        mat, mo = '', ''
-    elif len(amounts) == 1:
-        mat = amounts[0]
-        mo = ''
-    elif len(amounts) == 2:
-        # [mat, total] — la colonne MO n'est pas affichée si = 0
-        mat = amounts[0]
-        mo = ''
-        total = amounts[1]
-    else:
-        # [mat, mo, total, …] → prend antépénultième, avant-dernier, dernier
-        mat = amounts[-3]
-        mo = amounts[-2]
-        total = amounts[-1]
-
+    mat, mo, total = _split_costs(after_unit, qty)
     return qty, unit, mat, mo, total
+
+
+# Groupe « nombre-esque » : chiffres/espaces avec au plus une partie décimale finale.
+# Sert à valider un groupe de jetons recollés (un coût ou le total) — la validation
+# forte vient du recoupement arithmétique avec le total, pas du motif seul.
+_NUMISH_RE = re.compile(r'-?[\d ]+(?:,\d{1,2})?')
+_ENDS_2DEC_RE = re.compile(r',\d{2}$')
+
+
+def _split_costs(after_unit, qty_str):
+    """Sépare (mat_str, mo_str, total_str) depuis la zone après qté+unité.
+
+    EBP imprime des montants lexicalement ambigus : coûts forfaitaires entiers
+    (« 50 », « 2944 »), coûts à 1 décimale (« 17,5 »), totaux à 2 décimales avec
+    séparateur de milliers espacé (« 1 068,00 »). « 89 1 068,00 » peut se lire
+    « 89 » + « 1 068,00 » ou « 89 1 068,00 ». On lève l'ambiguïté par RECOUPEMENT :
+    on cherche la partition en colonnes (mat | mo | total) ou (mat | total) telle que
+    qté × (mat+mo) == total imprimé (toujours à 2 décimales, dernière colonne).
+    À défaut de recoupement (ligne réellement incohérente : erreur EBP / lecture
+    douteuse), on revient à l'ancien découpage naïf → le marqueur « ⚠ ÉCART » signale
+    la ligne. Aucune incidence sur les lignes déjà cohérentes.
+    """
+    toks = after_unit.split()
+    if not toks:
+        return '', '', ''
+
+    qty = _parse_amount(qty_str)
+    n = len(toks)
+
+    def numish(s):
+        return bool(_NUMISH_RE.fullmatch(s)) and any(c.isdigit() for c in s)
+
+    def is_total(s):
+        return numish(s) and bool(_ENDS_2DEC_RE.search(s))
+
+    def join(a, b):
+        return ' '.join(toks[a:b])
+
+    def recon(mat, mo, tot):
+        return ((qty * (_parse_amount(mat) + _parse_amount(mo))).quantize(
+                    _CENTS, rounding=ROUND_HALF_UP)
+                == _parse_amount(tot).quantize(_CENTS, rounding=ROUND_HALF_UP))
+
+    if qty != 0:
+        # 3 colonnes : mat | mo | total
+        for i in range(1, n - 1):
+            for j in range(i + 1, n):
+                mat, mo, tot = join(0, i), join(i, j), join(j, n)
+                if numish(mat) and numish(mo) and is_total(tot) and recon(mat, mo, tot):
+                    return mat, mo, tot
+        # 2 colonnes : mat | total (colonne MO masquée car = 0)
+        for i in range(1, n):
+            mat, tot = join(0, i), join(i, n)
+            if numish(mat) and is_total(tot) and recon(mat, '0', tot):
+                return mat, '', tot
+
+    # Repli : aucun recoupement (ou pas de qté / pas de total). Découpage naïf
+    # identique à l'historique — préserve le comportement sur les lignes douteuses.
+    amounts = _NUMBER_RE.findall(after_unit)
+    if len(amounts) >= 3:
+        return amounts[-3], amounts[-2], amounts[-1]
+    if len(amounts) == 2:
+        return amounts[0], '', amounts[1]
+    if len(amounts) == 1:
+        return amounts[0], '', ''
+    return '', '', ''
 
 
 def _collect_text_lines(pdf):
@@ -580,7 +636,7 @@ def _parse_text_row(line):
 
     # Le N° doit être suivi d'un espace (ou de la fin de ligne) — pas d'une virgule.
     # Cela empêche "0,00" (montant seul) d'être interprété comme N°="0".
-    m = re.match(r'^(\d+(?:\.\d+)*)(?:\s+(.*))?$', line)
+    m = re.match(rf'^({_NODE_NUM})(?:\s+(.*))?$', line)
     if not m:
         return None
 

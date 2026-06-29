@@ -1,0 +1,264 @@
+{% extends 'core/base.html' %}
+{% block title %}Import factures PDF{% endblock %}
+{% block nav_factures %}active{% endblock %}
+{% block topbar_title %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.upload-zone{border:2px dashed var(--gray-bd);border-radius:var(--r);padding:40px;text-align:center;background:var(--gray-lt);cursor:pointer;transition:border-color .2s}
+.upload-zone:hover,.upload-zone.drag-over{border-color:var(--teal)}
+.upload-zone input[type=file]{display:none}
+.upload-icon{font-size:40px;color:var(--gray-md);margin-bottom:8px}
+.upload-hint{font-size:13px;color:var(--gray-md)}
+.file-list{margin-top:12px;font-size:13px;text-align:left;max-height:180px;overflow-y:auto}
+.file-item{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--gray-lt)}
+.file-item .ti{color:var(--teal)}
+.preview-tbl th,.preview-tbl td{font-size:12px}
+.badge-ok{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#d1fae5;color:#065f46}
+.badge-warn{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#fef3c7;color:#92400e}
+.badge-err{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#fee2e2;color:#991b1b}
+.badge-dup{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#e0e7ff;color:#3730a3}
+.prog-box{margin-top:18px}
+.prog-head{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.prog-file{color:var(--gray-md);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%}
+.prog-track{height:10px;background:var(--gray-lt);border-radius:99px;overflow:hidden}
+.prog-fill{height:100%;width:0;background:var(--teal-dk);border-radius:99px;transition:width .3s ease}
+.prog-hint{font-size:12px;color:var(--gray-md);margin-top:6px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-hd">
+  <div>
+    <div class="page-title">Import factures PDF</div>
+    <div class="page-sub">Importer des factures historiques au format PDF (template CBB) et les rattacher à leur devis</div>
+  </div>
+  <a href="{% url 'core:factures-list' %}" class="btn"><i class="ti ti-arrow-left"></i> Retour aux factures</a>
+</div>
+
+<div class="page-body">
+
+{% if step == 'upload' or not step %}
+{# ── Étape 1 : formulaire d'upload ─────────────────────────────────── #}
+<div class="card" style="max-width:640px">
+  <div class="card-hd">
+    <span class="card-title"><i class="ti ti-file-import" style="color:var(--teal)"></i>Sélectionner les fichiers PDF</span>
+  </div>
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" id="upload-form">
+      {% csrf_token %}
+
+      <div class="field">
+        <label>Fichiers PDF</label>
+        <div class="upload-zone" id="drop-zone" onclick="document.getElementById('pdf-input').click()">
+          <div class="upload-icon"><i class="ti ti-files"></i></div>
+          <div>Cliquer pour sélectionner des fichiers</div>
+          <div class="upload-hint">ou glisser-déposer ici — PDF uniquement</div>
+          <input type="file" id="pdf-input" name="pdfs" multiple accept=".pdf" onchange="showFiles(this.files)">
+        </div>
+        <div class="file-list" id="file-list"></div>
+        <div class="field-help" style="margin-top:6px">
+          Chaque facture est rattachée à son devis via la mention <strong>« Référence Devis »</strong> du PDF&nbsp;:
+          le devis doit donc <strong>déjà être importé</strong>, sinon la facture est ignorée (alerte).
+          Les descriptions sont lues par OCR (lent) — <strong>maximum {{ max_pdfs }} PDF par lot</strong> ;
+          pour un import en masse, utiliser la commande <strong>manage.py import_factures_pdf</strong> sur le serveur.
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:20px" id="parse-actions">
+        <button type="submit" class="btn btn-prune" id="parse-btn" disabled>
+          <i class="ti ti-eye"></i> Prévisualiser
+        </button>
+      </div>
+
+      <div class="prog-box" id="prog-box" style="display:none">
+        <div class="prog-head">
+          <span id="prog-file" class="prog-file"></span>
+          <span id="prog-count"></span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+        <div class="prog-hint">Lecture des descriptions par OCR — cela peut prendre quelques secondes par facture.</div>
+      </div>
+    </form>
+
+    {# Repli JS : envoie les factures déjà parsées (une par une) pour l'affichage #}
+    <form method="post" id="results-form" style="display:none">
+      {% csrf_token %}
+      <input type="hidden" name="results_json" id="rf-results">
+    </form>
+  </div>
+</div>
+
+{% elif step == 'preview' %}
+{# ── Étape 2 : prévisualisation + confirmation ──────────────────────── #}
+<div class="card">
+  <div class="card-hd">
+    <span class="card-title"><i class="ti ti-table" style="color:var(--teal)"></i>Prévisualisation — {{ results|length }} fichier{{ results|length|pluralize }}</span>
+  </div>
+  <div class="card-body" style="padding:0">
+    <div class="scroll-y">
+    <table class="tbl-author preview-tbl">
+      <thead><tr>
+        <th>Fichier</th>
+        <th>N° Facture</th>
+        <th>Devis lié</th>
+        <th>Objet</th>
+        <th style="text-align:right">Lignes</th>
+        <th style="text-align:right">Total PDF</th>
+        <th>Statut</th>
+      </tr></thead>
+      <tbody>
+      {% for r in results %}
+      <tr>
+        <td style="font-size:11px;color:var(--gray-md)">{{ r.filename }}</td>
+        <td><strong>{{ r.parsed.reference|default:"—" }}</strong></td>
+        <td>
+          {% if r.devis_ref %}
+            {{ r.devis_ref }}
+            {% if not r.devis_found %}<span class="badge-err" title="Devis introuvable en base">introuvable</span>{% endif %}
+          {% else %}<span class="badge-err">absente</span>{% endif %}
+        </td>
+        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.parsed.objet }}">
+          {{ r.parsed.objet|default:r.parsed.chantier.nom|default:"—" }}
+        </td>
+        <td style="text-align:right">{{ r.parsed.nb_lignes }}</td>
+        <td style="text-align:right">{{ r.total_display }}</td>
+        <td>
+          {% if r.exists %}
+            <span class="badge-dup">Doublon</span>
+          {% elif r.parsed.errors %}
+            <span class="badge-err" title="{{ r.parsed.errors|join:', ' }}">Erreur</span>
+          {% elif not r.devis_found %}
+            <span class="badge-err">Sans devis — bloquée</span>
+          {% elif r.parsed.warnings %}
+            <span class="badge-warn" title="{{ r.parsed.warnings|join:', ' }}">OK · sans descriptions</span>
+          {% else %}
+            <span class="badge-ok">OK</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:12px;padding:10px 14px;background:var(--gray-lt);border-radius:var(--r);font-size:12px;color:var(--gray-md)">
+  <i class="ti ti-info-circle"></i>
+  Les factures sont importées au statut <strong>« Envoyée »</strong> et rattachées à leur devis.
+  Un numéro déjà existant est ignoré ; une facture dont le devis est introuvable est bloquée (à réimporter après le devis).
+  Le montant facturé est figé sur le « Montant Net de Taxes » du PDF ; si le total des lignes lues en diffère, une note est ajoutée à la facture.
+</div>
+
+<form method="post" action="{% url 'core:import-factures-confirm' %}">
+  {% csrf_token %}
+  <input type="hidden" name="parsed_json" value="{{ parsed_json }}">
+  <div style="display:flex;gap:10px;margin-top:16px">
+    <button type="submit" class="btn btn-prune">
+      <i class="ti ti-check"></i> Confirmer l'import
+    </button>
+    <a href="{% url 'core:import-factures' %}" class="btn">
+      <i class="ti ti-arrow-left"></i> Modifier la sélection
+    </a>
+  </div>
+</form>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showFiles(files) {
+  const list = document.getElementById('file-list');
+  const btn = document.getElementById('parse-btn');
+  list.innerHTML = '';
+  if (!files.length) { btn.disabled = true; return; }
+  Array.from(files).forEach(f => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.innerHTML = '<i class="ti ti-file-type-pdf"></i><span>' + f.name + '</span>';
+    list.appendChild(div);
+  });
+  btn.disabled = false;
+}
+
+// Drag & drop
+const zone = document.getElementById('drop-zone');
+if (zone) {
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const input = document.getElementById('pdf-input');
+    const dt = new DataTransfer();
+    Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.pdf')).forEach(f => dt.items.add(f));
+    input.files = dt.files;
+    showFiles(input.files);
+  });
+}
+
+// ── Prévisualisation avec barre de progression (une requête par PDF) ─────────
+const MAX_PDFS = {{ max_pdfs|default:5 }};
+const PARSE_URL = "{% url 'core:import-factures-parse-one' %}";
+const uploadForm = document.getElementById('upload-form');
+
+if (uploadForm) {
+  uploadForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const files = Array.from(document.getElementById('pdf-input').files);
+    if (!files.length) return;
+    if (files.length > MAX_PDFS) {
+      alert(files.length + ' fichiers — maximum ' + MAX_PDFS + ' par lot.\n'
+            + 'Pour un import en masse, utilisez la commande manage.py import_factures_pdf sur le serveur.');
+      return;
+    }
+
+    const csrf = uploadForm.querySelector('[name=csrfmiddlewaretoken]').value;
+    const btn = document.getElementById('parse-btn');
+    const box = document.getElementById('prog-box');
+    const fill = document.getElementById('prog-fill');
+    const count = document.getElementById('prog-count');
+    const fileLbl = document.getElementById('prog-file');
+
+    btn.disabled = true;
+    box.style.display = 'block';
+
+    const results = [];
+    for (let i = 0; i < files.length; i++) {
+      fileLbl.textContent = files[i].name;
+      count.textContent = (i + 1) + ' / ' + files.length;
+      fill.style.width = Math.round((i / files.length) * 100) + '%';
+
+      const fd = new FormData();
+      fd.append('pdf', files[i]);
+      try {
+        const resp = await fetch(PARSE_URL, {
+          method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd,
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          results.push({ filename: data.filename, parsed: data.parsed });
+        } else {
+          results.push({ filename: files[i].name,
+                         parsed: { reference: '', errors: [data.error || 'Échec'], warnings: [] } });
+        }
+      } catch (err) {
+        results.push({ filename: files[i].name,
+                       parsed: { reference: '', errors: ['Erreur réseau : ' + err], warnings: [] } });
+      }
+    }
+
+    fill.style.width = '100%';
+    count.textContent = files.length + ' / ' + files.length;
+    fileLbl.textContent = 'Préparation de l\'aperçu…';
+
+    document.getElementById('rf-results').value = JSON.stringify(results);
+    document.getElementById('results-form').submit();
+  });
+}
+</script>
+{% endblock %}

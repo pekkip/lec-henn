@@ -3330,3 +3330,186 @@ def import_devis_xls_confirm(request):
     return redirect('core:devis-list')
 
 
+# ══════════════════════════════════════════
+#  IMPORT FACTURES PDF (admin uniquement)
+# ══════════════════════════════════════════
+# Symétrique de l'import devis. Différences : la facture est rattachée au devis
+# correspondant (« Référence Devis » du PDF) — pas de sélection d'équipe (héritée
+# du devis). Si le devis est introuvable, le fichier est BLOQUÉ (alerte). La
+# version CLI (`manage.py import_factures_pdf`) reste l'outil principal pour les
+# imports en masse.
+
+def _build_facture_import_result(parsed, filename):
+    """Ligne de prévisualisation pour une facture parsée (+ état du rattachement)."""
+    numero = parsed.get('reference')
+    devis_ref = parsed.get('reference_devis')
+    exists = Facture.objects.filter(numero=numero).exists() if numero else False
+    devis_found = (Devis.objects.filter(reference=devis_ref).exists()
+                   if devis_ref else False)
+    return {
+        'filename': filename,
+        'parsed': parsed,
+        'exists': exists,
+        'devis_ref': devis_ref,
+        'devis_found': devis_found,
+        'total_display': _fmt_montant(parsed.get('total_pdf')),
+    }
+
+
+def _render_facture_preview(request, results):
+    parsed_json = json.dumps([r['parsed'] for r in results], cls=_ImportJSONEncoder)
+    return render(request, 'core/import_factures.html', {
+        'step': 'preview',
+        'results': results,
+        'parsed_json': parsed_json,
+    })
+
+
+@login_required
+def import_factures_view(request):
+    """Étape 1 (GET) : upload — Étape 2 (POST) : prévisualisation. Admin only."""
+    if not is_admin(request.user):
+        return HttpResponseForbidden()
+
+    from .import_facture_pdf import parse_facture_pdf
+
+    def upload():
+        return render(request, 'core/import_factures.html', {
+            'step': 'upload', 'max_pdfs': MAX_IMPORT_PDFS,
+        })
+
+    if request.method == 'POST':
+        results_json = request.POST.get('results_json', '')
+        if results_json:
+            try:
+                raw = json.loads(results_json, object_hook=_import_json_decoder)
+            except (json.JSONDecodeError, ValueError):
+                messages.error(request, "Données invalides — recommencez l'import.")
+                return upload()
+            if not isinstance(raw, list) or not raw:
+                messages.error(request, 'Aucune facture à prévisualiser.')
+                return upload()
+            results = [_build_facture_import_result(item.get('parsed', {}), item.get('filename', ''))
+                       for item in raw[:MAX_IMPORT_PDFS]]
+            return _render_facture_preview(request, results)
+
+        files = request.FILES.getlist('pdfs')
+        if not files:
+            messages.error(request, 'Aucun fichier PDF sélectionné.')
+            return upload()
+        if len(files) > MAX_IMPORT_PDFS:
+            messages.error(
+                request,
+                f'{len(files)} fichiers sélectionnés — maximum {MAX_IMPORT_PDFS} par lot '
+                f"(l'OCR des descriptions est lent). Pour un import en masse, utilisez "
+                f"la commande « manage.py import_factures_pdf » sur le serveur."
+            )
+            return upload()
+        results = [_build_facture_import_result(parse_facture_pdf(f), f.name) for f in files]
+        return _render_facture_preview(request, results)
+
+    return upload()
+
+
+@login_required
+@require_POST
+def import_factures_parse_one(request):
+    """Parse UNE facture et renvoie son résultat JSON (barre de progression)."""
+    if not is_admin(request.user):
+        return JsonResponse({'ok': False, 'error': 'Accès refusé.'}, status=403)
+
+    from .import_facture_pdf import parse_facture_pdf
+
+    f = request.FILES.get('pdf')
+    if not f:
+        return JsonResponse({'ok': False, 'error': 'Aucun fichier reçu.'}, status=400)
+
+    parsed = parse_facture_pdf(f)
+    result = _build_facture_import_result(parsed, f.name)
+    return JsonResponse(
+        {
+            'ok': True,
+            'filename': result['filename'],
+            'parsed': parsed,
+            'exists': result['exists'],
+            'devis_ref': result['devis_ref'],
+            'devis_found': result['devis_found'],
+            'total_display': result['total_display'],
+        },
+        encoder=_ImportJSONEncoder,
+    )
+
+
+@login_required
+@require_POST
+def import_factures_confirm(request):
+    """Étape 3 : création des Factures rattachées à leur devis. Admin only.
+
+    Un fichier sans devis correspondant (Référence Devis introuvable en base) est
+    BLOQUÉ : la facture n'est pas créée, le fichier est listé dans une alerte.
+    """
+    if not is_admin(request.user):
+        return HttpResponseForbidden()
+
+    from .import_facture_pdf import create_facture_from_parsed
+
+    parsed_json = request.POST.get('parsed_json', '[]')
+    try:
+        parsed_list = json.loads(parsed_json, object_hook=_import_json_decoder)
+    except (json.JSONDecodeError, ValueError):
+        messages.error(request, "Données invalides — recommencez l'import.")
+        return redirect('core:import-factures')
+
+    imported, skipped, errored = 0, 0, 0
+    bloques = []  # (numero, devis_ref) sans devis correspondant
+
+    for parsed in parsed_list:
+        numero = (parsed.get('reference') or '').strip()
+        devis_ref = (parsed.get('reference_devis') or '').strip()
+        if not numero:
+            errored += 1
+            continue
+        if Facture.objects.filter(numero=numero).exists():
+            skipped += 1
+            continue
+        if not devis_ref:
+            bloques.append((numero, '—'))
+            continue
+        devis = Devis.objects.filter(reference=devis_ref).first()
+        if devis is None:
+            bloques.append((numero, devis_ref))
+            continue
+        try:
+            create_facture_from_parsed(parsed, devis, request.user)
+            imported += 1
+        except Exception as e:
+            logger.error('import_factures_confirm: erreur sur %s : %s', numero, e)
+            errored += 1
+
+    parts = []
+    if imported:
+        parts.append(f'{imported} facture{"s" if imported > 1 else ""} importée{"s" if imported > 1 else ""}')
+    if skipped:
+        parts.append(f'{skipped} ignorée{"s" if skipped > 1 else ""} (numéro déjà existant)')
+    if errored:
+        parts.append(f'{errored} erreur{"s" if errored > 1 else ""}')
+
+    if imported:
+        messages.success(request, ' — '.join(parts))
+    elif parts:
+        messages.warning(request, ' — '.join(parts))
+
+    if bloques:
+        details = ', '.join(f'{num} (devis {ref})' for num, ref in bloques)
+        messages.warning(
+            request,
+            f'{len(bloques)} facture{"s" if len(bloques) > 1 else ""} non importée'
+            f'{"s" if len(bloques) > 1 else ""} — devis correspondant introuvable : '
+            f'{details}. Importez d\'abord le(s) devis, puis relancez l\'import.'
+        )
+    if not imported and not bloques and not parts:
+        messages.error(request, 'Aucune facture importée.')
+
+    return redirect('core:factures-list')
+
+
